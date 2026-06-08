@@ -6,9 +6,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+from .audio import run_audio_doctor
 from .config import DEFAULT_HOME, home_from_arg, init_home
 from .download import save_audio
 from .plaud import PlaudCli, PlaudCliError
+from .transcribe import TranscribeRequest, transcribe_recording
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -18,6 +20,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("init", help="Create local Pavo config and state")
     subparsers.add_parser("doctor", help="Check local Pavo and Plaud readiness")
+
+    audio = subparsers.add_parser("audio", help="Audio intelligence checks")
+    audio_sub = audio.add_subparsers(dest="audio_command", required=True)
+    audio_sub.add_parser("doctor", help="Check eidos-transcribe readiness")
+
+    transcribe = subparsers.add_parser("transcribe", help="Transcribe a Plaud recording with eidos-transcribe")
+    transcribe.add_argument("recording_id")
+    transcribe.add_argument("--context-term", action="append", default=[], help="Known-good term to pass to eidos-transcribe")
+    transcribe.add_argument("--context-file", type=Path, help="Context file to pass to eidos-transcribe")
+    transcribe.add_argument("--engine", action="append", default=[], help="ASR engine to run; repeatable. Defaults to faster-whisper.")
 
     config = subparsers.add_parser("config", help="Inspect local Pavo config")
     config_sub = config.add_subparsers(dest="config_command", required=True)
@@ -76,6 +88,32 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "doctor":
         return run_doctor(home)
+
+    if args.command == "audio":
+        if args.audio_command == "doctor":
+            result = run_audio_doctor(home)
+            print(result.report, end="")
+            return result.exit_code
+
+    if args.command == "transcribe":
+        try:
+            result = transcribe_recording(
+                TranscribeRequest(
+                    recording_id=args.recording_id,
+                    home=home,
+                    context_terms=args.context_term,
+                    context_file=args.context_file,
+                    engines=args.engine or ["faster-whisper"],
+                )
+            )
+        except (PlaudCliError, subprocess.CalledProcessError, RuntimeError) as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        print(f"audio_path: {result.audio_path}")
+        print(f"audio_sha256: {result.audio_sha256}")
+        print(f"transcribe_output_dir: {result.output_dir}")
+        print(f"manifest: {result.manifest_path}")
+        return 0
 
     if args.command == "config":
         pavo_home = init_home(home)

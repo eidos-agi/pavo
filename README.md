@@ -39,11 +39,18 @@ pavo plaud me
 pavo plaud files
 pavo plaud audio-url <recording-id>
 pavo plaud download <recording-id>
+pavo audio doctor
+pavo transcribe <recording-id> --context-term Plaud
 ```
 
 `pavo plaud download` writes the audio to
 `~/Eidos/Pavo/cache/plaud/<recording-id>/audio.mp3` by default and prints its
 SHA-256 hash.
+
+`pavo transcribe` reuses that audio file if it already exists, or downloads it
+first. It calls `eidos-transcribe` as a subprocess and writes the transcript
+bundle under `~/Eidos/Pavo/cache/plaud/<recording-id>/transcribe/`. Pavo records
+its own run manifest next to the audio as `pavo-transcribe-manifest.json`.
 
 ## Tests
 
