@@ -1,4 +1,6 @@
-# pavo
+# Pavo
+
+![Pavo logo](assets/logo.png)
 
 Pavo is the Eidos capture CLI for Plaud recordings. Its first job is to prove
 that Daniel's Plaud account can be reached, list recordings, obtain temporary
