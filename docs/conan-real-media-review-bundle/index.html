@@ -125,6 +125,31 @@
       color: #10251b;
       font-weight: 700;
     }
+    .voice-review {
+      display: grid;
+      gap: 8px;
+      margin: 12px 0 6px;
+      padding: 10px;
+      border: 1px solid #d9e5db;
+      border-radius: 6px;
+      background: #fbfdf9;
+    }
+    .voice-review-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .voice-review button.active {
+      background: #b86b5f;
+      border-color: #8d3f35;
+    }
+    .voice-status,
+    .parsed-review {
+      color: #4f665b;
+      font-size: 14px;
+      line-height: 1.4;
+    }
     article.review-approved {
       border-color: #4c9560;
       box-shadow: inset 4px 0 0 #4c9560;
@@ -209,6 +234,14 @@
     <button type="button" data-decision="rejected" class="secondary" data-reject="1">Problem</button>
     <button type="button" data-decision="pending" class="secondary" data-pending="1">Unsure</button>
   </div>
+  <div class="voice-review">
+    <div class="voice-review-actions">
+      <button type="button" class="secondary" data-record-note="1">Record note</button>
+      <button type="button" class="secondary" data-parse-note="1">Parse note</button>
+      <span class="voice-status" data-voice-status>Record a plain-English note, or type one below and parse it.</span>
+    </div>
+    <div class="parsed-review" data-parsed-review>No parsed note yet.</div>
+  </div>
   <textarea data-note="1" placeholder="Optional note"></textarea>
   <details>
     <summary>Technical details</summary>
@@ -235,6 +268,14 @@
     <button type="button" data-decision="approved" data-approve="2">Works</button>
     <button type="button" data-decision="rejected" class="secondary" data-reject="2">Problem</button>
     <button type="button" data-decision="pending" class="secondary" data-pending="2">Unsure</button>
+  </div>
+  <div class="voice-review">
+    <div class="voice-review-actions">
+      <button type="button" class="secondary" data-record-note="2">Record note</button>
+      <button type="button" class="secondary" data-parse-note="2">Parse note</button>
+      <span class="voice-status" data-voice-status>Record a plain-English note, or type one below and parse it.</span>
+    </div>
+    <div class="parsed-review" data-parsed-review>No parsed note yet.</div>
   </div>
   <textarea data-note="2" placeholder="Optional note"></textarea>
   <details>
@@ -263,6 +304,14 @@
     <button type="button" data-decision="rejected" class="secondary" data-reject="3">Problem</button>
     <button type="button" data-decision="pending" class="secondary" data-pending="3">Unsure</button>
   </div>
+  <div class="voice-review">
+    <div class="voice-review-actions">
+      <button type="button" class="secondary" data-record-note="3">Record note</button>
+      <button type="button" class="secondary" data-parse-note="3">Parse note</button>
+      <span class="voice-status" data-voice-status>Record a plain-English note, or type one below and parse it.</span>
+    </div>
+    <div class="parsed-review" data-parsed-review>No parsed note yet.</div>
+  </div>
   <textarea data-note="3" placeholder="Optional note"></textarea>
   <details>
     <summary>Technical details</summary>
@@ -289,6 +338,14 @@
     <button type="button" data-decision="approved" data-approve="4">Works</button>
     <button type="button" data-decision="rejected" class="secondary" data-reject="4">Problem</button>
     <button type="button" data-decision="pending" class="secondary" data-pending="4">Unsure</button>
+  </div>
+  <div class="voice-review">
+    <div class="voice-review-actions">
+      <button type="button" class="secondary" data-record-note="4">Record note</button>
+      <button type="button" class="secondary" data-parse-note="4">Parse note</button>
+      <span class="voice-status" data-voice-status>Record a plain-English note, or type one below and parse it.</span>
+    </div>
+    <div class="parsed-review" data-parsed-review>No parsed note yet.</div>
   </div>
   <textarea data-note="4" placeholder="Optional note"></textarea>
   <details>
@@ -317,6 +374,14 @@
     <button type="button" data-decision="rejected" class="secondary" data-reject="5">Problem</button>
     <button type="button" data-decision="pending" class="secondary" data-pending="5">Unsure</button>
   </div>
+  <div class="voice-review">
+    <div class="voice-review-actions">
+      <button type="button" class="secondary" data-record-note="5">Record note</button>
+      <button type="button" class="secondary" data-parse-note="5">Parse note</button>
+      <span class="voice-status" data-voice-status>Record a plain-English note, or type one below and parse it.</span>
+    </div>
+    <div class="parsed-review" data-parsed-review>No parsed note yet.</div>
+  </div>
   <textarea data-note="5" placeholder="Optional note"></textarea>
   <details>
     <summary>Technical details</summary>
@@ -344,6 +409,14 @@
     <button type="button" data-decision="rejected" class="secondary" data-reject="6">Problem</button>
     <button type="button" data-decision="pending" class="secondary" data-pending="6">Unsure</button>
   </div>
+  <div class="voice-review">
+    <div class="voice-review-actions">
+      <button type="button" class="secondary" data-record-note="6">Record note</button>
+      <button type="button" class="secondary" data-parse-note="6">Parse note</button>
+      <span class="voice-status" data-voice-status>Record a plain-English note, or type one below and parse it.</span>
+    </div>
+    <div class="parsed-review" data-parsed-review>No parsed note yet.</div>
+  </div>
   <textarea data-note="6" placeholder="Optional note"></textarea>
   <details>
     <summary>Technical details</summary>
@@ -365,6 +438,7 @@
     let backendAvailable = false;
     let dirty = false;
     let saveTimer = null;
+    let activeRecording = null;
 
     function initializeDecisionsFromSheet(sheet) {
       originalSheet = sheet;
@@ -372,7 +446,10 @@
       originalSheet.rows.forEach((row) => decisions.set(String(row.index), {
         status: row.status || "pending",
         approved: row.approved === true,
-        reviewer_note: row.reviewer_note || ""
+        reviewer_note: row.reviewer_note || "",
+        reviewer_note_transcript: row.reviewer_note_transcript || "",
+        reviewer_note_audio_path: row.reviewer_note_audio_path || "",
+        review_parse: row.review_parse || {}
       }));
     }
 
@@ -398,6 +475,82 @@
       markDirty();
     }
 
+    function setDecisionField(index, field, value) {
+      const key = String(index);
+      const current = decisions.get(key) || {};
+      current[field] = value;
+      decisions.set(key, current);
+      markDirty();
+    }
+
+    function noteTextFor(index) {
+      const note = document.querySelector(`[data-note="${index}"]`);
+      return note ? note.value : "";
+    }
+
+    async function parseNote(index) {
+      const text = noteTextFor(index);
+      if (!text.trim()) {
+        setCardMessage(index, "Add or record a plain-English note first.");
+        return;
+      }
+      if (!backendAvailable) {
+        setCardMessage(index, "Serve this bundle with Pavo to parse notes.");
+        return;
+      }
+      const response = await fetch("/api/review-note", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ row_index: index, text })
+      });
+      const payload = await response.json();
+      if (!response.ok || payload.parsed !== true) {
+        throw new Error(payload.error || `Parse failed with HTTP ${response.status}`);
+      }
+      applyParsedReview(index, payload.review_parse);
+    }
+
+    function applyParsedReview(index, reviewParse) {
+      const key = String(index);
+      const current = decisions.get(key) || {};
+      current.review_parse = reviewParse || {};
+      if (reviewParse && ["approved", "rejected", "pending"].includes(reviewParse.decision)) {
+        current.status = reviewParse.decision;
+        current.approved = reviewParse.decision === "approved";
+      }
+      decisions.set(key, current);
+      const card = document.querySelector(`[data-review-index="${key}"]`);
+      if (card) {
+        applyDecisionToCard(card, current.status || "pending");
+        renderParsedReview(card, current.review_parse);
+      }
+      updateCount();
+      markDirty();
+    }
+
+    function renderParsedReview(card, reviewParse) {
+      const target = card.querySelector("[data-parsed-review]");
+      if (!target) return;
+      if (!reviewParse || Object.keys(reviewParse).length === 0) {
+        target.textContent = "No parsed note yet.";
+        return;
+      }
+      const parts = [
+        `Decision: ${reviewParse.decision || "pending"}`,
+        `Speakers: ${(reviewParse.heard_speakers || []).join(", ") || "unknown"}`,
+        `Overlap: ${reviewParse.overlap === true ? "yes" : reviewParse.overlap === false ? "no" : "unknown"}`,
+        `Issues: ${(reviewParse.issues || []).join(", ") || "none"}`
+      ];
+      if (reviewParse.suggested_fix) parts.push(`Fix: ${reviewParse.suggested_fix}`);
+      target.textContent = parts.join(" | ");
+    }
+
+    function setCardMessage(index, message) {
+      const card = document.querySelector(`[data-review-index="${index}"]`);
+      const target = card ? card.querySelector("[data-voice-status]") : null;
+      if (target) target.textContent = message;
+    }
+
     function buildReviewedSheet() {
       const rows = originalSheet.rows.map((row) => {
         const decision = decisions.get(String(row.index)) || {};
@@ -405,7 +558,10 @@
           ...row,
           status: decision.status || "pending",
           approved: decision.approved === true,
-          reviewer_note: decision.reviewer_note || ""
+          reviewer_note: decision.reviewer_note || "",
+          reviewer_note_transcript: decision.reviewer_note_transcript || "",
+          reviewer_note_audio_path: decision.reviewer_note_audio_path || "",
+          review_parse: decision.review_parse || {}
         };
       });
       const approvedCount = rows.filter((row) => row.status === "approved" && row.approved === true).length;
@@ -463,6 +619,83 @@
       URL.revokeObjectURL(link.href);
     }
 
+    async function toggleRecording(index, button) {
+      if (activeRecording && activeRecording.index === String(index)) {
+        activeRecording.recorder.stop();
+        return;
+      }
+      if (activeRecording) {
+        setCardMessage(index, "Finish the active recording first.");
+        return;
+      }
+      if (!backendAvailable) {
+        setCardMessage(index, "Serve this bundle with Pavo before recording notes.");
+        return;
+      }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
+        setCardMessage(index, "This browser cannot record audio notes.");
+        return;
+      }
+      const chunks = [];
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      let recognition = null;
+      let transcript = "";
+      if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = "en-US";
+        recognition.onresult = (event) => {
+          transcript = Array.from(event.results).map((result) => result[0].transcript).join(" ").trim();
+          if (transcript) {
+            const note = document.querySelector(`[data-note="${index}"]`);
+            if (note) note.value = transcript;
+            setNote(index, transcript);
+          }
+        };
+        try { recognition.start(); } catch (error) {}
+      }
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size) chunks.push(event.data);
+      };
+      recorder.onstop = async () => {
+        button.textContent = "Record note";
+        button.classList.remove("active");
+        stream.getTracks().forEach((track) => track.stop());
+        if (recognition) {
+          try { recognition.stop(); } catch (error) {}
+        }
+        activeRecording = null;
+        try {
+          const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+          const response = await fetch(`/api/review-note-audio?row=${encodeURIComponent(index)}`, {
+            method: "POST",
+            headers: { "Content-Type": blob.type || "audio/webm" },
+            body: blob
+          });
+          const payload = await response.json();
+          if (!response.ok || payload.saved !== true) {
+            throw new Error(payload.error || `Audio save failed with HTTP ${response.status}`);
+          }
+          setDecisionField(index, "reviewer_note_audio_path", payload.audio_path);
+          if (transcript) {
+            setDecisionField(index, "reviewer_note_transcript", transcript);
+            await parseNote(index);
+          }
+          setCardMessage(index, `Saved spoken note: ${payload.audio_path}`);
+        } catch (error) {
+          setCardMessage(index, error.message);
+        }
+      };
+      activeRecording = { index: String(index), recorder, recognition };
+      recorder.start();
+      button.textContent = "Stop recording";
+      button.classList.add("active");
+      setCardMessage(index, SpeechRecognition ? "Recording. Speak in plain English." : "Recording audio note. Type a short note if dictation is unavailable.");
+    }
+
     function updateCount() {
       const reviewed = buildReviewedSheet();
       document.getElementById("review-count").textContent =
@@ -490,6 +723,16 @@
     document.querySelectorAll("[data-note]").forEach((note) => {
       note.addEventListener("input", () => setNote(note.dataset.note, note.value));
     });
+    document.querySelectorAll("[data-record-note]").forEach((button) => {
+      button.addEventListener("click", () => {
+        toggleRecording(button.dataset.recordNote, button).catch((error) => setCardMessage(button.dataset.recordNote, error.message));
+      });
+    });
+    document.querySelectorAll("[data-parse-note]").forEach((button) => {
+      button.addEventListener("click", () => {
+        parseNote(button.dataset.parseNote).catch((error) => setCardMessage(button.dataset.parseNote, error.message));
+      });
+    });
     document.getElementById("save-review").addEventListener("click", () => {
       saveReview().catch((error) => setSaveStatus(error.message));
     });
@@ -502,6 +745,7 @@
         applyDecisionToCard(card, decision.status);
         const note = card.querySelector("[data-note]");
         if (note) note.value = decision.reviewer_note;
+        renderParsedReview(card, decision.review_parse);
       });
       updateCount();
       markDirty();
@@ -529,6 +773,7 @@
         applyDecisionToCard(card, (decision && decision.status) || "pending");
         const note = card.querySelector("[data-note]");
         if (note && decision) note.value = decision.reviewer_note;
+        if (decision) renderParsedReview(card, decision.review_parse);
       });
       updateCount();
     }

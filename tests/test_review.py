@@ -12,6 +12,7 @@ from pavo.review import (
     create_anchor_review_sheet,
     gate_anchor_review,
     import_anchor_review_sheet,
+    parse_plain_english_review,
     save_anchor_review_sheet_payload,
     status_anchor_review,
     summarize_anchor_review_sheet,
@@ -98,6 +99,10 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("Unsure", html)
         self.assertIn("Save review", html)
         self.assertIn("/api/review-sheet", html)
+        self.assertIn("Record note", html)
+        self.assertIn("Parse note", html)
+        self.assertIn("/api/review-note", html)
+        self.assertIn("/api/review-note-audio", html)
         self.assertIn("File mode: export review notes", html)
         self.assertIn("Opening handoff: mixed audio", html)
         self.assertIn("Technical details", html)
@@ -227,6 +232,8 @@ class ReviewTests(unittest.TestCase):
         self.assertIn('id="save-review"', html)
         self.assertIn('id="export-json"', html)
         self.assertIn("/api/review-sheet", html)
+        self.assertIn("Record note", html)
+        self.assertIn("Parse note", html)
         self.assertIn('data-approve="1"', html)
         self.assertIn('data-reject="1"', html)
         embedded = html.split('<script type="application/json" id="review-sheet-data">', 1)[1].split("</script>", 1)[0]
@@ -447,6 +454,9 @@ class ReviewTests(unittest.TestCase):
             reviewed["rows"][0]["status"] = "approved"
             reviewed["rows"][0]["approved"] = True
             reviewed["rows"][0]["reviewer_note"] = "clear voiceprint match"
+            reviewed["rows"][0]["reviewer_note_transcript"] = "Conan is clear and it works"
+            reviewed["rows"][0]["reviewer_note_audio_path"] = "review-notes/row-1.webm"
+            reviewed["rows"][0]["review_parse"] = {"decision": "approved", "heard_speakers": ["Conan"]}
             original.write_text(json.dumps(sheet))
 
             result = save_anchor_review_sheet_payload(original, reviewed)
@@ -457,6 +467,22 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(saved["approved_count"], 1)
         self.assertEqual(saved["pending_count"], 0)
         self.assertEqual(saved["rows"][0]["reviewer_note"], "clear voiceprint match")
+        self.assertEqual(saved["rows"][0]["reviewer_note_transcript"], "Conan is clear and it works")
+        self.assertEqual(saved["rows"][0]["reviewer_note_audio_path"], "review-notes/row-1.webm")
+        self.assertEqual(saved["rows"][0]["review_parse"]["heard_speakers"], ["Conan"])
+
+    def test_parse_plain_english_review_extracts_decision_and_issues(self):
+        result = parse_plain_english_review(
+            "I hear Conan and Kaitlin talking over each other. Kaitlin is too quiet, so this is a problem.",
+            row={"target_speaker_name": "Kaitlin Olson"},
+        )
+
+        self.assertEqual(result["decision"], "rejected")
+        self.assertIn("Kaitlin Olson", result["heard_speakers"])
+        self.assertTrue(result["overlap"])
+        self.assertIn("overlap", result["issues"])
+        self.assertIn("weak_voice", result["issues"])
+        self.assertIn("retry", result["suggested_fix"])
 
     def test_import_anchor_review_sheet_rejects_changed_clip_identity(self):
         with tempfile.TemporaryDirectory() as tmp:

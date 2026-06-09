@@ -3,14 +3,16 @@ from __future__ import annotations
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
+import re
 import shlex
 import shutil
+import time
 from html.parser import HTMLParser
 from html import escape
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 
 @dataclass(frozen=True)
@@ -397,6 +399,31 @@ def create_anchor_review_page(
       color: #10251b;
       font-weight: 700;
     }}
+    .voice-review {{
+      display: grid;
+      gap: 8px;
+      margin: 12px 0 6px;
+      padding: 10px;
+      border: 1px solid #d9e5db;
+      border-radius: 6px;
+      background: #fbfdf9;
+    }}
+    .voice-review-actions {{
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }}
+    .voice-review button.active {{
+      background: #b86b5f;
+      border-color: #8d3f35;
+    }}
+    .voice-status,
+    .parsed-review {{
+      color: #4f665b;
+      font-size: 14px;
+      line-height: 1.4;
+    }}
     article.review-approved {{
       border-color: #4c9560;
       box-shadow: inset 4px 0 0 #4c9560;
@@ -470,6 +497,7 @@ def create_anchor_review_page(
     let backendAvailable = false;
     let dirty = false;
     let saveTimer = null;
+    let activeRecording = null;
 
     function initializeDecisionsFromSheet(sheet) {{
       originalSheet = sheet;
@@ -477,7 +505,10 @@ def create_anchor_review_page(
       originalSheet.rows.forEach((row) => decisions.set(String(row.index), {{
         status: row.status || "pending",
         approved: row.approved === true,
-        reviewer_note: row.reviewer_note || ""
+        reviewer_note: row.reviewer_note || "",
+        reviewer_note_transcript: row.reviewer_note_transcript || "",
+        reviewer_note_audio_path: row.reviewer_note_audio_path || "",
+        review_parse: row.review_parse || {{}}
       }}));
     }}
 
@@ -503,6 +534,82 @@ def create_anchor_review_page(
       markDirty();
     }}
 
+    function setDecisionField(index, field, value) {{
+      const key = String(index);
+      const current = decisions.get(key) || {{}};
+      current[field] = value;
+      decisions.set(key, current);
+      markDirty();
+    }}
+
+    function noteTextFor(index) {{
+      const note = document.querySelector(`[data-note="${{index}}"]`);
+      return note ? note.value : "";
+    }}
+
+    async function parseNote(index) {{
+      const text = noteTextFor(index);
+      if (!text.trim()) {{
+        setCardMessage(index, "Add or record a plain-English note first.");
+        return;
+      }}
+      if (!backendAvailable) {{
+        setCardMessage(index, "Serve this bundle with Pavo to parse notes.");
+        return;
+      }}
+      const response = await fetch("/api/review-note", {{
+        method: "POST",
+        headers: {{ "Content-Type": "application/json" }},
+        body: JSON.stringify({{ row_index: index, text }})
+      }});
+      const payload = await response.json();
+      if (!response.ok || payload.parsed !== true) {{
+        throw new Error(payload.error || `Parse failed with HTTP ${{response.status}}`);
+      }}
+      applyParsedReview(index, payload.review_parse);
+    }}
+
+    function applyParsedReview(index, reviewParse) {{
+      const key = String(index);
+      const current = decisions.get(key) || {{}};
+      current.review_parse = reviewParse || {{}};
+      if (reviewParse && ["approved", "rejected", "pending"].includes(reviewParse.decision)) {{
+        current.status = reviewParse.decision;
+        current.approved = reviewParse.decision === "approved";
+      }}
+      decisions.set(key, current);
+      const card = document.querySelector(`[data-review-index="${{key}}"]`);
+      if (card) {{
+        applyDecisionToCard(card, current.status || "pending");
+        renderParsedReview(card, current.review_parse);
+      }}
+      updateCount();
+      markDirty();
+    }}
+
+    function renderParsedReview(card, reviewParse) {{
+      const target = card.querySelector("[data-parsed-review]");
+      if (!target) return;
+      if (!reviewParse || Object.keys(reviewParse).length === 0) {{
+        target.textContent = "No parsed note yet.";
+        return;
+      }}
+      const parts = [
+        `Decision: ${{reviewParse.decision || "pending"}}`,
+        `Speakers: ${{(reviewParse.heard_speakers || []).join(", ") || "unknown"}}`,
+        `Overlap: ${{reviewParse.overlap === true ? "yes" : reviewParse.overlap === false ? "no" : "unknown"}}`,
+        `Issues: ${{(reviewParse.issues || []).join(", ") || "none"}}`
+      ];
+      if (reviewParse.suggested_fix) parts.push(`Fix: ${{reviewParse.suggested_fix}}`);
+      target.textContent = parts.join(" | ");
+    }}
+
+    function setCardMessage(index, message) {{
+      const card = document.querySelector(`[data-review-index="${{index}}"]`);
+      const target = card ? card.querySelector("[data-voice-status]") : null;
+      if (target) target.textContent = message;
+    }}
+
     function buildReviewedSheet() {{
       const rows = originalSheet.rows.map((row) => {{
         const decision = decisions.get(String(row.index)) || {{}};
@@ -510,7 +617,10 @@ def create_anchor_review_page(
           ...row,
           status: decision.status || "pending",
           approved: decision.approved === true,
-          reviewer_note: decision.reviewer_note || ""
+          reviewer_note: decision.reviewer_note || "",
+          reviewer_note_transcript: decision.reviewer_note_transcript || "",
+          reviewer_note_audio_path: decision.reviewer_note_audio_path || "",
+          review_parse: decision.review_parse || {{}}
         }};
       }});
       const approvedCount = rows.filter((row) => row.status === "approved" && row.approved === true).length;
@@ -568,6 +678,83 @@ def create_anchor_review_page(
       URL.revokeObjectURL(link.href);
     }}
 
+    async function toggleRecording(index, button) {{
+      if (activeRecording && activeRecording.index === String(index)) {{
+        activeRecording.recorder.stop();
+        return;
+      }}
+      if (activeRecording) {{
+        setCardMessage(index, "Finish the active recording first.");
+        return;
+      }}
+      if (!backendAvailable) {{
+        setCardMessage(index, "Serve this bundle with Pavo before recording notes.");
+        return;
+      }}
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {{
+        setCardMessage(index, "This browser cannot record audio notes.");
+        return;
+      }}
+      const chunks = [];
+      const stream = await navigator.mediaDevices.getUserMedia({{ audio: true }});
+      const recorder = new MediaRecorder(stream);
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      let recognition = null;
+      let transcript = "";
+      if (SpeechRecognition) {{
+        recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = "en-US";
+        recognition.onresult = (event) => {{
+          transcript = Array.from(event.results).map((result) => result[0].transcript).join(" ").trim();
+          if (transcript) {{
+            const note = document.querySelector(`[data-note="${{index}}"]`);
+            if (note) note.value = transcript;
+            setNote(index, transcript);
+          }}
+        }};
+        try {{ recognition.start(); }} catch (error) {{}}
+      }}
+      recorder.ondataavailable = (event) => {{
+        if (event.data && event.data.size) chunks.push(event.data);
+      }};
+      recorder.onstop = async () => {{
+        button.textContent = "Record note";
+        button.classList.remove("active");
+        stream.getTracks().forEach((track) => track.stop());
+        if (recognition) {{
+          try {{ recognition.stop(); }} catch (error) {{}}
+        }}
+        activeRecording = null;
+        try {{
+          const blob = new Blob(chunks, {{ type: recorder.mimeType || "audio/webm" }});
+          const response = await fetch(`/api/review-note-audio?row=${{encodeURIComponent(index)}}`, {{
+            method: "POST",
+            headers: {{ "Content-Type": blob.type || "audio/webm" }},
+            body: blob
+          }});
+          const payload = await response.json();
+          if (!response.ok || payload.saved !== true) {{
+            throw new Error(payload.error || `Audio save failed with HTTP ${{response.status}}`);
+          }}
+          setDecisionField(index, "reviewer_note_audio_path", payload.audio_path);
+          if (transcript) {{
+            setDecisionField(index, "reviewer_note_transcript", transcript);
+            await parseNote(index);
+          }}
+          setCardMessage(index, `Saved spoken note: ${{payload.audio_path}}`);
+        }} catch (error) {{
+          setCardMessage(index, error.message);
+        }}
+      }};
+      activeRecording = {{ index: String(index), recorder, recognition }};
+      recorder.start();
+      button.textContent = "Stop recording";
+      button.classList.add("active");
+      setCardMessage(index, SpeechRecognition ? "Recording. Speak in plain English." : "Recording audio note. Type a short note if dictation is unavailable.");
+    }}
+
     function updateCount() {{
       const reviewed = buildReviewedSheet();
       document.getElementById("review-count").textContent =
@@ -595,6 +782,16 @@ def create_anchor_review_page(
     document.querySelectorAll("[data-note]").forEach((note) => {{
       note.addEventListener("input", () => setNote(note.dataset.note, note.value));
     }});
+    document.querySelectorAll("[data-record-note]").forEach((button) => {{
+      button.addEventListener("click", () => {{
+        toggleRecording(button.dataset.recordNote, button).catch((error) => setCardMessage(button.dataset.recordNote, error.message));
+      }});
+    }});
+    document.querySelectorAll("[data-parse-note]").forEach((button) => {{
+      button.addEventListener("click", () => {{
+        parseNote(button.dataset.parseNote).catch((error) => setCardMessage(button.dataset.parseNote, error.message));
+      }});
+    }});
     document.getElementById("save-review").addEventListener("click", () => {{
       saveReview().catch((error) => setSaveStatus(error.message));
     }});
@@ -607,6 +804,7 @@ def create_anchor_review_page(
         applyDecisionToCard(card, decision.status);
         const note = card.querySelector("[data-note]");
         if (note) note.value = decision.reviewer_note;
+        renderParsedReview(card, decision.review_parse);
       }});
       updateCount();
       markDirty();
@@ -634,6 +832,7 @@ def create_anchor_review_page(
         applyDecisionToCard(card, (decision && decision.status) || "pending");
         const note = card.querySelector("[data-note]");
         if (note && decision) note.value = decision.reviewer_note;
+        if (decision) renderParsedReview(card, decision.review_parse);
       }});
       updateCount();
     }}
@@ -754,7 +953,14 @@ def serve_anchor_review_bundle(
             super().do_GET()
 
         def do_POST(self) -> None:
-            if urlparse(self.path).path != "/api/review-sheet":
+            parsed_path = urlparse(self.path)
+            if parsed_path.path == "/api/review-note":
+                self._handle_review_note_parse()
+                return
+            if parsed_path.path == "/api/review-note-audio":
+                self._handle_review_note_audio(parsed_path)
+                return
+            if parsed_path.path != "/api/review-sheet":
                 self.send_error(HTTPStatus.NOT_FOUND)
                 return
             try:
@@ -786,6 +992,70 @@ def serve_anchor_review_bundle(
                     "rejected_count": saved.rejected_count,
                     "pending_count": saved.pending_count,
                     "human_reviewed": saved.human_reviewed,
+                }
+            )
+
+        def _handle_review_note_parse(self) -> None:
+            try:
+                length = int(self.headers.get("content-length", "0"))
+            except ValueError:
+                self._send_error_json(HTTPStatus.BAD_REQUEST, "invalid content length")
+                return
+            if length <= 0:
+                self._send_error_json(HTTPStatus.BAD_REQUEST, "empty review note payload")
+                return
+            if length > 100_000:
+                self._send_error_json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "review note payload is too large")
+                return
+            try:
+                payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                self._send_error_json(HTTPStatus.BAD_REQUEST, "review note payload is not valid JSON")
+                return
+            row_index = str(payload.get("row_index") or "")
+            sheet = json.loads(sheet_path.read_text())
+            row = next((candidate for candidate in sheet.get("rows", []) if str(candidate.get("index")) == row_index), None)
+            self._send_json(
+                {
+                    "parsed": True,
+                    "row_index": row_index,
+                    "review_parse": parse_plain_english_review(str(payload.get("text") or ""), row=row),
+                }
+            )
+
+        def _handle_review_note_audio(self, parsed_path: Any) -> None:
+            query = parse_qs(parsed_path.query)
+            row_index = str((query.get("row") or [""])[0])
+            if not row_index:
+                self._send_error_json(HTTPStatus.BAD_REQUEST, "missing row query parameter")
+                return
+            if not _row_exists(sheet_path, row_index):
+                self._send_error_json(HTTPStatus.BAD_REQUEST, f"unknown review row {row_index}")
+                return
+            try:
+                length = int(self.headers.get("content-length", "0"))
+            except ValueError:
+                self._send_error_json(HTTPStatus.BAD_REQUEST, "invalid content length")
+                return
+            if length <= 0:
+                self._send_error_json(HTTPStatus.BAD_REQUEST, "empty audio payload")
+                return
+            if length > 25_000_000:
+                self._send_error_json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "audio note payload is too large")
+                return
+            content_type = self.headers.get("content-type") or "application/octet-stream"
+            extension = _audio_note_extension(content_type)
+            notes_dir = root / "review-notes"
+            notes_dir.mkdir(parents=True, exist_ok=True)
+            safe_row = re.sub(r"[^0-9A-Za-z_.-]+", "-", row_index).strip("-") or "row"
+            note_path = notes_dir / f"row-{safe_row}-{int(time.time())}{extension}"
+            note_path.write_bytes(self.rfile.read(length))
+            self._send_json(
+                {
+                    "saved": True,
+                    "row_index": row_index,
+                    "audio_path": note_path.relative_to(root).as_posix(),
+                    "content_type": content_type,
                 }
             )
 
@@ -871,7 +1141,6 @@ def save_anchor_review_sheet_payload(
         pending_count=pending_count,
         human_reviewed=bool(imported_rows and not pending_count),
     )
-
 
 
 def build_anchor_review_rerun_command(
@@ -1092,6 +1361,72 @@ def summarize_anchor_review_sheet(review_sheet_path: Path | str) -> dict[str, An
     }
 
 
+def parse_plain_english_review(text: str, *, row: dict[str, Any] | None = None) -> dict[str, Any]:
+    note = " ".join(str(text or "").split())
+    lowered = note.lower()
+    issues = []
+    suggested_fix = []
+    if any(term in lowered for term in ["wrong speaker", "wrong person", "not conan", "not kaitlin", "misidentified"]):
+        issues.append("wrong_speaker")
+        suggested_fix.append("rename speaker or reject this stem")
+    if any(term in lowered for term in ["overlap", "talk over", "talking over", "at the same time", "both talking", "mixed"]):
+        issues.append("overlap")
+        suggested_fix.append("retry split with overlap-aware boundaries")
+    if any(term in lowered for term in ["too quiet", "quiet", "faint", "weak", "barely hear", "buried"]):
+        issues.append("weak_voice")
+        suggested_fix.append("retry separation or mark the stem diagnostic only")
+    if any(term in lowered for term in ["noisy", "noise", "garbled", "muddy", "distorted"]):
+        issues.append("noise")
+        suggested_fix.append("rerun cleanup before transcription")
+    if any(term in lowered for term in ["timing", "starts late", "starts early", "cuts off", "boundary", "too short"]):
+        issues.append("timing")
+        suggested_fix.append("adjust the clip boundary")
+    if any(term in lowered for term in ["transcript", "caption", "word", "phrase", "said"]):
+        issues.append("transcript_hint")
+    if any(term in lowered for term in ["works", "correct", "right", "good", "clear", "clean", "useful", "got it"]):
+        decision = "approved"
+    elif any(term in lowered for term in ["wrong", "bad", "problem", "reject", "doesn't work", "does not work", "failed", "misleading"]):
+        decision = "rejected"
+    elif note:
+        decision = "pending"
+    else:
+        decision = str((row or {}).get("status") or "pending")
+    if issues and decision == "approved" and any(issue in issues for issue in ["wrong_speaker", "weak_voice", "noise"]):
+        decision = "rejected"
+    speaker_names = _known_speaker_names(row)
+    heard_speakers = []
+    for name in speaker_names:
+        name_lower = name.lower()
+        first_name = name_lower.split()[0] if name_lower.split() else name_lower
+        if name_lower in lowered or first_name in lowered:
+            heard_speakers.append(name)
+    if not heard_speakers:
+        for common_name in ["conan", "kaitlin", "danny", "charlie", "rob", "glenn"]:
+            if common_name in lowered:
+                heard_speakers.append(common_name.title())
+    overlap = True if "overlap" in issues else None
+    if any(term in lowered for term in ["no overlap", "not overlapping", "only one speaker", "single speaker"]):
+        overlap = False
+    confidence = 0.25
+    if note:
+        confidence += 0.25
+    if heard_speakers:
+        confidence += 0.2
+    if issues:
+        confidence += 0.2
+    if decision in {"approved", "rejected"}:
+        confidence += 0.1
+    return {
+        "raw_note": note,
+        "decision": decision,
+        "heard_speakers": heard_speakers,
+        "overlap": overlap,
+        "issues": sorted(set(issues)),
+        "suggested_fix": "; ".join(dict.fromkeys(suggested_fix)),
+        "confidence": round(min(confidence, 0.95), 2),
+    }
+
+
 def _find_bundle_review_sheet(bundle_dir: Path) -> Path:
     if not (bundle_dir / "index.html").exists():
         raise FileNotFoundError(f"Review bundle index not found: {bundle_dir / 'index.html'}")
@@ -1103,6 +1438,51 @@ def _find_bundle_review_sheet(bundle_dir: Path) -> Path:
     if len(candidates) > 1:
         raise ValueError(f"Review bundle has multiple sheet JSON files: {', '.join(path.name for path in candidates)}")
     return candidates[0]
+
+
+def _row_exists(sheet_path: Path, row_index: str) -> bool:
+    sheet = json.loads(sheet_path.read_text())
+    return any(str(row.get("index")) == str(row_index) for row in sheet.get("rows", []))
+
+
+def _audio_note_extension(content_type: str) -> str:
+    normalized = content_type.lower()
+    if "mp4" in normalized:
+        return ".m4a"
+    if "ogg" in normalized:
+        return ".ogg"
+    if "wav" in normalized:
+        return ".wav"
+    return ".webm"
+
+
+def _known_speaker_names(row: dict[str, Any] | None) -> list[str]:
+    names = []
+    if not row:
+        return names
+    for key in ["target_speaker_name", "target_speaker_label"]:
+        value = str(row.get(key) or "").strip()
+        if value and value.upper() != "MIXED":
+            names.append(value)
+    return list(dict.fromkeys(names))
+
+
+def _parsed_review_text(review_parse: dict[str, Any]) -> str:
+    if not review_parse:
+        return "No parsed note yet."
+    speakers = ", ".join(str(name) for name in review_parse.get("heard_speakers") or []) or "unknown"
+    issues = ", ".join(str(issue) for issue in review_parse.get("issues") or []) or "none"
+    overlap = review_parse.get("overlap")
+    overlap_text = "yes" if overlap is True else "no" if overlap is False else "unknown"
+    parts = [
+        f"Decision: {review_parse.get('decision') or 'pending'}",
+        f"Speakers: {speakers}",
+        f"Overlap: {overlap_text}",
+        f"Issues: {issues}",
+    ]
+    if review_parse.get("suggested_fix"):
+        parts.append(f"Fix: {review_parse.get('suggested_fix')}")
+    return " | ".join(parts)
 
 
 def _speaker_correction(start: Any, end: Any, speaker_label: Any) -> str | None:
@@ -1140,6 +1520,10 @@ def _imported_review_row(original: dict[str, Any], reviewed: dict[str, Any]) -> 
     row["status"] = status
     row["approved"] = approved
     row["reviewer_note"] = str(reviewed.get("reviewer_note") or "")
+    row["reviewer_note_transcript"] = str(reviewed.get("reviewer_note_transcript") or "")
+    row["reviewer_note_audio_path"] = str(reviewed.get("reviewer_note_audio_path") or "")
+    review_parse = reviewed.get("review_parse") if isinstance(reviewed.get("review_parse"), dict) else {}
+    row["review_parse"] = review_parse
     return row
 
 
@@ -1147,6 +1531,22 @@ def _review_card(row: dict[str, Any], *, labels: dict[str, Any], display_mode: s
     if display_mode == "human_review":
         return _human_review_card(row, labels=labels)
     return _anchor_review_card(row, labels=labels)
+
+
+def _spoken_review_controls(row: dict[str, Any]) -> str:
+    index = escape(str(row.get("index")))
+    parse = row.get("review_parse") if isinstance(row.get("review_parse"), dict) else {}
+    parse_text = _parsed_review_text(parse)
+    audio_path = str(row.get("reviewer_note_audio_path") or "")
+    status = f"Saved spoken note: {audio_path}" if audio_path else "Record a plain-English note, or type one below and parse it."
+    return f"""<div class="voice-review">
+    <div class="voice-review-actions">
+      <button type="button" class="secondary" data-record-note="{index}">Record note</button>
+      <button type="button" class="secondary" data-parse-note="{index}">Parse note</button>
+      <span class="voice-status" data-voice-status>{escape(status)}</span>
+    </div>
+    <div class="parsed-review" data-parsed-review>{escape(parse_text)}</div>
+  </div>"""
 
 
 def _anchor_review_card(row: dict[str, Any], *, labels: dict[str, Any]) -> str:
@@ -1162,6 +1562,7 @@ def _anchor_review_card(row: dict[str, Any], *, labels: dict[str, Any]) -> str:
     approve_label = labels["buttons"]["approved"]
     reject_label = labels["buttons"]["rejected"]
     pending_label = labels["buttons"]["pending"]
+    spoken_review = _spoken_review_controls(row)
     expected = row.get("expected_behavior")
     correction_rows = (
         f"""    <dt>Expected behavior</dt><dd>{escape(str(expected))}</dd>"""
@@ -1179,6 +1580,7 @@ def _anchor_review_card(row: dict[str, Any], *, labels: dict[str, Any]) -> str:
     <button type="button" data-decision="rejected" class="secondary" data-reject="{index}">{escape(str(reject_label))}</button>
     <button type="button" data-decision="pending" class="secondary" data-pending="{index}">{escape(str(pending_label))}</button>
   </div>
+  {spoken_review}
   <textarea data-note="{index}" placeholder="Reviewer note">{note}</textarea>
   <dl>
     <dt>Time</dt><dd>{escape(str(row.get('start')))} - {escape(str(row.get('end')))} seconds</dd>
@@ -1200,6 +1602,7 @@ def _human_review_card(row: dict[str, Any], *, labels: dict[str, Any]) -> str:
     approve_label = labels["buttons"]["approved"]
     reject_label = labels["buttons"]["rejected"]
     pending_label = labels["buttons"]["pending"]
+    spoken_review = _spoken_review_controls(row)
     title = row.get("review_heading") or f"Clip {row.get('index')}"
     prompt = row.get("review_prompt") or row.get("expected_behavior") or row.get("text") or "Listen to this clip and decide whether it matches the expected behavior."
     subtitle = row.get("review_subtitle") or row.get("case") or ""
@@ -1230,6 +1633,7 @@ def _human_review_card(row: dict[str, Any], *, labels: dict[str, Any]) -> str:
     <button type="button" data-decision="rejected" class="secondary" data-reject="{index}">{escape(str(reject_label))}</button>
     <button type="button" data-decision="pending" class="secondary" data-pending="{index}">{escape(str(pending_label))}</button>
   </div>
+  {spoken_review}
   <textarea data-note="{index}" placeholder="Optional note">{note}</textarea>
   <details>
     <summary>Technical details</summary>
