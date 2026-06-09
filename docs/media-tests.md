@@ -15,11 +15,17 @@ public repo. They live under `~/Eidos/Pavo/demos/` on the test machine.
 - Overlap report: `/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom/region-01-00m18s-00m18s/analysis.md`
 - Diagnostic stem ASR report: [Conan diagnostic stems](conan-diagnostic-stems.md)
 - Speaker-change fixture: [Conan "Experience Like" fixture](conan-experience-like.md)
+- Cleaner human-review bundle:
+  [conan-real-media-review-bundle/index.html](conan-real-media-review-bundle/index.html)
+- Conan review report:
+  [conan-real-media-review-report.json](conan-real-media-review-report.json)
 
 Useful cases:
 
 - Reviewed speaker anchors for named captioning.
 - Short overlap review for the "that old sitcom" moment.
+- Cleaner review clips for the opening "what was that experience like" handoff
+  and the accepted "that old sitcom" Conan/Kaitlin stem split.
 - Speaker-change recall for short interjections, independent from whether the
   final speaker attribution is accepted.
 - Pavo-branded burned-caption preview.
@@ -35,6 +41,12 @@ pavo audio separate-overlaps youtube_KxJWK8R7uVQ_named_v1 \
   --start 17 \
   --end 21 \
   --min-duration 0.25
+```
+
+Review the cleaner Conan proof bundle:
+
+```bash
+pavo review anchors serve docs/conan-real-media-review-bundle --port 9877
 ```
 
 ## Test 2: New Zealand Accent / Slang

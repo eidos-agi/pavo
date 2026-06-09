@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "review_sheet": "/Users/dshanklinbv/repos-eidos-agi/pavo/docs/conan-real-media-review-sheet.json",
+  "review_page": "/Users/dshanklinbv/repos-eidos-agi/pavo/docs/conan-real-media-review.html",
+  "candidate_count": 6,
+  "audio_count": 6,
+  "approve_count": 6,
+  "reject_count": 6,
+  "pending_button_count": 6,
+  "note_count": 6,
+  "export_button_present": true,
+  "reset_button_present": true,
+  "embedded_sheet_present": true,
+  "import_instruction_present": true,
+  "rerun_instruction_present": true,
+  "missing": [],
+  "next_required_proof": "human reviewer must approve or reject every clip, then import the reviewed sheet"
+}

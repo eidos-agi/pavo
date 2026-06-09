@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pavo Anchor Review - Conan real-media review clips</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #17211c;
+      background: #f7faf4;
+    }
+    header {
+      padding: 28px 32px;
+      background: #0d3b2e;
+      color: #f9fff7;
+    }
+    main {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      letter-spacing: 0;
+    }
+    .meta {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      color: #d7f5dd;
+    }
+    .instructions {
+      margin: 0 0 18px;
+      padding: 16px;
+      border: 1px solid #bfd7c5;
+      background: #ffffff;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin: 18px 0;
+    }
+    button {
+      border: 1px solid #174835;
+      border-radius: 6px;
+      background: #174835;
+      color: #ffffff;
+      padding: 8px 12px;
+      font: inherit;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: #ffffff;
+      color: #174835;
+    }
+    button:focus-visible,
+    textarea:focus-visible {
+      outline: 3px solid #8ed39a;
+      outline-offset: 2px;
+    }
+    article {
+      margin: 16px 0;
+      padding: 18px;
+      border: 1px solid #cfdfd1;
+      border-radius: 8px;
+      background: #ffffff;
+    }
+    .row-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      margin-bottom: 10px;
+    }
+    h2 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+    code {
+      background: #eef4ee;
+      padding: 2px 5px;
+      border-radius: 4px;
+    }
+    audio {
+      width: 100%;
+      margin: 10px 0;
+    }
+    dl {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 8px 12px;
+      margin: 12px 0 0;
+    }
+    dt {
+      font-weight: 700;
+      color: #315044;
+    }
+    dd {
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+    .status {
+      font-weight: 700;
+      color: #7a4e00;
+    }
+    .review-controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 12px 0;
+    }
+    textarea {
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 70px;
+      margin-top: 8px;
+      padding: 8px;
+      border: 1px solid #bfd7c5;
+      border-radius: 6px;
+      font: inherit;
+    }
+    @media (max-width: 700px) {
+      header { padding: 22px 18px; }
+      main { padding: 16px; }
+      dl { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Pavo Anchor Review - Conan real-media review clips</h1>
+    <div class="meta">
+      <span>6 candidate clips</span>
+      <span>6 pending</span>
+      <span>sheet: /Users/dshanklinbv/repos-eidos-agi/pavo/docs/conan-real-media-review-sheet.json</span>
+    </div>
+  </header>
+  <main>
+    <section class="instructions">
+      Listen for clean CONAN_REVIEW anchor clips.
+      Approve only clean target-speaker clips. Reject uncertain, overlapping, noisy, or wrong-speaker clips.
+      Export the reviewed JSON sheet, import it with
+      <code>pavo review anchors import /Users/dshanklinbv/repos-eidos-agi/pavo/docs/conan-real-media-review-sheet.json ~/Downloads/conan-real-media-review-sheet.json</code>,
+      print the corrected decompose command with
+      <code>pavo review anchors rerun-command /Users/dshanklinbv/repos-eidos-agi/pavo/docs/conan-real-media-review-sheet.json /path/to/pavo-decompose-manifest.json</code>,
+      then rerun decomposition and regenerate the Plaud proof report.
+    </section>
+    <section class="actions">
+      <button type="button" id="export-json">Export reviewed JSON</button>
+      <button type="button" class="secondary" id="reset-review">Reset page decisions</button>
+      <span id="review-count">6 pending</span>
+    </section>
+    <article data-review-index="1">
+  <div class="row-head">
+    <h2>Clip 1</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-experience-like-pad-0p1/region-01-00m05s-00m06s/mixed.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="1">Approve</button>
+    <button type="button" class="secondary" data-reject="1">Reject</button>
+    <button type="button" class="secondary" data-pending="1">Pending</button>
+  </div>
+  <textarea data-note="1" placeholder="Reviewer note">Confirm this is a mixed handoff around &quot;what was that experience like?&quot;</textarea>
+  <dl>
+    <dt>Time</dt><dd>5.46 - 6.94 seconds</dd>
+    <dt>Text</dt><dd>what was that experience like?</dd>
+    <dt>Target</dt><dd>MIXED / Mixed Conan/Kaitlin audio</dd>
+    <dt>Correction</dt><dd><code>review-only:conan-experience-like:mixed:MIXED</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-experience-like-pad-0p1/region-01-00m05s-00m06s/mixed.wav</dd>
+  </dl>
+</article>
+<article data-review-index="2">
+  <div class="row-head">
+    <h2>Clip 2</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-experience-like-pad-0p1/region-01-00m05s-00m06s/conan-obrien.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="2">Approve</button>
+    <button type="button" class="secondary" data-reject="2">Reject</button>
+    <button type="button" class="secondary" data-pending="2">Pending</button>
+  </div>
+  <textarea data-note="2" placeholder="Reviewer note">System trusted=True best=Conan O&#x27;Brien wrong_rate=0.0</textarea>
+  <dl>
+    <dt>Time</dt><dd>5.46 - 6.94 seconds</dd>
+    <dt>Text</dt><dd>what was that experience like?</dd>
+    <dt>Target</dt><dd>conan-obrien / Conan O&#x27;Brien</dd>
+    <dt>Correction</dt><dd><code>review-only:conan-experience-like:stem:conan-obrien</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-experience-like-pad-0p1/region-01-00m05s-00m06s/conan-obrien.wav</dd>
+  </dl>
+</article>
+<article data-review-index="3">
+  <div class="row-head">
+    <h2>Clip 3</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-experience-like-pad-0p1/region-01-00m05s-00m06s/kaitlin-olson.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="3">Approve</button>
+    <button type="button" class="secondary" data-reject="3">Reject</button>
+    <button type="button" class="secondary" data-pending="3">Pending</button>
+  </div>
+  <textarea data-note="3" placeholder="Reviewer note">System trusted=False best=Danny DeVito wrong_rate=1.0</textarea>
+  <dl>
+    <dt>Time</dt><dd>5.46 - 6.94 seconds</dd>
+    <dt>Text</dt><dd>what was that experience like?</dd>
+    <dt>Target</dt><dd>kaitlin-olson / Kaitlin Olson</dd>
+    <dt>Correction</dt><dd><code>review-only:conan-experience-like:stem:kaitlin-olson</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-experience-like-pad-0p1/region-01-00m05s-00m06s/kaitlin-olson.wav</dd>
+  </dl>
+</article>
+<article data-review-index="4">
+  <div class="row-head">
+    <h2>Clip 4</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/mixed.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="4">Approve</button>
+    <button type="button" class="secondary" data-reject="4">Reject</button>
+    <button type="button" class="secondary" data-pending="4">Pending</button>
+  </div>
+  <textarea data-note="4" placeholder="Reviewer note">Confirm overlap and compare to individual stems.</textarea>
+  <dl>
+    <dt>Time</dt><dd>17.79 - 19.21 seconds</dd>
+    <dt>Text</dt><dd>That old sitcom.</dd>
+    <dt>Target</dt><dd>MIXED / Mixed Conan/Kaitlin audio</dd>
+    <dt>Correction</dt><dd><code>review-only:conan-that-old-sitcom:mixed:MIXED</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/mixed.wav</dd>
+  </dl>
+</article>
+<article data-review-index="5">
+  <div class="row-head">
+    <h2>Clip 5</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/conan-obrien.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="5">Approve</button>
+    <button type="button" class="secondary" data-reject="5">Reject</button>
+    <button type="button" class="secondary" data-pending="5">Pending</button>
+  </div>
+  <textarea data-note="5" placeholder="Reviewer note">Accepted trusted stem. best=Conan O&#x27;Brien wrong_rate=0.0 rolling_windows=1</textarea>
+  <dl>
+    <dt>Time</dt><dd>17.79 - 19.21 seconds</dd>
+    <dt>Text</dt><dd>That old sitcom.</dd>
+    <dt>Target</dt><dd>conan-obrien / Conan O&#x27;Brien</dd>
+    <dt>Correction</dt><dd><code>review-only:conan-that-old-sitcom:stem:conan-obrien</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/conan-obrien.wav</dd>
+  </dl>
+</article>
+<article data-review-index="6">
+  <div class="row-head">
+    <h2>Clip 6</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/kaitlin-olson.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="6">Approve</button>
+    <button type="button" class="secondary" data-reject="6">Reject</button>
+    <button type="button" class="secondary" data-pending="6">Pending</button>
+  </div>
+  <textarea data-note="6" placeholder="Reviewer note">Accepted trusted stem. best=Kaitlin Olson wrong_rate=0.0 rolling_windows=1</textarea>
+  <dl>
+    <dt>Time</dt><dd>17.79 - 19.21 seconds</dd>
+    <dt>Text</dt><dd>I&#x27;ll stop and triple. Ha! Ha!</dd>
+    <dt>Target</dt><dd>kaitlin-olson / Kaitlin Olson</dd>
+    <dt>Correction</dt><dd><code>review-only:conan-that-old-sitcom:stem:kaitlin-olson</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/kaitlin-olson.wav</dd>
+  </dl>
+</article>
+  </main>
+  <script type="application/json" id="review-sheet-data">{"passed": false, "human_reviewed": false, "review_type": "conan_real_media_overlap_review", "source_video_id": "KxJWK8R7uVQ", "source_id": "youtube_KxJWK8R7uVQ_named_v1", "target_speaker_label": "CONAN_REVIEW", "target_speaker_name": "Conan real-media review clips", "candidate_count": 6, "pending_count": 6, "approved_count": 0, "rejected_count": 0, "rows": [{"index": 1, "status": "pending", "approved": false, "case": "conan-experience-like", "clip_kind": "mixed", "target_speaker_label": "MIXED", "target_speaker_name": "Mixed Conan/Kaitlin audio", "start": 5.46, "end": 6.94, "duration": 1.48, "text": "what was that experience like?", "confidence": 1.0, "method": "conan_real_media_review", "clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-experience-like-pad-0p1/region-01-00m05s-00m06s/mixed.wav", "suggested_speaker_correction": "review-only:conan-experience-like:mixed:MIXED", "reviewer_note": "Confirm this is a mixed handoff around \"what was that experience like?\""}, {"index": 2, "status": "pending", "approved": false, "case": "conan-experience-like", "clip_kind": "stem", "target_speaker_label": "conan-obrien", "target_speaker_name": "Conan O'Brien", "start": 5.46, "end": 6.94, "duration": 1.48, "text": "what was that experience like?", "confidence": 0.1152, "method": "conan_real_media_review", "clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-experience-like-pad-0p1/region-01-00m05s-00m06s/conan-obrien.wav", "suggested_speaker_correction": "review-only:conan-experience-like:stem:conan-obrien", "reviewer_note": "System trusted=True best=Conan O'Brien wrong_rate=0.0"}, {"index": 3, "status": "pending", "approved": false, "case": "conan-experience-like", "clip_kind": "stem", "target_speaker_label": "kaitlin-olson", "target_speaker_name": "Kaitlin Olson", "start": 5.46, "end": 6.94, "duration": 1.48, "text": "what was that experience like?", "confidence": 0.0078, "method": "conan_real_media_review", "clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-experience-like-pad-0p1/region-01-00m05s-00m06s/kaitlin-olson.wav", "suggested_speaker_correction": "review-only:conan-experience-like:stem:kaitlin-olson", "reviewer_note": "System trusted=False best=Danny DeVito wrong_rate=1.0"}, {"index": 4, "status": "pending", "approved": false, "case": "conan-that-old-sitcom", "clip_kind": "mixed", "target_speaker_label": "MIXED", "target_speaker_name": "Mixed Conan/Kaitlin audio", "start": 17.79, "end": 19.21, "duration": 1.42, "text": "That old sitcom.", "confidence": 1.0, "method": "conan_real_media_review", "clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/mixed.wav", "suggested_speaker_correction": "review-only:conan-that-old-sitcom:mixed:MIXED", "reviewer_note": "Confirm overlap and compare to individual stems."}, {"index": 5, "status": "pending", "approved": false, "case": "conan-that-old-sitcom", "clip_kind": "stem", "target_speaker_label": "conan-obrien", "target_speaker_name": "Conan O'Brien", "start": 17.79, "end": 19.21, "duration": 1.42, "text": "That old sitcom.", "confidence": 0.1212, "method": "conan_real_media_review", "clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/conan-obrien.wav", "suggested_speaker_correction": "review-only:conan-that-old-sitcom:stem:conan-obrien", "reviewer_note": "Accepted trusted stem. best=Conan O'Brien wrong_rate=0.0 rolling_windows=1"}, {"index": 6, "status": "pending", "approved": false, "case": "conan-that-old-sitcom", "clip_kind": "stem", "target_speaker_label": "kaitlin-olson", "target_speaker_name": "Kaitlin Olson", "start": 17.79, "end": 19.21, "duration": 1.42, "text": "I'll stop and triple. Ha! Ha!", "confidence": 0.0645, "method": "conan_real_media_review", "clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/kaitlin-olson.wav", "suggested_speaker_correction": "review-only:conan-that-old-sitcom:stem:kaitlin-olson", "reviewer_note": "Accepted trusted stem. best=Kaitlin Olson wrong_rate=0.0 rolling_windows=1"}], "instructions": ["Listen to the mixed clip first, then the Conan and Kaitlin stems for the same phrase.", "Approve clips that clearly demonstrate the expected mixed/stem behavior.", "Reject noisy, confusing, or wrong-speaker clips.", "This is a review-only Conan proof bundle; it does not generate Plaud speaker-correction flags."], "evidence": {"experience_like_analysis": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-experience-like-pad-0p1/region-01-00m05s-00m06s/analysis.json", "old_sitcom_analysis": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/analysis.json", "old_sitcom_stem_asr": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/stem-asr-accepted/decomposed-transcript.json", "conan_experience_report": "docs/conan-experience-comparison-report.json", "conan_old_sitcom_report": "docs/conan-old-sitcom-report.json"}}</script>
+  <script>
+    const originalSheet = JSON.parse(document.getElementById("review-sheet-data").textContent);
+    const decisions = new Map(originalSheet.rows.map((row) => [String(row.index), {
+      status: row.status || "pending",
+      approved: row.approved === true,
+      reviewer_note: row.reviewer_note || ""
+    }]));
+
+    function setDecision(index, status) {
+      const key = String(index);
+      const current = decisions.get(key) || {};
+      current.status = status;
+      current.approved = status === "approved";
+      decisions.set(key, current);
+      const card = document.querySelector(`[data-review-index="${key}"]`);
+      if (card) {
+        card.querySelector("[data-status]").textContent = status;
+      }
+      updateCount();
+    }
+
+    function setNote(index, note) {
+      const key = String(index);
+      const current = decisions.get(key) || {};
+      current.reviewer_note = note;
+      decisions.set(key, current);
+    }
+
+    function buildReviewedSheet() {
+      const rows = originalSheet.rows.map((row) => {
+        const decision = decisions.get(String(row.index)) || {};
+        return {
+          ...row,
+          status: decision.status || "pending",
+          approved: decision.approved === true,
+          reviewer_note: decision.reviewer_note || ""
+        };
+      });
+      const approvedCount = rows.filter((row) => row.status === "approved" && row.approved === true).length;
+      const rejectedCount = rows.filter((row) => row.status === "rejected").length;
+      const pendingCount = rows.filter((row) => row.status === "pending").length;
+      return {
+        ...originalSheet,
+        passed: rows.length > 0 && approvedCount > 0 && pendingCount === 0,
+        human_reviewed: rows.length > 0 && pendingCount === 0,
+        approved_count: approvedCount,
+        rejected_count: rejectedCount,
+        pending_count: pendingCount,
+        rows
+      };
+    }
+
+    function updateCount() {
+      const reviewed = buildReviewedSheet();
+      document.getElementById("review-count").textContent =
+        `${reviewed.approved_count} approved, ${reviewed.rejected_count} rejected, ${reviewed.pending_count} pending`;
+    }
+
+    document.querySelectorAll("[data-approve]").forEach((button) => {
+      button.addEventListener("click", () => setDecision(button.dataset.approve, "approved"));
+    });
+    document.querySelectorAll("[data-reject]").forEach((button) => {
+      button.addEventListener("click", () => setDecision(button.dataset.reject, "rejected"));
+    });
+    document.querySelectorAll("[data-pending]").forEach((button) => {
+      button.addEventListener("click", () => setDecision(button.dataset.pending, "pending"));
+    });
+    document.querySelectorAll("[data-note]").forEach((note) => {
+      note.addEventListener("input", () => setNote(note.dataset.note, note.value));
+    });
+    document.getElementById("export-json").addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify(buildReviewedSheet(), null, 2) + "\n"], { type: "application/json" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "conan-real-media-review-sheet.json";
+      link.click();
+      URL.revokeObjectURL(link.href);
+    });
+    document.getElementById("reset-review").addEventListener("click", () => {
+      decisions.clear();
+      originalSheet.rows.forEach((row) => decisions.set(String(row.index), {
+        status: row.status || "pending",
+        approved: row.approved === true,
+        reviewer_note: row.reviewer_note || ""
+      }));
+      document.querySelectorAll("[data-review-index]").forEach((card) => {
+        const index = card.dataset.reviewIndex;
+        const decision = decisions.get(index);
+        card.querySelector("[data-status]").textContent = decision.status;
+        const note = card.querySelector("[data-note]");
+        if (note) note.value = decision.reviewer_note;
+      });
+      updateCount();
+    });
+    updateCount();
+  </script>
+</body>
+</html>

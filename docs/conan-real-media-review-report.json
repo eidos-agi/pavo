@@ -1,0 +1,39 @@
+{
+  "passed": true,
+  "human_reviewed": false,
+  "review_sheet": "docs/conan-real-media-review-sheet.json",
+  "review_page": "docs/conan-real-media-review.html",
+  "bundle_manifest": "docs/conan-real-media-review-bundle-manifest.json",
+  "case_count": 2,
+  "clip_count": 6,
+  "experience_like": {
+    "mixed_region_found": true,
+    "phrase": "what was that experience like?",
+    "start": 5.56,
+    "end": 6.84,
+    "speaker": "Kaitlin Olson",
+    "accepted": false,
+    "trusted_stems": [
+      "conan-obrien"
+    ],
+    "rejected_stems": [
+      "kaitlin-olson"
+    ]
+  },
+  "that_old_sitcom": {
+    "mixed_region_found": true,
+    "phrase": "That old sitcom.",
+    "start": 18.04,
+    "end": 18.96,
+    "speaker": "Kaitlin Olson",
+    "accepted": true,
+    "trusted_stems": [
+      "conan-obrien",
+      "kaitlin-olson"
+    ],
+    "stem_asr_segment_count": 4
+  },
+  "review_url": "http://127.0.0.1:9877/index.html",
+  "serve_command": "pavo review anchors serve docs/conan-real-media-review-bundle --port 9877",
+  "next_action": "review the cleaner Conan mixed/stem clips and export reviewed JSON if human confirmation is needed"
+}

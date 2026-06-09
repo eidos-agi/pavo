@@ -71,10 +71,13 @@ Machine-readable rollup: [proof-status-summary.json](proof-status-summary.json)
    - Evidence: [Conan "Experience Like" fixture](conan-experience-like.md)
    - Evidence: [conan-experience-like-fixture.json](conan-experience-like-fixture.json)
    - Evidence: [conan-experience-comparison-report.json](conan-experience-comparison-report.json)
+   - Evidence: [conan-real-media-review-report.json](conan-real-media-review-report.json)
 22. Conan "That Old Sitcom" Test - `fixture-backed`
-   - Evidence: local Conan overlap reports exist, current reports are rejected, and rejected stems have diagnostic ASR evidence.
+   - Evidence: local Conan overlap reports exist, including an accepted
+     Conan/Kaitlin stem split with trusted stems.
    - Evidence: `docs/conan-diagnostic-stems.md`
    - Evidence: [conan-old-sitcom-report.json](conan-old-sitcom-report.json)
+   - Evidence: [conan-real-media-review-bundle/index.html](conan-real-media-review-bundle/index.html)
 23. New Zealand Accent Slang Test - `fixture-backed`
    - Evidence: `~/Eidos/Pavo/demos/nz-accent-test/`.
    - Evidence: [nz-slang-comparison-report.json](nz-slang-comparison-report.json)

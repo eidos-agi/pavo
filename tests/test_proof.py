@@ -131,6 +131,21 @@ class ProofTests(unittest.TestCase):
         self.assertFalse(report["stem_asr_improvement_passed"])
         self.assertGreater(report["trusted_segment_count"], 0)
 
+    def test_committed_conan_real_media_review_report_covers_cleaner_audio(self):
+        report_path = Path(__file__).resolve().parents[1] / "docs" / "conan-real-media-review-report.json"
+        report = json.loads(report_path.read_text())
+
+        self.assertTrue(report["passed"])
+        self.assertFalse(report["human_reviewed"])
+        self.assertEqual(report["case_count"], 2)
+        self.assertEqual(report["clip_count"], 6)
+        self.assertEqual(report["experience_like"]["phrase"], "what was that experience like?")
+        self.assertFalse(report["experience_like"]["accepted"])
+        self.assertEqual(report["experience_like"]["trusted_stems"], ["conan-obrien"])
+        self.assertTrue(report["that_old_sitcom"]["accepted"])
+        self.assertEqual(report["that_old_sitcom"]["trusted_stems"], ["conan-obrien", "kaitlin-olson"])
+        self.assertGreaterEqual(report["that_old_sitcom"]["stem_asr_segment_count"], 4)
+
     def test_committed_stem_asr_improvement_report_keeps_gap_open(self):
         report_path = Path(__file__).resolve().parents[1] / "docs" / "stem-asr-improvement-report.json"
         report = json.loads(report_path.read_text())

@@ -1,0 +1,29 @@
+{
+  "passed": true,
+  "bundle_dir": "docs/conan-real-media-review-bundle",
+  "review_page": "docs/conan-real-media-review-bundle/index.html",
+  "review_sheet": "docs/conan-real-media-review-bundle/conan-real-media-review-sheet.json",
+  "source_review_sheet": "docs/conan-real-media-review-sheet.json",
+  "copied_clip_count": 6,
+  "missing_clip_count": 0,
+  "review_url": "http://127.0.0.1:9877/index.html",
+  "serve_command": "pavo review anchors serve docs/conan-real-media-review-bundle --port 9877",
+  "page_verification": {
+    "passed": true,
+    "review_sheet": "/Users/dshanklinbv/repos-eidos-agi/pavo/docs/conan-real-media-review-bundle/conan-real-media-review-sheet.json",
+    "review_page": "/Users/dshanklinbv/repos-eidos-agi/pavo/docs/conan-real-media-review-bundle/index.html",
+    "candidate_count": 6,
+    "audio_count": 6,
+    "approve_count": 6,
+    "reject_count": 6,
+    "pending_button_count": 6,
+    "note_count": 6,
+    "export_button_present": true,
+    "reset_button_present": true,
+    "embedded_sheet_present": true,
+    "import_instruction_present": true,
+    "rerun_instruction_present": true,
+    "missing": [],
+    "next_required_proof": "human reviewer must approve or reject every clip, then import the reviewed sheet"
+  }
+}

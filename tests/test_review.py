@@ -81,6 +81,23 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("20 review rows are still pending", result.blockers)
         self.assertIn("review the bundled clips", result.next_action)
 
+    def test_committed_conan_real_media_review_bundle_is_ready(self):
+        docs = Path(__file__).resolve().parents[1] / "docs"
+        sheet = docs / "conan-real-media-review-sheet.json"
+        bundle_manifest = json.loads((docs / "conan-real-media-review-bundle-manifest.json").read_text())
+        page_report = verify_anchor_review_page(sheet, docs / "conan-real-media-review.html")
+
+        self.assertTrue(page_report.passed)
+        self.assertEqual(page_report.candidate_count, 6)
+        self.assertEqual(page_report.audio_count, 6)
+        self.assertTrue(bundle_manifest["passed"])
+        self.assertEqual(bundle_manifest["copied_clip_count"], 6)
+        self.assertEqual(bundle_manifest["missing_clip_count"], 0)
+        self.assertEqual(
+            bundle_manifest["serve_command"],
+            "pavo review anchors serve docs/conan-real-media-review-bundle --port 9877",
+        )
+
     def test_create_anchor_review_sheet_starts_pending_without_approved_corrections(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
