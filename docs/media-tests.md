@@ -11,6 +11,7 @@ public repo. They live under `~/Eidos/Pavo/demos/` on the test machine.
 - Pavo source ID: `youtube_KxJWK8R7uVQ_named_v1`
 - Local demo: `/Users/dshanklinbv/Eidos/Pavo/demos/conan-pavo-demo/pavo-conan-demo.mp4`
 - Comparison: `/Users/dshanklinbv/Eidos/Pavo/demos/conan-pavo-demo/comparison.json`
+- Demo video report: [conan-demo-video-report.json](conan-demo-video-report.json)
 - Overlap report: `/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom/region-01-00m18s-00m18s/analysis.md`
 - Diagnostic stem ASR report: [Conan diagnostic stems](conan-diagnostic-stems.md)
 - Speaker-change fixture: [Conan "Experience Like" fixture](conan-experience-like.md)
@@ -22,6 +23,8 @@ Useful cases:
 - Speaker-change recall for short interjections, independent from whether the
   final speaker attribution is accepted.
 - Pavo-branded burned-caption preview.
+- End-to-end demo with YouTube baseline, Pavo captions, AI explainer, overlap
+  review, mixed audio, Conan stem, Kaitlin stem, and takeaway sections.
 - Comparison against YouTube captions without copying full transcripts into
   the repo.
 

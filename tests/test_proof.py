@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from pavo.proof import conan_experience_comparison_report, nz_slang_comparison_report
+from pavo.proof import conan_demo_video_report, conan_experience_comparison_report, nz_slang_comparison_report
 
 
 class ProofTests(unittest.TestCase):
@@ -24,6 +24,16 @@ class ProofTests(unittest.TestCase):
         self.assertFalse(report["youtube_has_speaker_names"])
         self.assertEqual(report["improved_terms"], ["box of birds", "sweet as", "bottle of milk"])
         self.assertGreaterEqual(report["speaker_count"], 2)
+
+    def test_committed_conan_demo_video_report_is_passing(self):
+        report_path = Path(__file__).resolve().parents[1] / "docs" / "conan-demo-video-report.json"
+        report = json.loads(report_path.read_text())
+
+        self.assertTrue(report["passed"])
+        self.assertTrue(report["final_video_present"])
+        self.assertTrue(report["comparison_valid"])
+        self.assertTrue(report["narration_present"])
+        self.assertEqual(report["missing_sections"], [])
 
     def test_conan_experience_comparison_proves_pavo_adds_named_speaker_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -146,6 +156,42 @@ class ProofTests(unittest.TestCase):
 
         self.assertFalse(report["passed"])
         self.assertEqual(report["missing_improvements"][0]["term"], "sweet as")
+
+    def test_conan_demo_video_report_requires_expected_sections(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            normalized = root / "normalized"
+            normalized.mkdir()
+            (root / "pavo-conan-demo.mp4").write_bytes(b"video")
+            (root / "narration.txt").write_text("Pavo explains the overlap.\n")
+            (root / "comparison.json").write_text(
+                json.dumps({"youtube_has_speaker_names": False, "cases": [{"label": "Opening prompt"}]})
+            )
+            required = ["02-youtube.mp4", "03-pavo-captioned.mp4", "05-ai-explainer.mp4"]
+            for name in required:
+                (normalized / name).write_bytes(b"segment")
+
+            report = conan_demo_video_report(root, required_sections=required)
+
+        self.assertTrue(report["passed"])
+        self.assertEqual(report["section_count"], 3)
+        self.assertEqual(report["missing_sections"], [])
+
+    def test_conan_demo_video_report_fails_when_section_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            normalized = root / "normalized"
+            normalized.mkdir()
+            (root / "pavo-conan-demo.mp4").write_bytes(b"video")
+            (root / "narration.txt").write_text("Pavo explains the overlap.\n")
+            (root / "comparison.json").write_text(
+                json.dumps({"youtube_has_speaker_names": False, "cases": [{"label": "Opening prompt"}]})
+            )
+
+            report = conan_demo_video_report(root, required_sections=["02-youtube.mp4"])
+
+        self.assertFalse(report["passed"])
+        self.assertEqual(report["missing_sections"], ["02-youtube.mp4"])
 
 
 if __name__ == "__main__":

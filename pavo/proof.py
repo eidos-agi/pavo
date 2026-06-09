@@ -85,6 +85,59 @@ def nz_slang_comparison_report(
     }
 
 
+def conan_demo_video_report(
+    root: Path | str,
+    *,
+    required_sections: list[str] | None = None,
+) -> dict[str, Any]:
+    demo_root = Path(root)
+    required = required_sections or [
+        "02-youtube.mp4",
+        "03-pavo-captioned.mp4",
+        "04-comparison-slide.mp4",
+        "05-ai-explainer.mp4",
+        "06-overlap-original.mp4",
+        "07-mixed-stem.mp4",
+        "08-conan-stem.mp4",
+        "09-kaitlin-stem.mp4",
+        "10-takeaway.mp4",
+    ]
+    final_video = demo_root / "pavo-conan-demo.mp4"
+    comparison = demo_root / "comparison.json"
+    narration = demo_root / "narration.txt"
+    normalized_dir = demo_root / "normalized"
+    existing_sections = []
+    missing_sections = []
+    for name in required:
+        path = normalized_dir / name
+        if path.exists() and path.stat().st_size > 0:
+            existing_sections.append(name)
+        else:
+            missing_sections.append(name)
+
+    comparison_valid = False
+    if comparison.exists():
+        payload = json.loads(comparison.read_text())
+        comparison_valid = bool(payload.get("cases")) and not payload.get("youtube_has_speaker_names", True)
+
+    narration_present = narration.exists() and bool(narration.read_text().strip())
+    final_video_present = final_video.exists() and final_video.stat().st_size > 0
+    passed = bool(final_video_present and comparison_valid and narration_present and not missing_sections)
+    return {
+        "passed": passed,
+        "final_video": str(final_video),
+        "final_video_present": final_video_present,
+        "final_video_size_bytes": final_video.stat().st_size if final_video.exists() else 0,
+        "comparison_json": str(comparison),
+        "comparison_valid": comparison_valid,
+        "narration_present": narration_present,
+        "required_sections": required,
+        "existing_sections": existing_sections,
+        "missing_sections": missing_sections,
+        "section_count": len(existing_sections),
+    }
+
+
 def _find_case(comparison: dict[str, Any], label: str) -> dict[str, Any]:
     for case in comparison.get("cases", []):
         if case.get("label") == label:

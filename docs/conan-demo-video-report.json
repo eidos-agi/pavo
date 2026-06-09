@@ -1,0 +1,34 @@
+{
+  "passed": true,
+  "final_video": "/Users/dshanklinbv/Eidos/Pavo/demos/conan-pavo-demo/pavo-conan-demo.mp4",
+  "final_video_present": true,
+  "final_video_size_bytes": 3606036,
+  "comparison_json": "/Users/dshanklinbv/Eidos/Pavo/demos/conan-pavo-demo/comparison.json",
+  "comparison_valid": true,
+  "narration_present": true,
+  "required_sections": [
+    "02-youtube.mp4",
+    "03-pavo-captioned.mp4",
+    "04-comparison-slide.mp4",
+    "05-ai-explainer.mp4",
+    "06-overlap-original.mp4",
+    "07-mixed-stem.mp4",
+    "08-conan-stem.mp4",
+    "09-kaitlin-stem.mp4",
+    "10-takeaway.mp4"
+  ],
+  "existing_sections": [
+    "02-youtube.mp4",
+    "03-pavo-captioned.mp4",
+    "04-comparison-slide.mp4",
+    "05-ai-explainer.mp4",
+    "06-overlap-original.mp4",
+    "07-mixed-stem.mp4",
+    "08-conan-stem.mp4",
+    "09-kaitlin-stem.mp4",
+    "10-takeaway.mp4"
+  ],
+  "missing_sections": [],
+  "section_count": 9,
+  "source_demo": "/Users/dshanklinbv/Eidos/Pavo/demos/conan-pavo-demo"
+}
