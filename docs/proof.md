@@ -171,7 +171,9 @@ Transcript output:
   [plaud-c37-speaker1-anchor-review.html](plaud-c37-speaker1-anchor-review.html).
   It embeds all 20 WAV clips with their proposed `--speaker-correction` values
   and lets the reviewer approve, reject, annotate, and export an updated JSON
-  sheet without opening clip paths or editing JSON by hand.
+  sheet without opening clip paths or editing JSON by hand. The exported sheet
+  can be validated and imported with `pavo review anchors import`, which rejects
+  changed clip identities before corrections are generated.
 - The real-media audit now finds accepted Conan/Kaitlin overlap separation:
   both stems pass the trust gate with wrong-window leakage checks. The accepted
   stem ASR manifest writes trusted global-timed evidence for that overlap.

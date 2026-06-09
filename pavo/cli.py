@@ -15,6 +15,7 @@ from .review import (
     create_anchor_review_page,
     create_anchor_review_sheet,
     compile_anchor_review_corrections,
+    import_anchor_review_sheet,
     summarize_anchor_review_sheet,
 )
 from .render import RenderVideoRequest, render_video
@@ -119,6 +120,10 @@ def build_parser() -> argparse.ArgumentParser:
     review_anchors_page = review_anchors_sub.add_parser("page", help="Create an HTML page for listening to anchor clips")
     review_anchors_page.add_argument("review_sheet", type=Path)
     review_anchors_page.add_argument("--out", type=Path, help="Review page HTML path")
+    review_anchors_import = review_anchors_sub.add_parser("import", help="Validate and import an exported reviewed sheet")
+    review_anchors_import.add_argument("review_sheet", type=Path)
+    review_anchors_import.add_argument("reviewed_export", type=Path)
+    review_anchors_import.add_argument("--out", type=Path, help="Imported review sheet path; defaults to replacing review_sheet")
     review_anchors_corrections = review_anchors_sub.add_parser("corrections", help="Print approved --speaker-correction flags")
     review_anchors_corrections.add_argument("review_sheet", type=Path)
 
@@ -334,6 +339,20 @@ def main(argv: list[str] | None = None) -> int:
                 result = create_anchor_review_page(args.review_sheet, out_path=args.out)
                 print(f"review_page: {result.review_page_path}")
                 print(f"candidate_count: {result.candidate_count}")
+                print(f"pending_count: {result.pending_count}")
+                return 0
+            if args.review_anchors_command == "import":
+                try:
+                    result = import_anchor_review_sheet(args.review_sheet, args.reviewed_export, out_path=args.out)
+                except ValueError as exc:
+                    print(str(exc), file=sys.stderr)
+                    return 2
+                print(f"review_sheet: {result.review_sheet_path}")
+                print(f"imported_sheet: {result.imported_sheet_path}")
+                print(f"human_reviewed: {str(result.human_reviewed).lower()}")
+                print(f"candidate_count: {result.candidate_count}")
+                print(f"approved_count: {result.approved_count}")
+                print(f"rejected_count: {result.rejected_count}")
                 print(f"pending_count: {result.pending_count}")
                 return 0
             if args.review_anchors_command == "corrections":

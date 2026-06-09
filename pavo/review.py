@@ -30,6 +30,17 @@ class AnchorReviewPageResult:
     pending_count: int
 
 
+@dataclass(frozen=True)
+class AnchorReviewImportResult:
+    review_sheet_path: Path
+    imported_sheet_path: Path
+    candidate_count: int
+    approved_count: int
+    rejected_count: int
+    pending_count: int
+    human_reviewed: bool
+
+
 def create_anchor_review_sheet(
     clip_packet_path: Path | str,
     *,
@@ -268,7 +279,9 @@ def create_anchor_review_page(
     <section class="instructions">
       Listen for clean {escape(str(sheet.get('target_speaker_label') or 'target speaker'))} anchor clips.
       Approve only clean target-speaker clips. Reject uncertain, overlapping, noisy, or wrong-speaker clips.
-      Export the reviewed JSON sheet, replace the original sheet with it, then run
+      Export the reviewed JSON sheet, import it with
+      <code>pavo review anchors import {escape(str(sheet_path))} ~/Downloads/{escape(sheet_path.name)}</code>,
+      then run
       <code>pavo review anchors corrections {escape(str(sheet_path))}</code>.
     </section>
     <section class="actions">
@@ -388,6 +401,58 @@ def create_anchor_review_page(
     )
 
 
+def import_anchor_review_sheet(
+    original_sheet_path: Path | str,
+    reviewed_export_path: Path | str,
+    *,
+    out_path: Path | str | None = None,
+) -> AnchorReviewImportResult:
+    original_path = Path(original_sheet_path)
+    export_path = Path(reviewed_export_path)
+    original = json.loads(original_path.read_text())
+    reviewed = json.loads(export_path.read_text())
+    original_rows = original.get("rows", [])
+    reviewed_rows = reviewed.get("rows", [])
+    if len(original_rows) != len(reviewed_rows):
+        raise ValueError("reviewed export row count does not match original sheet")
+
+    reviewed_by_index = {_row_key(row): row for row in reviewed_rows}
+    imported_rows = []
+    for original_row in original_rows:
+        key = _row_key(original_row)
+        if key not in reviewed_by_index:
+            raise ValueError(f"reviewed export is missing row {key}")
+        reviewed_row = reviewed_by_index[key]
+        _validate_same_review_row(original_row, reviewed_row)
+        imported_rows.append(_imported_review_row(original_row, reviewed_row))
+
+    approved_count = sum(1 for row in imported_rows if row.get("status") == "approved" and row.get("approved") is True)
+    rejected_count = sum(1 for row in imported_rows if row.get("status") == "rejected")
+    pending_count = sum(1 for row in imported_rows if row.get("status") == "pending")
+    imported = {
+        **original,
+        "passed": bool(imported_rows and approved_count and not pending_count),
+        "human_reviewed": bool(imported_rows and not pending_count),
+        "candidate_count": len(imported_rows),
+        "approved_count": approved_count,
+        "rejected_count": rejected_count,
+        "pending_count": pending_count,
+        "rows": imported_rows,
+    }
+    target_path = Path(out_path) if out_path else original_path
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    target_path.write_text(json.dumps(imported, indent=2) + "\n")
+    return AnchorReviewImportResult(
+        review_sheet_path=original_path,
+        imported_sheet_path=target_path,
+        candidate_count=len(imported_rows),
+        approved_count=approved_count,
+        rejected_count=rejected_count,
+        pending_count=pending_count,
+        human_reviewed=bool(imported_rows and not pending_count),
+    )
+
+
 def summarize_anchor_review_sheet(review_sheet_path: Path | str) -> dict[str, Any]:
     sheet_path = Path(review_sheet_path)
     sheet = json.loads(sheet_path.read_text())
@@ -413,6 +478,38 @@ def _speaker_correction(start: Any, end: Any, speaker_label: Any) -> str | None:
     if start is None or end is None or not speaker_label:
         return None
     return f"{_format_seconds(start)}-{_format_seconds(end)}={speaker_label}"
+
+
+def _row_key(row: dict[str, Any]) -> str:
+    return str(row.get("index"))
+
+
+def _validate_same_review_row(original: dict[str, Any], reviewed: dict[str, Any]) -> None:
+    immutable_keys = [
+        "index",
+        "target_speaker_label",
+        "start",
+        "end",
+        "clip_path",
+        "suggested_speaker_correction",
+    ]
+    for key in immutable_keys:
+        if str(original.get(key)) != str(reviewed.get(key)):
+            raise ValueError(f"reviewed export row {original.get('index')} changed immutable field {key}")
+
+
+def _imported_review_row(original: dict[str, Any], reviewed: dict[str, Any]) -> dict[str, Any]:
+    status = reviewed.get("status") or "pending"
+    if status not in {"pending", "approved", "rejected"}:
+        raise ValueError(f"reviewed export row {original.get('index')} has invalid status {status}")
+    approved = status == "approved"
+    if reviewed.get("approved") is True and status != "approved":
+        raise ValueError(f"reviewed export row {original.get('index')} has approved true without approved status")
+    row = dict(original)
+    row["status"] = status
+    row["approved"] = approved
+    row["reviewer_note"] = str(reviewed.get("reviewer_note") or "")
+    return row
 
 
 def _review_card(row: dict[str, Any]) -> str:

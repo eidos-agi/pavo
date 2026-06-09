@@ -7,6 +7,7 @@ from pavo.review import (
     create_anchor_review_page,
     compile_anchor_review_corrections,
     create_anchor_review_sheet,
+    import_anchor_review_sheet,
     summarize_anchor_review_sheet,
 )
 
@@ -164,6 +165,87 @@ class ReviewTests(unittest.TestCase):
         self.assertFalse(summary["human_reviewed"])
         self.assertFalse(summary["passed"])
         self.assertEqual(summary["pending_count"], 1)
+
+    def test_import_anchor_review_sheet_validates_and_normalizes_export(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            original = root / "review-sheet.json"
+            exported = root / "exported.json"
+            imported = root / "imported.json"
+            sheet = {
+                "target_speaker_label": "SPEAKER_01",
+                "rows": [
+                    {
+                        "index": 1,
+                        "status": "pending",
+                        "approved": False,
+                        "target_speaker_label": "SPEAKER_01",
+                        "start": 12.06,
+                        "end": 16.06,
+                        "clip_path": "/tmp/candidate-1.wav",
+                        "suggested_speaker_correction": "00:12-00:16=SPEAKER_01",
+                        "reviewer_note": "",
+                    },
+                    {
+                        "index": 2,
+                        "status": "pending",
+                        "approved": False,
+                        "target_speaker_label": "SPEAKER_01",
+                        "start": 20.0,
+                        "end": 24.0,
+                        "clip_path": "/tmp/candidate-2.wav",
+                        "suggested_speaker_correction": "00:20-00:24=SPEAKER_01",
+                        "reviewer_note": "",
+                    },
+                ],
+            }
+            reviewed = json.loads(json.dumps(sheet))
+            reviewed["rows"][0]["status"] = "approved"
+            reviewed["rows"][0]["approved"] = True
+            reviewed["rows"][0]["reviewer_note"] = "clean target speaker"
+            reviewed["rows"][1]["status"] = "rejected"
+            reviewed["rows"][1]["approved"] = False
+            reviewed["rows"][1]["reviewer_note"] = "overlap"
+            original.write_text(json.dumps(sheet))
+            exported.write_text(json.dumps(reviewed))
+
+            result = import_anchor_review_sheet(original, exported, out_path=imported)
+            summary = summarize_anchor_review_sheet(imported)
+            corrections = compile_anchor_review_corrections(imported)
+
+        self.assertTrue(result.human_reviewed)
+        self.assertEqual(result.approved_count, 1)
+        self.assertEqual(result.rejected_count, 1)
+        self.assertEqual(result.pending_count, 0)
+        self.assertTrue(summary["passed"])
+        self.assertEqual(corrections.cli_args, ["--speaker-correction", "00:12-00:16=SPEAKER_01"])
+
+    def test_import_anchor_review_sheet_rejects_changed_clip_identity(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            original = root / "review-sheet.json"
+            exported = root / "exported.json"
+            sheet = {
+                "rows": [
+                    {
+                        "index": 1,
+                        "status": "pending",
+                        "approved": False,
+                        "target_speaker_label": "SPEAKER_01",
+                        "start": 12.06,
+                        "end": 16.06,
+                        "clip_path": "/tmp/candidate-1.wav",
+                        "suggested_speaker_correction": "00:12-00:16=SPEAKER_01",
+                    },
+                ],
+            }
+            reviewed = json.loads(json.dumps(sheet))
+            reviewed["rows"][0]["clip_path"] = "/tmp/other.wav"
+            original.write_text(json.dumps(sheet))
+            exported.write_text(json.dumps(reviewed))
+
+            with self.assertRaisesRegex(ValueError, "immutable field clip_path"):
+                import_anchor_review_sheet(original, exported)
 
 
 if __name__ == "__main__":
