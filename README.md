@@ -9,6 +9,28 @@ MCP surfaces so you can get more control over the actual audio files, speaker
 identification, custom dictionaries per call, intelligent routing, task
 creation, and durable archives.
 
+## Bio-Inspired Audio Intelligence
+
+Pavo can route Plaud audio through `eidos-transcribe`, an installable audio
+intelligence package with bio-inspired speaker analysis.
+
+The key idea is simple: instead of trusting one transcript or one speaker label,
+`eidos-transcribe` builds speaker detector banks, checks audio in rolling
+windows, and lets those detectors vote on who is speaking. That immune-inspired
+bootstrap process can confirm a speaker label, challenge it, or mark a segment
+as mixed when the audio looks like more than one voice.
+
+When a segment looks messy, Pavo can send it down a deeper path:
+
+```text
+Plaud audio -> speaker fingerprints -> rolling detector votes -> overlap flags -> source-separation analysis
+```
+
+That is not a claim that Pavo currently runs genetic algorithms. The current
+implementation is better described as **bio-inspired audio decomposition**:
+immune-style speaker detectors, rolling acoustic fingerprints, source
+separation for overlap regions, and proof manifests that show what happened.
+
 ## Why Pavo Exists
 
 Pavo exists because Plaud is excellent at capture, but the stock Plaud workflow

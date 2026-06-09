@@ -15,6 +15,25 @@ Pavo owns the Plaud wrapper, file control, routing, task creation, and archive
 layer. `eidos-transcribe` owns the audio-intelligence layer that Pavo can call
 as an installable package.
 
+## Bio-Inspired Audio Intelligence
+
+The audio-intelligence layer is bio-inspired, but not currently genetic. The
+best description is immune-style speaker detection plus source-separation
+analysis.
+
+`eidos-transcribe` can build speaker detector banks from known samples, check
+audio in rolling windows, and let those detectors vote on who is speaking. This
+immune-bootstrap process can confirm a diarization label, challenge it, or mark
+a segment as mixed when the audio looks like more than one voice. When a region
+is mixed, the separation path can isolate the suspicious slice, split it into
+stems, and score those stems against known speaker fingerprints.
+
+That gives Pavo a practical path from Plaud audio to speaker-aware intelligence:
+
+```text
+Plaud audio -> speaker fingerprints -> rolling detector votes -> overlap flags -> source-separation analysis
+```
+
 ## Why Plaud Alone Was Not Sufficient
 
 ### 1. Transcript-only access is not enough
