@@ -58,7 +58,8 @@ Status values:
    - Evidence: `test_separation_passes_requires_matching_low_leakage_stems`.
 19. Overlap Stem ASR Improvement Test - `automated`
    - Evidence: `eidos-transcribe/tests/test_synthetic_proof.py::test_overlap_stem_asr_improvement_reports_recovered_words`
-20. Stem Audio Review Artifact Test - `fixture-backed`
+20. Stem Audio Review Artifact Test - `automated`
+   - Evidence: `eidos-transcribe/tests/test_proof_metrics.py::test_stem_audio_review_artifacts_requires_reviewable_region_files`
    - Evidence: local Conan separation artifacts under `~/Eidos/Pavo/cache/imports/`.
    - Evidence: `docs/conan-diagnostic-stems.md`
 
