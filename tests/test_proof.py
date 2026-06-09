@@ -15,6 +15,7 @@ from pavo.proof import (
     plaud_real_recording_report,
     proof_status_summary,
     real_media_accepted_stems_audit,
+    real_media_decompose_search_report,
     stem_asr_improvement_search_report,
     stem_asr_improvement_report,
 )
@@ -149,6 +150,18 @@ class ProofTests(unittest.TestCase):
         self.assertGreaterEqual(report["accepted_region_count"], 1)
         self.assertFalse(report["improvement_passed"])
 
+    def test_committed_nz_decompose_search_report_records_generic_signature_search(self):
+        report_path = Path(__file__).resolve().parents[1] / "docs" / "nz-decompose-proof-search-report.json"
+        report = json.loads(report_path.read_text())
+
+        self.assertFalse(report["passed"])
+        self.assertTrue(report["speaker_signatures_present"])
+        self.assertTrue(report["rolling_transcript_present"])
+        self.assertEqual(report["accepted_region_count"], 0)
+        self.assertGreaterEqual(report["separated_region_count"], 20)
+        self.assertGreaterEqual(report["transcribed_stem_count"], 40)
+        self.assertTrue(report["include_rejected"])
+
     def test_committed_real_media_accepted_stems_audit_records_accepted_overlap(self):
         report_path = Path(__file__).resolve().parents[1] / "docs" / "real-media-accepted-stems-audit.json"
         report = json.loads(report_path.read_text())
@@ -177,6 +190,9 @@ class ProofTests(unittest.TestCase):
         self.assertEqual(report["plaud_anchor_review_sheet_approved_count"], 0)
         self.assertTrue(report["merge_policy_reviewed"])
         self.assertGreater(report["reviewable_real_media_stem_count"], 0)
+        self.assertEqual(report["nz_decompose_search_region_count"], 20)
+        self.assertEqual(report["nz_decompose_search_transcribed_stem_count"], 40)
+        self.assertEqual(report["nz_decompose_search_accepted_region_count"], 0)
         self.assertNotIn("real accepted stems on a real overlap clip", report["remaining_gaps"])
         self.assertIn("real-media comparison showing stem ASR recovers words missed by mixed-audio ASR", report["remaining_gaps"])
         self.assertNotIn("reviewed merge policy for when stem ASR can augment or override the canonical transcript", report["remaining_gaps"])
@@ -1025,6 +1041,61 @@ class ProofTests(unittest.TestCase):
         self.assertEqual(report["candidate_count"], 2)
         self.assertEqual(report["accepted_region_count"], 1)
         self.assertEqual(report["manifests"][0]["accepted_region_count"], 1)
+
+    def test_real_media_decompose_search_report_counts_rejected_diagnostic_search(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            signatures = root / "speaker-signatures.manifest.json"
+            rolling = root / "rolling.json"
+            separated = root / "separated"
+            stem_asr = root / "stem-asr"
+            separated.mkdir()
+            stem_asr.mkdir()
+            signatures.write_text("{}")
+            rolling.write_text("[]")
+            analysis = separated / "analysis.json"
+            analysis.write_text(
+                json.dumps(
+                    {
+                        "accepted": False,
+                        "region": {"start": 1.0, "end": 2.0, "text": "candidate"},
+                        "stem_reports": {
+                            "speaker-00": {
+                                "target": "Speaker 0",
+                                "wrong_rate": 0.0,
+                                "whole_clip": {"best": "Speaker 0", "margin": 0.2},
+                            },
+                            "speaker-01": {
+                                "target": "Speaker 1",
+                                "wrong_rate": 1.0,
+                                "whole_clip": {"best": "Speaker 0", "margin": 0.01},
+                            },
+                        },
+                    }
+                )
+            )
+            separation_manifest = separated / "separate-overlaps.manifest.json"
+            separation_manifest.write_text(json.dumps({"regions": [str(analysis)]}))
+            stem_manifest = stem_asr / "stem-asr.manifest.json"
+            stem_manifest.write_text(json.dumps({"include_rejected": True, "transcribed_stem_count": 2}))
+            manifest = root / "decompose-transcribe.manifest.json"
+            manifest.write_text(
+                json.dumps(
+                    {
+                        "speaker_signatures_manifest": str(signatures),
+                        "rolling_attributed_json": str(rolling),
+                        "overlap_separation_manifest": str(separation_manifest),
+                        "stem_asr_manifest": str(stem_manifest),
+                    }
+                )
+            )
+
+            report = real_media_decompose_search_report(manifest)
+
+        self.assertFalse(report["passed"])
+        self.assertTrue(report["speaker_signatures_present"])
+        self.assertEqual(report["trusted_stem_region_count"], 1)
+        self.assertEqual(report["accepted_region_count"], 0)
 
     def test_proof_status_summary_keeps_goal_open_without_real_accepted_stems(self):
         with tempfile.TemporaryDirectory() as tmp:

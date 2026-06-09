@@ -98,6 +98,10 @@ The strongest remaining proof gaps are:
     reviewed expected phrase was already present in same-region mixed ASR. A
     broader Conan search checked 80 candidate regions across 4 padding settings
     and found no additional accepted improvement candidate.
+  - Current result: the New Zealand accent/slang fixture now creates generic
+    speaker signatures and runs 20 separated regions with 40 diagnostic stem
+    transcripts, but 0 regions are accepted.
+  - Evidence: [nz-decompose-proof-search-report.json](nz-decompose-proof-search-report.json)
 - human-reviewed real Plaud multi-person overlap recording
   - Current result: 2 real Plaud decompose attempts passed the pipeline, but 0
     Plaud overlap regions have accepted stems.

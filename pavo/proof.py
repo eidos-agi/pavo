@@ -286,6 +286,58 @@ def plaud_decompose_recording_report(source_dir: Path | str) -> dict[str, Any]:
     }
 
 
+def real_media_decompose_search_report(manifest_path: Path | str) -> dict[str, Any]:
+    manifest_path = Path(manifest_path)
+    manifest = _load_json(manifest_path)
+    separation_manifest_path = Path(manifest.get("overlap_separation_manifest", ""))
+    separation_manifest = _load_json(separation_manifest_path)
+    stem_asr_manifest_path = Path(manifest.get("stem_asr_manifest", ""))
+    stem_asr_manifest = _load_json(stem_asr_manifest_path)
+    signature_path = Path(manifest.get("speaker_signatures_manifest", ""))
+    rolling_path = Path(manifest.get("rolling_attributed_json", ""))
+
+    regions = []
+    for path_text in separation_manifest.get("regions", []):
+        region_path = Path(path_text)
+        payload = _load_json(region_path)
+        if not payload:
+            continue
+        stem_reports = payload.get("stem_reports", {})
+        trusted_stems = [slug for slug, stem in stem_reports.items() if _stem_report_trusted(stem)]
+        regions.append(
+            {
+                "path": str(region_path),
+                "accepted": payload.get("accepted") is True,
+                "start": payload.get("region", {}).get("start"),
+                "end": payload.get("region", {}).get("end"),
+                "text": payload.get("region", {}).get("text"),
+                "stem_count": len(stem_reports),
+                "trusted_stems": trusted_stems,
+                "trusted_stem_count": len(trusted_stems),
+                "wrong_rates": {slug: stem.get("wrong_rate") for slug, stem in stem_reports.items()},
+                "margins": {slug: stem.get("whole_clip", {}).get("margin") for slug, stem in stem_reports.items()},
+            }
+        )
+    accepted_regions = [region for region in regions if region["accepted"]]
+    trusted_region_count = sum(1 for region in regions if region["trusted_stem_count"])
+    return {
+        "passed": bool(accepted_regions),
+        "manifest": str(manifest_path),
+        "speaker_signatures_present": signature_path.exists(),
+        "rolling_transcript_present": rolling_path.exists(),
+        "separation_manifest": str(separation_manifest_path),
+        "stem_asr_manifest": str(stem_asr_manifest_path),
+        "separated_region_count": len(regions),
+        "accepted_region_count": len(accepted_regions),
+        "trusted_stem_region_count": trusted_region_count,
+        "transcribed_stem_count": stem_asr_manifest.get("transcribed_stem_count", 0),
+        "include_rejected": stem_asr_manifest.get("include_rejected"),
+        "regions": regions,
+        "next_required_proof": "accepted real-media separated region whose trusted stem ASR recovers words absent from same-region mixed ASR",
+        "caveat": "This search created generic speaker signatures and diagnostic stem ASR, but every NZ separated region remained rejected.",
+    }
+
+
 def plaud_anchor_quality_report(attempts: list[dict[str, Any]]) -> dict[str, Any]:
     attempt_reports = []
     for attempt in attempts:
@@ -733,6 +785,7 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
         "demo_video": _load_json(docs / "conan-demo-video-report.json"),
         "accepted_stems": _load_json(docs / "real-media-accepted-stems-audit.json"),
         "stem_asr_improvement": _load_json(docs / "stem-asr-improvement-report.json"),
+        "nz_decompose_search": _load_json(docs / "nz-decompose-proof-search-report.json"),
         "merge_policy": _load_json(docs / "stem-merge-policy-report.json"),
     }
     tests = [
@@ -825,6 +878,9 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
         "reviewable_real_media_stem_count": reports["accepted_stems"].get("trusted_stem_count", 0),
         "reviewable_real_media_stem_report_count": reports["accepted_stems"].get("trusted_stem_report_count", 0),
         "real_media_separation_report_count": reports["accepted_stems"].get("separation_report_count", 0),
+        "nz_decompose_search_region_count": reports["nz_decompose_search"].get("separated_region_count", 0),
+        "nz_decompose_search_transcribed_stem_count": reports["nz_decompose_search"].get("transcribed_stem_count", 0),
+        "nz_decompose_search_accepted_region_count": reports["nz_decompose_search"].get("accepted_region_count", 0),
         "remaining_gaps": remaining_gaps,
     }
 
