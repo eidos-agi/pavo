@@ -1,0 +1,22 @@
+{
+  "passed": false,
+  "reviewed": true,
+  "mixed_transcript": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/mixed-asr/faster-whisper/transcript.json",
+  "stem_evidence": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/stem-asr-accepted/decomposed-transcript.json",
+  "trusted_stem_segment_count": 4,
+  "expected_recovered_terms": [
+    "that old sitcom"
+  ],
+  "recovered_terms": [],
+  "term_results": [
+    {
+      "term": "that old sitcom",
+      "trusted_stem_has_term": true,
+      "mixed_asr_has_term": true,
+      "recovered_by_stem": false
+    }
+  ],
+  "mixed_text": " Stop it. That old sitcom.  Yeah, that-",
+  "trusted_stem_text": "That old sitcom. I'll stop and triple. Ha! Ha!",
+  "next_required_proof": "reviewed expected words present in trusted accepted stem ASR and absent from same-region mixed ASR"
+}

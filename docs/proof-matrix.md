@@ -92,6 +92,9 @@ Machine-readable rollup: [proof-status-summary.json](proof-status-summary.json)
 The strongest remaining proof gaps are:
 
 - real-media comparison showing stem ASR recovers words missed by mixed-audio ASR
+  - Evidence: [stem-asr-improvement-report.json](stem-asr-improvement-report.json)
+  - Current result: accepted Conan stem ASR has trusted evidence, but the
+    reviewed expected phrase was already present in same-region mixed ASR.
 - human-reviewed real Plaud multi-person overlap recording
   - Current result: 2 real Plaud decompose attempts passed the pipeline, but 0
     Plaud overlap regions have accepted stems.

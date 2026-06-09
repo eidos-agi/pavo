@@ -12,6 +12,7 @@ from pavo.proof import (
     plaud_real_recording_report,
     proof_status_summary,
     real_media_accepted_stems_audit,
+    stem_asr_improvement_report,
 )
 
 
@@ -90,6 +91,16 @@ class ProofTests(unittest.TestCase):
         self.assertTrue(report["accepted_stem_asr_available"])
         self.assertFalse(report["stem_asr_improvement_passed"])
         self.assertGreater(report["trusted_segment_count"], 0)
+
+    def test_committed_stem_asr_improvement_report_keeps_gap_open(self):
+        report_path = Path(__file__).resolve().parents[1] / "docs" / "stem-asr-improvement-report.json"
+        report = json.loads(report_path.read_text())
+
+        self.assertFalse(report["passed"])
+        self.assertTrue(report["reviewed"])
+        self.assertGreater(report["trusted_stem_segment_count"], 0)
+        self.assertEqual(report["recovered_terms"], [])
+        self.assertIn("that old sitcom", report["mixed_text"].lower())
 
     def test_committed_real_media_accepted_stems_audit_records_accepted_overlap(self):
         report_path = Path(__file__).resolve().parents[1] / "docs" / "real-media-accepted-stems-audit.json"
@@ -722,6 +733,66 @@ class ProofTests(unittest.TestCase):
         self.assertEqual(report["trusted_stem_count"], 1)
         self.assertEqual(report["trusted_stem_report_count"], 1)
         self.assertEqual(report["trusted_stem_reports"][0]["trusted_stems"], ["speaker-a"])
+
+    def test_stem_asr_improvement_report_passes_only_for_reviewed_missing_mixed_terms(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            mixed = root / "mixed.json"
+            stems = root / "stems.json"
+            mixed.write_text(json.dumps({"segments": [{"text": "what was that like"}]}))
+            stems.write_text(
+                json.dumps(
+                    {
+                        "segments": [
+                            {
+                                "trusted": True,
+                                "separation_accepted": True,
+                                "text": "what was that experience like",
+                            }
+                        ]
+                    }
+                )
+            )
+
+            report = stem_asr_improvement_report(
+                mixed_transcript_path=mixed,
+                stem_evidence_path=stems,
+                expected_recovered_terms=["experience"],
+                reviewed=True,
+            )
+
+        self.assertTrue(report["passed"])
+        self.assertEqual(report["recovered_terms"], ["experience"])
+
+    def test_stem_asr_improvement_report_fails_when_mixed_asr_already_has_term(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            mixed = root / "mixed.json"
+            stems = root / "stems.json"
+            mixed.write_text(json.dumps({"segments": [{"text": "that old sitcom"}]}))
+            stems.write_text(
+                json.dumps(
+                    {
+                        "segments": [
+                            {
+                                "trusted": True,
+                                "separation_accepted": True,
+                                "text": "that old sitcom",
+                            }
+                        ]
+                    }
+                )
+            )
+
+            report = stem_asr_improvement_report(
+                mixed_transcript_path=mixed,
+                stem_evidence_path=stems,
+                expected_recovered_terms=["that old sitcom"],
+                reviewed=True,
+            )
+
+        self.assertFalse(report["passed"])
+        self.assertEqual(report["recovered_terms"], [])
 
     def test_proof_status_summary_keeps_goal_open_without_real_accepted_stems(self):
         with tempfile.TemporaryDirectory() as tmp:

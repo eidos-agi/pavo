@@ -355,6 +355,50 @@ def conan_old_sitcom_report(separation_manifest_path: Path | str, stem_asr_manif
     }
 
 
+def stem_asr_improvement_report(
+    *,
+    mixed_transcript_path: Path | str,
+    stem_evidence_path: Path | str,
+    expected_recovered_terms: list[str],
+    reviewed: bool = False,
+) -> dict[str, Any]:
+    mixed_transcript = _load_json(Path(mixed_transcript_path))
+    stem_evidence = _load_json(Path(stem_evidence_path))
+    mixed_text = " ".join(str(segment.get("text", "")) for segment in mixed_transcript.get("segments", []))
+    trusted_stem_segments = [
+        segment
+        for segment in stem_evidence.get("segments", [])
+        if segment.get("trusted") is True and segment.get("separation_accepted") is True
+    ]
+    trusted_stem_text = " ".join(str(segment.get("text", "")) for segment in trusted_stem_segments)
+    term_results = []
+    for term in expected_recovered_terms:
+        stem_has_term = normalize_text(term) in normalize_text(trusted_stem_text)
+        mixed_has_term = normalize_text(term) in normalize_text(mixed_text)
+        term_results.append(
+            {
+                "term": term,
+                "trusted_stem_has_term": stem_has_term,
+                "mixed_asr_has_term": mixed_has_term,
+                "recovered_by_stem": bool(stem_has_term and not mixed_has_term),
+            }
+        )
+    recovered_terms = [item["term"] for item in term_results if item["recovered_by_stem"]]
+    return {
+        "passed": bool(reviewed and expected_recovered_terms and len(recovered_terms) == len(expected_recovered_terms)),
+        "reviewed": reviewed,
+        "mixed_transcript": str(mixed_transcript_path),
+        "stem_evidence": str(stem_evidence_path),
+        "trusted_stem_segment_count": len(trusted_stem_segments),
+        "expected_recovered_terms": expected_recovered_terms,
+        "recovered_terms": recovered_terms,
+        "term_results": term_results,
+        "mixed_text": mixed_text,
+        "trusted_stem_text": trusted_stem_text,
+        "next_required_proof": "reviewed expected words present in trusted accepted stem ASR and absent from same-region mixed ASR",
+    }
+
+
 def real_media_accepted_stems_audit(cache_root: Path | str) -> dict[str, Any]:
     root = Path(cache_root)
     separation_reports = []
@@ -430,6 +474,7 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
         "plaud_c37_decompose": _load_json(docs / "plaud-c37-decompose-report.json"),
         "demo_video": _load_json(docs / "conan-demo-video-report.json"),
         "accepted_stems": _load_json(docs / "real-media-accepted-stems-audit.json"),
+        "stem_asr_improvement": _load_json(docs / "stem-asr-improvement-report.json"),
         "merge_policy": _load_json(docs / "stem-merge-policy-report.json"),
     }
     tests = [
@@ -476,7 +521,7 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
     accepted_real_media_stems_with_window_checks = bool(
         reports["accepted_stems"].get("accepted_report_with_window_checks_count", 0)
     )
-    real_media_stem_asr_improvement = bool(reports["conan_old_sitcom"].get("stem_asr_improvement_passed"))
+    real_media_stem_asr_improvement = bool(reports["stem_asr_improvement"].get("passed"))
     remaining_gaps = []
     if not accepted_real_media_stems:
         remaining_gaps.extend(

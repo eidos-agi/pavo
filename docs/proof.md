@@ -155,6 +155,10 @@ Transcript output:
 - The real-media audit now finds accepted Conan/Kaitlin overlap separation:
   both stems pass the trust gate with wrong-window leakage checks. The accepted
   stem ASR manifest writes trusted global-timed evidence for that overlap.
+- The accepted Conan stem ASR does not yet prove transcript improvement: the
+  reviewed expected phrase appears in the same-region mixed ASR too, so
+  [stem-asr-improvement-report.json](stem-asr-improvement-report.json) remains
+  `passed: false`.
 - Pavo does not currently run genetic algorithms.
 - The merge policy is now proven by
   [stem-merge-policy-report.json](stem-merge-policy-report.json); the remaining
