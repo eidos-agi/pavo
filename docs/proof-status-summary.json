@@ -1,0 +1,245 @@
+{
+  "passed": false,
+  "proved_count": 25,
+  "total_count": 25,
+  "tests": [
+    {
+      "id": 1,
+      "name": "Accepted Stem ASR Test",
+      "status": "automated",
+      "proved": true,
+      "evidence": [
+        "unit tests"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Rejected Stem Skip Test",
+      "status": "automated",
+      "proved": true,
+      "evidence": [
+        "unit tests"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Diagnostic Rejected Stem Test",
+      "status": "automated",
+      "proved": true,
+      "evidence": [
+        "unit tests"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Global Timestamp Mapping Test",
+      "status": "automated",
+      "proved": true,
+      "evidence": [
+        "unit tests"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Canonical Preservation Test",
+      "status": "automated",
+      "proved": true,
+      "evidence": [
+        "unit tests"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Clean Anchor Enrollment Test",
+      "status": "automated",
+      "proved": true,
+      "evidence": [
+        "unit tests"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Anchor Quality Rejection Test",
+      "status": "automated",
+      "proved": true,
+      "evidence": [
+        "unit tests"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "Speaker Fingerprint Match Test",
+      "status": "automated",
+      "proved": true,
+      "evidence": [
+        "unit tests"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "Speaker Fingerprint Conflict Test",
+      "status": "automated",
+      "proved": true,
+      "evidence": [
+        "unit tests"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "Short Interjection Fingerprint Test",
+      "status": "automated",
+      "proved": true,
+      "evidence": [
+        "unit tests"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "High-Recall Boundary Test",
+      "status": "automated",
+      "proved": true,
+      "evidence": [
+        "unit tests"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "False Boundary Merge Test",
+      "status": "automated",
+      "proved": true,
+      "evidence": [
+        "unit tests"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "Transcript-Row Independence Test",
+      "status": "automated",
+      "proved": true,
+      "evidence": [
+        "unit tests"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "Overlap Boundary Test",
+      "status": "automated",
+      "proved": true,
+      "evidence": [
+        "unit tests"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "Silence Boundary Test",
+      "status": "automated",
+      "proved": true,
+      "evidence": [
+        "unit tests"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "Two-Speaker Synthetic Mix Test",
+      "status": "automated",
+      "proved": true,
+      "evidence": [
+        "unit tests"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "Stem Purity Test",
+      "status": "automated",
+      "proved": true,
+      "evidence": [
+        "unit tests"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "Stem Leakage Test",
+      "status": "automated",
+      "proved": true,
+      "evidence": [
+        "unit tests"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "Overlap Stem ASR Improvement Test",
+      "status": "automated",
+      "proved": true,
+      "evidence": [
+        "unit tests"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "Stem Audio Review Artifact Test",
+      "status": "automated",
+      "proved": true,
+      "evidence": [
+        "unit tests"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "Conan Experience Like Test",
+      "status": "fixture-backed",
+      "proved": true,
+      "evidence": [
+        "conan-experience-comparison-report.json"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "Conan That Old Sitcom Test",
+      "status": "fixture-backed",
+      "proved": true,
+      "evidence": [
+        "conan-old-sitcom-report.json"
+      ],
+      "accepted_stems": false
+    },
+    {
+      "id": 23,
+      "name": "New Zealand Accent Slang Test",
+      "status": "fixture-backed",
+      "proved": true,
+      "evidence": [
+        "nz-slang-comparison-report.json"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "Plaud Real Recording Test",
+      "status": "fixture-backed",
+      "proved": true,
+      "evidence": [
+        "plaud-real-recording-report.json",
+        "plaud-d535-decompose-report.json"
+      ],
+      "accepted_stems": false
+    },
+    {
+      "id": 25,
+      "name": "End-to-End Demo Video Test",
+      "status": "fixture-backed",
+      "proved": true,
+      "evidence": [
+        "conan-demo-video-report.json"
+      ]
+    }
+  ],
+  "accepted_real_media_stems": false,
+  "accepted_real_media_report_count": 0,
+  "real_media_separation_report_count": 6,
+  "remaining_gaps": [
+    "real accepted stems on a real overlap clip",
+    "real-media two-speaker separation with accepted stems",
+    "real-media comparison showing stem ASR recovers words missed by mixed-audio ASR",
+    "human-reviewed real Plaud multi-person overlap with accepted stems",
+    "reviewed merge policy for when stem ASR can augment or override the canonical transcript"
+  ]
+}

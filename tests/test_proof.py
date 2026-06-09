@@ -10,6 +10,7 @@ from pavo.proof import (
     nz_slang_comparison_report,
     plaud_decompose_recording_report,
     plaud_real_recording_report,
+    proof_status_summary,
     real_media_accepted_stems_audit,
 )
 
@@ -86,6 +87,16 @@ class ProofTests(unittest.TestCase):
         self.assertFalse(report["passed"])
         self.assertEqual(report["accepted_report_count"], 0)
         self.assertGreaterEqual(report["separation_report_count"], 1)
+
+    def test_committed_proof_status_summary_records_current_goal_gap(self):
+        report_path = Path(__file__).resolve().parents[1] / "docs" / "proof-status-summary.json"
+        report = json.loads(report_path.read_text())
+
+        self.assertFalse(report["passed"])
+        self.assertEqual(report["total_count"], 25)
+        self.assertEqual(report["proved_count"], 25)
+        self.assertFalse(report["accepted_real_media_stems"])
+        self.assertIn("real accepted stems on a real overlap clip", report["remaining_gaps"])
 
     def test_conan_experience_comparison_proves_pavo_adds_named_speaker_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -582,6 +593,31 @@ class ProofTests(unittest.TestCase):
         self.assertFalse(report["passed"])
         self.assertEqual(report["accepted_report_count"], 0)
         self.assertEqual(report["rejected_report_count"], 1)
+
+    def test_proof_status_summary_keeps_goal_open_without_real_accepted_stems(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            docs = Path(tmp)
+            for name in [
+                "conan-experience-comparison-report.json",
+                "conan-old-sitcom-report.json",
+                "nz-slang-comparison-report.json",
+                "conan-demo-video-report.json",
+            ]:
+                (docs / name).write_text(json.dumps({"passed": True}))
+            (docs / "plaud-real-recording-report.json").write_text(json.dumps({"partial": True}))
+            (docs / "plaud-d535-decompose-report.json").write_text(
+                json.dumps({"passed": True, "accepted_stems_passed": False})
+            )
+            (docs / "real-media-accepted-stems-audit.json").write_text(
+                json.dumps({"passed": False, "accepted_report_count": 0, "separation_report_count": 6})
+            )
+
+            report = proof_status_summary(docs)
+
+        self.assertFalse(report["passed"])
+        self.assertEqual(report["proved_count"], 25)
+        self.assertFalse(report["accepted_real_media_stems"])
+        self.assertIn("reviewed merge policy for when stem ASR can augment or override the canonical transcript", report["remaining_gaps"])
 
 
 if __name__ == "__main__":

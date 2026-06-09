@@ -9,6 +9,8 @@ Status values:
 - `fixture-backed`: has local media artifacts, but not a stable automated pass.
 - `planned`: not yet implemented.
 
+Machine-readable rollup: [proof-status-summary.json](proof-status-summary.json)
+
 ## Core Pipeline
 
 1. Accepted Stem ASR Test - `automated`
