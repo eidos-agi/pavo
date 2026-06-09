@@ -112,31 +112,23 @@ The problems Pavo is built around:
     time transcription gets better. Pavo calls `eidos-transcribe` as an
     installable package that can be upgraded.
 
-## Problem -> Solution Cards
+## Problem -> Solution Visuals
 
-![Plaud notes were not enough](assets/problem-solutions/01-transcript-only.svg)
+Pavo starts by getting teams out of summary-only workflows and back to the real
+audio file, with hashes, manifests, and durable archives.
 
-![The audio was hard to get](assets/problem-solutions/02-discover-real-audio.svg)
+![Audio Escape](assets/problem-solutions-v2/audio-escape.png)
 
-![The account was confusing](assets/problem-solutions/03-account-identity.svg)
+The audio intelligence layer then treats speaker identification as an evidence
+pipeline: fingerprints, detector votes, overlap flags, source separation, and a
+named speaker transcript.
 
-![The AI tool path was flaky](assets/problem-solutions/04-mcp-visibility.svg)
+![Speaker Intelligence Pipeline](assets/problem-solutions-v2/speaker-intelligence-pipeline.png)
 
-![Links expired](assets/problem-solutions/05-temporary-urls.svg)
+The final product loop turns recordings into speaker-aware transcripts, routed
+notes and tasks, and a durable archive that future models can revisit.
 
-![Secrets needed boundaries](assets/problem-solutions/06-private-config.svg)
-
-![Recordings needed somewhere to go](assets/problem-solutions/07-drive-archive.svg)
-
-![AI misheard important words](assets/problem-solutions/08-domain-terms.svg)
-
-![One transcript was too fragile](assets/problem-solutions/09-multi-engine.svg)
-
-![Who spoke mattered](assets/problem-solutions/10-speaker-identity.svg)
-
-![Messy audio needed help](assets/problem-solutions/11-overlap-noise.svg)
-
-![The system needed to improve over time](assets/problem-solutions/12-updatable-package.svg)
+![From Recording to Work](assets/problem-solutions-v2/recording-to-work.png)
 
 The short version:
 
