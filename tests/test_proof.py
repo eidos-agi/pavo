@@ -217,6 +217,8 @@ class ProofTests(unittest.TestCase):
         self.assertFalse(report["plaud_anchor_review_gate_passed"])
         self.assertIn("20 review rows are still pending", report["plaud_anchor_review_gate_blockers"])
         self.assertIn("no speaker-anchor clips are approved", report["plaud_anchor_review_gate_blockers"])
+        self.assertEqual(report["plaud_anchor_review_status_review_url"], "http://127.0.0.1:9876/index.html")
+        self.assertIn("review the bundled clips", report["plaud_anchor_review_status_next_action"])
         self.assertFalse(report["plaud_anchor_rerun_command_ready"])
         self.assertEqual(report["plaud_anchor_rerun_command_approved_count"], 0)
         self.assertEqual(report["plaud_anchor_rerun_command_pending_count"], 20)

@@ -144,6 +144,32 @@ class AnchorReviewServeResult:
     shell_command: str
 
 
+@dataclass(frozen=True)
+class AnchorReviewStatusResult:
+    review_sheet_path: Path
+    passed: bool
+    review_url: str | None
+    serve_command: str | None
+    approved_count: int
+    rejected_count: int
+    pending_count: int
+    blockers: list[str]
+    next_action: str
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "passed": self.passed,
+            "review_sheet": str(self.review_sheet_path),
+            "review_url": self.review_url,
+            "serve_command": self.serve_command,
+            "approved_count": self.approved_count,
+            "rejected_count": self.rejected_count,
+            "pending_count": self.pending_count,
+            "blockers": self.blockers,
+            "next_action": self.next_action,
+        }
+
+
 def create_anchor_review_sheet(
     clip_packet_path: Path | str,
     *,
@@ -796,6 +822,35 @@ def gate_anchor_review(
         bundle_ready=bundle_ready,
         browser_verified=browser_verified,
         rerun_command_ready=rerun_command_ready,
+        blockers=blockers,
+        next_action=next_action,
+    )
+
+
+def status_anchor_review(
+    review_sheet_path: Path | str,
+    *,
+    gate_report_path: Path | str | None = None,
+    bundle_manifest_path: Path | str | None = None,
+) -> AnchorReviewStatusResult:
+    sheet_path = Path(review_sheet_path)
+    summary = summarize_anchor_review_sheet(sheet_path)
+    gate_report = _load_optional_json(gate_report_path)
+    bundle_manifest = _load_optional_json(bundle_manifest_path)
+    blockers = gate_report.get("blockers") or []
+    next_action = gate_report.get("next_action") or (
+        "run the rerun command and regenerate Plaud decompose proof"
+        if summary["human_reviewed"] and summary["approved_count"]
+        else "review the bundled clips, export JSON, import it, then run pavo review anchors rerun-command"
+    )
+    return AnchorReviewStatusResult(
+        review_sheet_path=sheet_path,
+        passed=bool(gate_report.get("passed")),
+        review_url=bundle_manifest.get("review_url"),
+        serve_command=bundle_manifest.get("serve_command"),
+        approved_count=summary["approved_count"],
+        rejected_count=summary["rejected_count"],
+        pending_count=summary["pending_count"],
         blockers=blockers,
         next_action=next_action,
     )

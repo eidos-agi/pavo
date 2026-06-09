@@ -12,6 +12,7 @@ from pavo.review import (
     create_anchor_review_sheet,
     gate_anchor_review,
     import_anchor_review_sheet,
+    status_anchor_review,
     summarize_anchor_review_sheet,
     verify_anchor_review_page,
 )
@@ -60,6 +61,25 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.pending_count, 20)
         self.assertIn("20 review rows are still pending", result.blockers)
         self.assertIn("no speaker-anchor clips are approved", result.blockers)
+
+    def test_committed_plaud_c37_review_status_prints_next_action(self):
+        docs = Path(__file__).resolve().parents[1] / "docs"
+
+        result = status_anchor_review(
+            docs / "plaud-c37-speaker1-anchor-review-sheet.json",
+            gate_report_path=docs / "plaud-c37-anchor-review-gate-report.json",
+            bundle_manifest_path=docs / "plaud-c37-anchor-review-bundle-manifest.json",
+        )
+
+        self.assertFalse(result.passed)
+        self.assertEqual(result.review_url, "http://127.0.0.1:9876/index.html")
+        self.assertEqual(
+            result.serve_command,
+            "pavo review anchors serve docs/plaud-c37-anchor-review-bundle --port 9876",
+        )
+        self.assertEqual(result.pending_count, 20)
+        self.assertIn("20 review rows are still pending", result.blockers)
+        self.assertIn("review the bundled clips", result.next_action)
 
     def test_create_anchor_review_sheet_starts_pending_without_approved_corrections(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -20,6 +20,7 @@ from .review import (
     compile_anchor_review_corrections,
     gate_anchor_review,
     import_anchor_review_sheet,
+    status_anchor_review,
     summarize_anchor_review_sheet,
     verify_anchor_review_page,
 )
@@ -151,6 +152,11 @@ def build_parser() -> argparse.ArgumentParser:
     review_anchors_gate.add_argument("--browser-report", type=Path)
     review_anchors_gate.add_argument("--rerun-report", type=Path)
     review_anchors_gate.add_argument("--report", type=Path, help="Write machine-readable gate report JSON")
+    review_anchors_status = review_anchors_sub.add_parser("status", help="Show review URL, blockers, and next action")
+    review_anchors_status.add_argument("review_sheet", type=Path)
+    review_anchors_status.add_argument("--gate-report", type=Path)
+    review_anchors_status.add_argument("--bundle-manifest", type=Path)
+    review_anchors_status.add_argument("--report", type=Path, help="Write machine-readable status report JSON")
     review_anchors_corrections = review_anchors_sub.add_parser("corrections", help="Print approved --speaker-correction flags")
     review_anchors_corrections.add_argument("review_sheet", type=Path)
 
@@ -460,6 +466,28 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"bundle_ready: {str(result.bundle_ready).lower()}")
                 print(f"browser_verified: {str(result.browser_verified).lower()}")
                 print(f"rerun_command_ready: {str(result.rerun_command_ready).lower()}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+                print(f"next_action: {result.next_action}")
+                return 0 if result.passed else 2
+            if args.review_anchors_command == "status":
+                result = status_anchor_review(
+                    args.review_sheet,
+                    gate_report_path=args.gate_report,
+                    bundle_manifest_path=args.bundle_manifest,
+                )
+                if args.report:
+                    args.report.parent.mkdir(parents=True, exist_ok=True)
+                    args.report.write_text(__import__("json").dumps(result.as_report(), indent=2) + "\n")
+                    print(f"report: {args.report}")
+                print(f"passed: {str(result.passed).lower()}")
+                if result.serve_command:
+                    print(f"serve_command: {result.serve_command}")
+                if result.review_url:
+                    print(f"review_url: {result.review_url}")
+                print(f"approved_count: {result.approved_count}")
+                print(f"rejected_count: {result.rejected_count}")
+                print(f"pending_count: {result.pending_count}")
                 if result.blockers:
                     print("blockers: " + "; ".join(result.blockers))
                 print(f"next_action: {result.next_action}")

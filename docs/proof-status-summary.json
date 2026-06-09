@@ -262,6 +262,8 @@
     "20 review rows are still pending",
     "no speaker-anchor clips are approved"
   ],
+  "plaud_anchor_review_status_next_action": "review the bundled clips, export JSON, import it, then run pavo review anchors rerun-command",
+  "plaud_anchor_review_status_review_url": "http://127.0.0.1:9876/index.html",
   "plaud_anchor_rerun_command_ready": false,
   "plaud_anchor_rerun_command_approved_count": 0,
   "plaud_anchor_rerun_command_pending_count": 20,

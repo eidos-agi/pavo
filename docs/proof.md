@@ -198,6 +198,9 @@ Transcript output:
   [plaud-c37-anchor-review-gate-report.json](plaud-c37-anchor-review-gate-report.json).
   It currently passes every UI/bundle check and fails only because 20 review
   rows are still pending and no speaker-anchor clips are approved.
+- `pavo review anchors status` now prints the review URL, serve command,
+  blockers, and next action in one place:
+  [plaud-c37-anchor-review-status-report.json](plaud-c37-anchor-review-status-report.json).
 - The real-media audit now finds accepted Conan/Kaitlin overlap separation:
   both stems pass the trust gate with wrong-window leakage checks. The accepted
   stem ASR manifest writes trusted global-timed evidence for that overlap.
