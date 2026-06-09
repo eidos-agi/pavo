@@ -1,0 +1,283 @@
+{
+  "passed": false,
+  "target_speaker_label": "SPEAKER_01",
+  "target_speaker_name": "Speaker 1",
+  "source_audio_wav": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/process-call/speaker-pipeline/audio-16k-mono.wav",
+  "signatures_manifest": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/process-call/speaker-pipeline/speaker-signatures/speaker-signatures.manifest.json",
+  "attributed_transcript": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/process-call/speaker-pipeline/mfcc-kmeans.verified.attributed.json",
+  "existing_sample_count": 5,
+  "existing_sample_seconds": 20.0,
+  "existing_samples": [
+    {
+      "start": 144.6,
+      "end": 148.6,
+      "duration": 4.0,
+      "confidence": 1.0,
+      "method": "audio_overlap",
+      "text": "memory.",
+      "source": "existing_signature_sample"
+    },
+    {
+      "start": 937.88,
+      "end": 941.88,
+      "duration": 4.0,
+      "confidence": 1.0,
+      "method": "audio_overlap",
+      "text": "I just covered this in a variety of different energy",
+      "source": "existing_signature_sample"
+    },
+    {
+      "start": 12.06,
+      "end": 16.06,
+      "duration": 4.0,
+      "confidence": 1.0,
+      "method": "audio_overlap",
+      "text": "I think I'd wrap out.",
+      "source": "existing_signature_sample"
+    },
+    {
+      "start": 933.86,
+      "end": 937.86,
+      "duration": 4.0,
+      "confidence": 0.997,
+      "method": "audio_overlap",
+      "text": "Wait, I'll ask you.",
+      "source": "existing_signature_sample"
+    },
+    {
+      "start": 732.72,
+      "end": 736.72,
+      "duration": 4.0,
+      "confidence": 0.96,
+      "method": "audio_overlap",
+      "text": "Yeah, I think also it's like",
+      "source": "existing_signature_sample"
+    }
+  ],
+  "review_candidate_count": 20,
+  "review_candidates": [
+    {
+      "start": 12.06,
+      "end": 16.06,
+      "duration": 4.0,
+      "confidence": 1.0,
+      "method": "audio_overlap",
+      "immune": null,
+      "text": "I think I'd wrap out.",
+      "source": "attributed_transcript"
+    },
+    {
+      "start": 144.60000000000002,
+      "end": 148.60000000000002,
+      "duration": 4.0,
+      "confidence": 1.0,
+      "method": "audio_overlap",
+      "immune": null,
+      "text": "memory.",
+      "source": "attributed_transcript"
+    },
+    {
+      "start": 937.88,
+      "end": 941.88,
+      "duration": 4.0,
+      "confidence": 1.0,
+      "method": "audio_overlap",
+      "immune": null,
+      "text": "I just covered this in a variety of different energy",
+      "source": "attributed_transcript"
+    },
+    {
+      "start": 933.86,
+      "end": 937.86,
+      "duration": 4.0,
+      "confidence": 0.997,
+      "method": "audio_overlap",
+      "immune": null,
+      "text": "Wait, I'll ask you.",
+      "source": "attributed_transcript"
+    },
+    {
+      "start": 732.72,
+      "end": 736.72,
+      "duration": 4.0,
+      "confidence": 0.96,
+      "method": "audio_overlap",
+      "immune": null,
+      "text": "Yeah, I think also it's like",
+      "source": "attributed_transcript"
+    },
+    {
+      "start": 339.47999999999996,
+      "end": 343.47999999999996,
+      "duration": 4.0,
+      "confidence": 0.816,
+      "method": "audio_overlap",
+      "immune": null,
+      "text": "Now you can build back. If you can build back,",
+      "source": "attributed_transcript"
+    },
+    {
+      "start": 941.9,
+      "end": 945.9,
+      "duration": 4.0,
+      "confidence": 0.816,
+      "method": "audio_overlap",
+      "immune": null,
+      "text": "and compliments by that side.",
+      "source": "attributed_transcript"
+    },
+    {
+      "start": 16.080000000000002,
+      "end": 20.080000000000002,
+      "duration": 4.0,
+      "confidence": 0.784,
+      "method": "audio_overlap",
+      "immune": null,
+      "text": "Fall into IC.",
+      "source": "attributed_transcript"
+    },
+    {
+      "start": 974.04,
+      "end": 978.04,
+      "duration": 4.0,
+      "confidence": 0.768,
+      "method": "audio_overlap",
+      "immune": null,
+      "text": "I'm driving through Kokomo, Indiana",
+      "source": "attributed_transcript"
+    },
+    {
+      "start": 1734.6,
+      "end": 1736.6,
+      "duration": 2.0,
+      "confidence": 0.74,
+      "method": "audio_overlap",
+      "immune": null,
+      "text": "Thank you.",
+      "source": "attributed_transcript"
+    },
+    {
+      "start": 299.32000000000005,
+      "end": 303.32000000000005,
+      "duration": 4.0,
+      "confidence": 0.722,
+      "method": "audio_overlap",
+      "immune": null,
+      "text": "If these routers become connected to",
+      "source": "attributed_transcript"
+    },
+    {
+      "start": 1617.92,
+      "end": 1621.92,
+      "duration": 4.0,
+      "confidence": 0.684,
+      "method": "audio_overlap",
+      "immune": null,
+      "text": "So if we can figure out a way for this ability here",
+      "source": "attributed_transcript"
+    },
+    {
+      "start": 1404.84,
+      "end": 1408.84,
+      "duration": 4.0,
+      "confidence": 0.672,
+      "method": "audio_overlap",
+      "immune": null,
+      "text": "Is there any one thing that you can think of as I'm talking this out",
+      "source": "attributed_transcript"
+    },
+    {
+      "start": 1396.8,
+      "end": 1400.8,
+      "duration": 4.0,
+      "confidence": 0.656,
+      "method": "audio_overlap",
+      "immune": null,
+      "text": "it literally can't donate a little bit. Like, it's not possible to give you",
+      "source": "attributed_transcript"
+    },
+    {
+      "start": 953.96,
+      "end": 957.96,
+      "duration": 4.0,
+      "confidence": 0.654,
+      "method": "audio_overlap",
+      "immune": null,
+      "text": "I felt like that is absolutely awesome. You know what else we can do?",
+      "source": "attributed_transcript"
+    },
+    {
+      "start": 712.64,
+      "end": 716.64,
+      "duration": 4.0,
+      "confidence": 0.648,
+      "method": "audio_overlap",
+      "immune": null,
+      "text": "Most companies are fine.",
+      "source": "attributed_transcript"
+    },
+    {
+      "start": 1589.8,
+      "end": 1593.8,
+      "duration": 4.0,
+      "confidence": 0.648,
+      "method": "audio_overlap",
+      "immune": null,
+      "text": "I'm going to go load it up with our phone call, take a picture of this",
+      "source": "attributed_transcript"
+    },
+    {
+      "start": 724.68,
+      "end": 728.68,
+      "duration": 4.0,
+      "confidence": 0.624,
+      "method": "audio_overlap",
+      "immune": null,
+      "text": "So that one seems pretty obvious in a way.",
+      "source": "attributed_transcript"
+    },
+    {
+      "start": 351.53999999999996,
+      "end": 355.53999999999996,
+      "duration": 4.0,
+      "confidence": 0.616,
+      "method": "audio_overlap",
+      "immune": null,
+      "text": "This is kind of a new different thing. When you go to",
+      "source": "attributed_transcript"
+    },
+    {
+      "start": 1222.54,
+      "end": 1226.54,
+      "duration": 4.0,
+      "confidence": 0.608,
+      "method": "audio_overlap",
+      "immune": null,
+      "text": "Like my mind doesn't even comprehend how that's possible.",
+      "source": "attributed_transcript"
+    }
+  ],
+  "suggested_speaker_corrections": [
+    "00:12-00:16=SPEAKER_01",
+    "02:25-02:29=SPEAKER_01",
+    "15:38-15:42=SPEAKER_01",
+    "15:34-15:38=SPEAKER_01",
+    "12:13-12:17=SPEAKER_01",
+    "05:39-05:43=SPEAKER_01",
+    "15:42-15:46=SPEAKER_01",
+    "00:16-00:20=SPEAKER_01",
+    "16:14-16:18=SPEAKER_01",
+    "28:55-28:57=SPEAKER_01",
+    "04:59-05:03=SPEAKER_01",
+    "26:58-27:02=SPEAKER_01",
+    "23:25-23:29=SPEAKER_01",
+    "23:17-23:21=SPEAKER_01",
+    "15:54-15:58=SPEAKER_01",
+    "11:53-11:57=SPEAKER_01",
+    "26:30-26:34=SPEAKER_01",
+    "12:05-12:09=SPEAKER_01",
+    "05:52-05:56=SPEAKER_01",
+    "20:23-20:27=SPEAKER_01"
+  ],
+  "next_required_proof": "human reviewer must confirm clean candidate spans, then rerun Plaud decompose with speaker corrections"
+}

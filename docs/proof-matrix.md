@@ -103,6 +103,8 @@ The strongest remaining proof gaps are:
     Plaud overlap regions have accepted stems.
   - Evidence: [plaud-anchor-quality-report.json](plaud-anchor-quality-report.json)
   - Current blocker: 0 Plaud attempts have human-reviewed speaker anchors.
+  - Review packet:
+    [plaud-c37-speaker1-anchor-review-packet.json](plaud-c37-speaker1-anchor-review-packet.json)
 
 Resolved gap:
 

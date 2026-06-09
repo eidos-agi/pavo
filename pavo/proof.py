@@ -346,6 +346,86 @@ def plaud_anchor_quality_report(attempts: list[dict[str, Any]]) -> dict[str, Any
     }
 
 
+def plaud_anchor_review_packet(
+    *,
+    signatures_manifest: Path | str,
+    attributed_transcript: Path | str,
+    target_speaker_label: str,
+    target_speaker_name: str | None = None,
+    min_duration: float = 2.0,
+    max_candidates: int = 20,
+) -> dict[str, Any]:
+    signatures_path = Path(signatures_manifest)
+    attributed_path = Path(attributed_transcript)
+    signatures = _load_json(signatures_path)
+    rows = _load_json(attributed_path)
+    if not isinstance(rows, list):
+        rows = []
+    speaker = next(
+        (item for item in signatures.get("speakers", []) if item.get("speaker_label") == target_speaker_label),
+        {},
+    )
+    name = target_speaker_name or speaker.get("name") or target_speaker_label
+    existing_samples = [
+        {
+            "start": sample.get("start"),
+            "end": sample.get("end"),
+            "duration": _duration(sample),
+            "confidence": sample.get("confidence"),
+            "method": sample.get("method"),
+            "text": sample.get("text"),
+            "source": "existing_signature_sample",
+        }
+        for sample in speaker.get("sample_spans", [])
+    ]
+    transcript_candidates = []
+    for row in rows:
+        if row.get("speaker_label") != target_speaker_label:
+            continue
+        duration = _duration(row)
+        if duration < min_duration:
+            continue
+        transcript_candidates.append(
+            {
+                "start": row.get("start"),
+                "end": row.get("end"),
+                "duration": duration,
+                "confidence": row.get("confidence"),
+                "method": row.get("method"),
+                "immune": row.get("immune"),
+                "text": row.get("text"),
+                "source": "attributed_transcript",
+            }
+        )
+    transcript_candidates.sort(
+        key=lambda item: (
+            "conflict" in str(item.get("method", "")) or "conflict" in str(item.get("immune", "")),
+            -(float(item.get("confidence") or 0.0)),
+            -(float(item.get("duration") or 0.0)),
+        )
+    )
+    review_candidates = transcript_candidates[:max_candidates]
+    return {
+        "passed": False,
+        "target_speaker_label": target_speaker_label,
+        "target_speaker_name": name,
+        "source_audio_wav": signatures.get("source_audio_wav"),
+        "signatures_manifest": str(signatures_path),
+        "attributed_transcript": str(attributed_path),
+        "existing_sample_count": int(speaker.get("sample_count") or 0),
+        "existing_sample_seconds": speaker.get("sample_seconds"),
+        "existing_samples": existing_samples,
+        "review_candidate_count": len(review_candidates),
+        "review_candidates": review_candidates,
+        "suggested_speaker_corrections": [
+            f"{_format_seconds(candidate['start'])}-{_format_seconds(candidate['end'])}={target_speaker_label}"
+            for candidate in review_candidates
+            if candidate.get("start") is not None and candidate.get("end") is not None
+        ],
+        "next_required_proof": "human reviewer must confirm clean candidate spans, then rerun Plaud decompose with speaker corrections",
+    }
+
+
 def conan_old_sitcom_report(separation_manifest_path: Path | str, stem_asr_manifest_path: Path | str) -> dict[str, Any]:
     separation_manifest = json.loads(Path(separation_manifest_path).read_text())
     stem_asr_manifest = json.loads(Path(stem_asr_manifest_path).read_text())
@@ -707,6 +787,23 @@ def _plaud_attempt_blockers(
     if imbalance_ratio is not None and imbalance_ratio > 4.0:
         blockers.append("speaker enrollment samples are imbalanced")
     return blockers
+
+
+def _duration(item: dict[str, Any]) -> float:
+    start = item.get("start")
+    end = item.get("end")
+    if start is None or end is None:
+        return 0.0
+    return round(max(0.0, float(end) - float(start)), 3)
+
+
+def _format_seconds(value: Any) -> str:
+    seconds = max(0, int(round(float(value))))
+    minutes, second = divmod(seconds, 60)
+    hour, minute = divmod(minutes, 60)
+    if hour:
+        return f"{hour:02d}:{minute:02d}:{second:02d}"
+    return f"{minute:02d}:{second:02d}"
 
 
 def _stem_report_trusted(stem: dict[str, Any]) -> bool:

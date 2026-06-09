@@ -156,6 +156,9 @@ Transcript output:
   precisely: 2 Plaud attempts have run, 0 have human-reviewed speaker anchors,
   and 0 have accepted Plaud stems. The c37 run is especially imbalanced:
   Speaker 0 has many more enrollment samples than Speaker 1.
+- Pavo now writes a c37 Speaker 1 anchor review packet with 20 candidate spans
+  and suggested `--speaker-correction` values:
+  [plaud-c37-speaker1-anchor-review-packet.json](plaud-c37-speaker1-anchor-review-packet.json).
 - The real-media audit now finds accepted Conan/Kaitlin overlap separation:
   both stems pass the trust gate with wrong-window leakage checks. The accepted
   stem ASR manifest writes trusted global-timed evidence for that overlap.

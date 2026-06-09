@@ -9,6 +9,7 @@ from pavo.proof import (
     conan_old_sitcom_report,
     nz_slang_comparison_report,
     plaud_anchor_quality_report,
+    plaud_anchor_review_packet,
     plaud_decompose_recording_report,
     plaud_real_recording_report,
     proof_status_summary,
@@ -92,6 +93,16 @@ class ProofTests(unittest.TestCase):
         self.assertEqual(report["human_reviewed_attempt_count"], 0)
         self.assertEqual(report["accepted_stem_attempt_count"], 0)
         self.assertTrue(any("speaker anchors are not human-reviewed" in attempt["blockers"] for attempt in report["attempts"]))
+
+    def test_committed_plaud_c37_anchor_review_packet_lists_speaker_1_candidates(self):
+        report_path = Path(__file__).resolve().parents[1] / "docs" / "plaud-c37-speaker1-anchor-review-packet.json"
+        report = json.loads(report_path.read_text())
+
+        self.assertFalse(report["passed"])
+        self.assertEqual(report["target_speaker_label"], "SPEAKER_01")
+        self.assertGreaterEqual(report["existing_sample_count"], 5)
+        self.assertGreater(report["review_candidate_count"], 0)
+        self.assertGreater(len(report["suggested_speaker_corrections"]), 0)
 
     def test_committed_conan_old_sitcom_report_has_accepted_stem_asr_proof(self):
         report_path = Path(__file__).resolve().parents[1] / "docs" / "conan-old-sitcom-report.json"
@@ -535,6 +546,65 @@ class ProofTests(unittest.TestCase):
         self.assertIn("speaker anchors are not human-reviewed", report["attempts"][0]["blockers"])
         self.assertIn("no accepted Plaud separated stems", report["attempts"][0]["blockers"])
         self.assertIn("one or more speakers has fewer than 8 enrollment samples", report["attempts"][0]["blockers"])
+
+    def test_plaud_anchor_review_packet_suggests_reviewable_speaker_corrections(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            signatures = root / "speaker-signatures.manifest.json"
+            attributed = root / "attributed.json"
+            signatures.write_text(
+                json.dumps(
+                    {
+                        "source_audio_wav": "/tmp/audio.wav",
+                        "speakers": [
+                            {
+                                "speaker_label": "SPEAKER_01",
+                                "name": "Speaker 1",
+                                "sample_count": 1,
+                                "sample_seconds": 4.0,
+                                "sample_spans": [
+                                    {"start": 10.0, "end": 14.0, "confidence": 0.96, "method": "audio_overlap", "text": "sample"}
+                                ],
+                            }
+                        ],
+                    }
+                )
+            )
+            attributed.write_text(
+                json.dumps(
+                    [
+                        {
+                            "start": 20.0,
+                            "end": 24.0,
+                            "speaker_label": "SPEAKER_01",
+                            "speaker": "Speaker 1",
+                            "confidence": 0.92,
+                            "method": "audio_overlap",
+                            "text": "candidate span",
+                        },
+                        {
+                            "start": 30.0,
+                            "end": 31.0,
+                            "speaker_label": "SPEAKER_01",
+                            "speaker": "Speaker 1",
+                            "confidence": 0.99,
+                            "method": "audio_overlap",
+                            "text": "too short",
+                        },
+                    ]
+                )
+            )
+
+            report = plaud_anchor_review_packet(
+                signatures_manifest=signatures,
+                attributed_transcript=attributed,
+                target_speaker_label="SPEAKER_01",
+            )
+
+        self.assertFalse(report["passed"])
+        self.assertEqual(report["existing_sample_count"], 1)
+        self.assertEqual(report["review_candidate_count"], 1)
+        self.assertEqual(report["suggested_speaker_corrections"], ["00:20-00:24=SPEAKER_01"])
 
     def test_conan_old_sitcom_report_proves_rejected_diagnostic_stem_asr(self):
         with tempfile.TemporaryDirectory() as tmp:
