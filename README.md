@@ -4,15 +4,20 @@
 
 **Manifest Anything.**
 
-Pavo is a control layer for Plaud recordings. It wraps the Plaud CLI and Plaud
-MCP surfaces so you can get more control over the actual audio files, speaker
-identification, custom dictionaries per call, intelligent routing, task
-creation, and durable archives.
+Pavo is a data-science-led transcription workbench for teams that need
+trustworthy records from messy audio. It was inspired by Plaud workflow gaps,
+but it is not a Plaud-only tool: Pavo gives operators control over real audio
+files, speaker identification, custom dictionaries per call, intelligent
+routing, task creation, and durable archives.
+
+Use it when the stock transcript is not enough and the team needs a repeatable
+way to improve the audio, prove who spoke, preserve the source file, and route
+the resulting intelligence into real work.
 
 ## Bio-Inspired Audio Intelligence
 
-Pavo can route Plaud audio through `eidos-transcribe`, an installable audio
-intelligence package with bio-inspired speaker analysis.
+Pavo can route captured or imported audio through `eidos-transcribe`, an
+installable audio intelligence package with bio-inspired speaker analysis.
 
 The key idea is simple: instead of trusting one transcript or one speaker label,
 `eidos-transcribe` builds speaker detector banks, checks audio in rolling
@@ -23,7 +28,7 @@ as mixed when the audio looks like more than one voice.
 When a segment looks messy, Pavo can send it down a deeper path:
 
 ```text
-Plaud audio -> speaker fingerprints -> rolling detector votes -> overlap flags -> source-separation analysis
+source audio -> speaker fingerprints -> rolling detector votes -> overlap flags -> source-separation analysis
 ```
 
 That is not a claim that Pavo currently runs genetic algorithms. The current
@@ -31,8 +36,8 @@ implementation is better described as **bio-inspired audio decomposition**:
 immune-style speaker detectors, rolling acoustic fingerprints, source
 separation for overlap regions, and proof manifests that show what happened.
 
-See [proof](docs/proof.md) for current test results and a real Plaud audio
-transcription run.
+See [proof](docs/proof.md) for current test results, media fixtures, and a real
+Plaud audio transcription run.
 
 See [media tests](docs/media-tests.md) for the real Conan overlap fixture and
 the New Zealand accent/slang fixture.
@@ -45,37 +50,46 @@ principle: detect speaker changes first, then attribute and merge.
 
 ## Why Pavo Exists
 
-Pavo exists because Plaud is excellent at capture, but the stock Plaud workflow
-is not enough when recordings need to become real working intelligence. A user
-needs access to the audio itself, control over where it goes, better speaker
-identification, call-specific vocabulary, and a way to turn a recording into
-follow-up work.
+Pavo exists because high-value conversations are rarely clean. Teams capture
+calls, interviews, meetings, field notes, and voice memos across tools, then
+get back a transcript that may be convenient but is hard to audit, improve, or
+route. Plaud was the first pain point: it captured well, but the stock workflow
+did not give enough control over the underlying audio or the downstream
+intelligence layer.
+
+The larger product is for any team that wants transcription led by data
+scientists instead of treated as a black box. A team needs access to the audio
+itself, control over where it goes, better speaker identification,
+call-specific vocabulary, source-separation checks for messy regions, and a way
+to turn the recording into follow-up work.
 
 The target loop is:
 
 ```text
-Plaud Cloud -> real audio -> speaker-aware transcript -> routed notes and tasks -> durable archive
+recording source -> real audio -> speaker-aware transcript -> routed notes and tasks -> durable archive
 ```
 
-Pavo owns the Plaud wrapper, file control, routing, and archive layer. For the
-audio intelligence layer, Pavo uses `eidos-transcribe` as an installable package
-that can improve independently.
+Pavo owns ingestion wrappers, file control, routing, and the archive layer. It
+can wrap Plaud CLI/MCP today, and it can also process imported local media. For
+the audio intelligence layer, Pavo uses `eidos-transcribe` as an installable
+package that can improve independently.
 
-The problems we hit:
+The problems Pavo is built around:
 
-1. **Plaud notes were not enough.** We needed the real recording, not just a
-   summary. Pavo saves the actual audio so better AI can listen again.
-2. **The audio was hard to get.** The recording lived in Plaud Cloud behind app
-   and tool layers. Pavo finds the recording and brings the audio onto the
-   computer.
+1. **The notes were not enough.** We needed the real recording, not just a
+   summary. Pavo saves the actual audio so better AI and reviewers can listen
+   again.
+2. **The audio was hard to control.** Recordings can live behind app, cloud,
+   and tool layers. Pavo brings audio onto the computer with hashes and
+   manifests so the source artifact is not lost.
 3. **The account was confusing.** The Plaud login did not look like a normal
    email address. Pavo shows which Plaud account is connected before it
    downloads anything.
-4. **The AI tool path was flaky.** The Plaud MCP setup worked, but Codex could
-   not always see it right away. Pavo keeps a simple command-line path that
-   works even when tools are hidden.
-5. **Links expired.** Plaud audio links are temporary and should not become the
-   record. Pavo saves the file, the hash, and the manifest instead.
+4. **The AI tool path was flaky.** MCP and agent tools are useful, but they
+   should not be the only path. Pavo keeps a simple command-line path that
+   works even when an agent integration is hidden or unavailable.
+5. **Links expired.** Temporary audio links should not become the record. Pavo
+   saves the file, the hash, and the manifest instead.
 6. **Secrets needed boundaries.** We needed local settings without leaking
    tokens or private data. Pavo keeps settings under `~/Eidos/Pavo` and leaves
    secrets in their proper stores.
@@ -126,9 +140,9 @@ The problems we hit:
 
 The short version:
 
-- **Pavo solves:** Plaud CLI/MCP wrapping, real audio download, local file
-  control, recording manifests, Google Drive archiving, routing, task creation,
-  and agent/plugin access.
+- **Pavo solves:** source wrapping, Plaud CLI/MCP access, real audio download,
+  local file control, recording manifests, Google Drive archiving, routing,
+  task creation, and agent/plugin access.
 - **`eidos-transcribe` solves:** better transcription, speaker identification,
   custom dictionaries, multi-engine comparison, messy-audio analysis, and future
   reprocessing as models improve.

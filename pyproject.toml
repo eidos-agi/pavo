@@ -5,11 +5,11 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pavo"
 version = "0.1.0"
-description = "Control layer for Plaud recordings, audio files, diarization, dictionaries, routing, and tasks"
+description = "Data-science-led transcription workbench for audio control, diarization, dictionaries, routing, and tasks"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-keywords = ["audio", "codex", "plaud", "recordings", "transcription"]
+keywords = ["audio", "codex", "diarization", "plaud", "recordings", "transcription"]
 dependencies = []
 
 [project.urls]

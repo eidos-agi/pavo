@@ -1,7 +1,7 @@
 {
   "name": "pavo",
   "version": "0.1.0",
-  "description": "Manifest Anything: wrap Plaud CLI and MCP to control audio files, speaker identification, dictionaries, routing, and tasks.",
+  "description": "Manifest Anything: data-science-led transcription for real audio, speaker identification, dictionaries, routing, and tasks.",
   "author": {
     "name": "Eidos AGI",
     "email": "daniel@eidosagi.com",

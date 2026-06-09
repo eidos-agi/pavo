@@ -1,7 +1,7 @@
 {
   "name": "pavo",
   "version": "0.1.0",
-  "description": "Manifest Anything: wrap Plaud CLI and MCP to control audio files, speaker identification, dictionaries, routing, and tasks.",
+  "description": "Manifest Anything: data-science-led transcription for real audio, speaker identification, dictionaries, routing, and tasks.",
   "author": {
     "name": "Eidos AGI",
     "email": "daniel@eidosagi.com",
@@ -20,13 +20,14 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Pavo",
-    "shortDescription": "Control Plaud recordings beyond the stock app.",
-    "longDescription": "Pavo routes Codex to the local pavo CLI for Plaud CLI/MCP access, real-audio download, manifest inspection, speaker-aware transcription, custom dictionaries, routing, and task creation. The plugin is intentionally thin; the CLI/package remains the source of truth.",
+    "shortDescription": "Turn messy audio into auditable team intelligence.",
+    "longDescription": "Pavo routes Codex to the local pavo CLI for data-science-led transcription workflows: Plaud CLI/MCP access, imported media, real-audio download, manifest inspection, speaker-aware transcription, custom dictionaries, overlap review, routing, and task creation. The plugin is intentionally thin; the CLI/package remains the source of truth.",
     "developerName": "Eidos AGI",
     "category": "Productivity",
     "capabilities": [
       "CLI",
       "Audio Capture",
+      "Audio Intelligence",
       "Plaud",
       "Transcription",
       "Diarization",
@@ -38,8 +39,8 @@
     "termsOfServiceURL": "https://github.com/eidos-agi/pavo/blob/main/LICENSE",
     "defaultPrompt": [
       "Use Pavo to list my latest Plaud recordings.",
-      "Use Pavo to download and transcribe a Plaud recording.",
-      "Use Pavo doctor to check Plaud, local config, and transcription readiness."
+      "Use Pavo to import local audio and run speaker-aware transcription.",
+      "Use Pavo doctor to check audio sources, local config, and transcription readiness."
     ],
     "brandColor": "#047857"
   }

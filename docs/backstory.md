@@ -1,19 +1,24 @@
 # Backstory
 
-Pavo exists because Plaud is excellent at capture, but the stock Plaud workflow
-is not enough when recordings need to become real working intelligence. A user
-needs more control over the actual audio files, speaker identification, custom
-dictionaries per call, routing, task creation, and durable archives.
+Pavo exists because important conversations often come back as weak transcripts
+that teams cannot audit, improve, or route into real work. Plaud exposed the
+first version of the problem: it was excellent at capture, but the stock
+workflow was not enough when recordings needed to become durable intelligence.
+
+The broader product is for any team that wants high-quality transcription led
+by data scientists. Teams need control over the actual audio files, speaker
+identification, custom dictionaries per call, overlap checks, routing, task
+creation, and durable archives.
 
 The goal is simple:
 
 ```text
-Plaud Cloud -> real audio -> speaker-aware transcript -> routed notes and tasks -> durable archive
+recording source -> real audio -> speaker-aware transcript -> routed notes and tasks -> durable archive
 ```
 
-Pavo owns the Plaud wrapper, file control, routing, task creation, and archive
-layer. `eidos-transcribe` owns the audio-intelligence layer that Pavo can call
-as an installable package.
+Pavo owns source wrappers, Plaud CLI/MCP access, imported media, file control,
+routing, task creation, and the archive layer. `eidos-transcribe` owns the
+audio-intelligence layer that Pavo can call as an installable package.
 
 ## Bio-Inspired Audio Intelligence
 
@@ -28,13 +33,14 @@ a segment as mixed when the audio looks like more than one voice. When a region
 is mixed, the separation path can isolate the suspicious slice, split it into
 stems, and score those stems against known speaker fingerprints.
 
-That gives Pavo a practical path from Plaud audio to speaker-aware intelligence:
+That gives Pavo a practical path from source audio to speaker-aware
+intelligence:
 
 ```text
-Plaud audio -> speaker fingerprints -> rolling detector votes -> overlap flags -> source-separation analysis
+source audio -> speaker fingerprints -> rolling detector votes -> overlap flags -> source-separation analysis
 ```
 
-## Why Plaud Alone Was Not Sufficient
+## Why Plaud Was The Starting Point
 
 ### 1. Transcript-only access is not enough
 
