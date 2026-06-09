@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1050" viewBox="0 0 1600 1050" role="img" aria-labelledby="title desc">
-  <title id="title">Pavo problem solution 9: One recognizer was not enough</title>
-  <desc id="desc">Problem: Different ASR engines fail differently, and one transcript hides disagreement. Solution: eidos-transcribe preserves raw outputs, runs multiple engines, ensembles candidates, and records manifests.</desc>
+  <title id="title">Pavo problem solution 9: One transcript was too fragile</title>
+  <desc id="desc">Problem: One AI model can miss things another model catches. Solution: eidos-transcribe can compare multiple engines and keep the evidence.</desc>
   <rect width="1600" height="1050" fill="#f4fff8"/>
   <rect x="54" y="54" width="1492" height="940" rx="44" fill="#ecfdf5" stroke="#064e3b" stroke-width="8"/>
   <circle cx="1370" cy="146" r="62" fill="#10b981" stroke="#064e3b" stroke-width="7"/>
@@ -11,18 +11,17 @@
 
   <rect x="112" y="255" width="1276" height="285" rx="30" fill="#ffffff" stroke="#064e3b" stroke-width="6"/>
   <text x="152" y="324" font-size="34" font-weight="900" fill="#ff5f7e">PROBLEM</text>
-  <text x="152" y="396" font-size="54" font-weight="900" fill="#064e3b">One recognizer was not enough</text>
-  <text x="152" y="500" font-size="30" font-weight="650" fill="#0f766e">Different ASR engines fail differently, and one transcript</text>
-<text x="152" y="542" font-size="30" font-weight="650" fill="#0f766e">hides disagreement.</text>
+  <text x="152" y="396" font-size="58" font-weight="900" fill="#064e3b">One transcript was too fragile</text>
+  <text x="152" y="505" font-size="34" font-weight="650" fill="#0f766e">One AI model can miss things another model catches.</text>
 
   <path d="M770 565 V620" stroke="#064e3b" stroke-width="13" stroke-linecap="round"/>
   <path d="M718 608 L770 682 L822 608 Z" fill="#064e3b"/>
 
   <rect x="112" y="705" width="1276" height="205" rx="30" fill="#d1fae5" stroke="#064e3b" stroke-width="6"/>
   <text x="152" y="774" font-size="34" font-weight="900" fill="#047857">SOLUTION</text>
-  <text x="152" y="842" font-size="34" font-weight="800" fill="#064e3b">eidos-transcribe preserves raw outputs, runs multiple</text>
-<text x="152" y="888" font-size="34" font-weight="800" fill="#064e3b">engines, ensembles candidates, and records manifests.</text>
+  <text x="152" y="842" font-size="38" font-weight="800" fill="#064e3b">eidos-transcribe can compare multiple engines and keep</text>
+<text x="152" y="892" font-size="38" font-weight="800" fill="#064e3b">the evidence.</text>
 
   <text x="112" y="960" font-size="28" font-weight="800" fill="#064e3b">Manifest Anything</text>
-  <text x="392" y="960" font-size="24" font-weight="650" fill="#047857">Pavo captures the real recording. eidos-transcribe turns it into audio intelligence.</text>
+  <text x="392" y="960" font-size="24" font-weight="650" fill="#047857">Turn recordings into durable intelligence.</text>
 </svg>

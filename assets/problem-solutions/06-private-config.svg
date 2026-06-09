@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1050" viewBox="0 0 1600 1050" role="img" aria-labelledby="title desc">
-  <title id="title">Pavo problem solution 6: Config needed to be private and inspectable</title>
-  <desc id="desc">Problem: The workflow needed local state without turning Pavo into a credential dump. Solution: Pavo stores non-secret config under ~/Eidos/Pavo while credentials stay in native stores.</desc>
+  <title id="title">Pavo problem solution 6: Secrets needed boundaries</title>
+  <desc id="desc">Problem: We needed local settings without leaking tokens or private data. Solution: Pavo keeps settings under ~/Eidos/Pavo and leaves secrets in their proper stores.</desc>
   <rect width="1600" height="1050" fill="#f4fff8"/>
   <rect x="54" y="54" width="1492" height="940" rx="44" fill="#ecfdf5" stroke="#064e3b" stroke-width="8"/>
   <circle cx="1370" cy="146" r="62" fill="#10b981" stroke="#064e3b" stroke-width="7"/>
@@ -11,19 +11,18 @@
 
   <rect x="112" y="255" width="1276" height="285" rx="30" fill="#ffffff" stroke="#064e3b" stroke-width="6"/>
   <text x="152" y="324" font-size="34" font-weight="900" fill="#ff5f7e">PROBLEM</text>
-  <text x="152" y="396" font-size="54" font-weight="900" fill="#064e3b">Config needed to be private and</text>
-<text x="152" y="458" font-size="54" font-weight="900" fill="#064e3b">inspectable</text>
-  <text x="152" y="500" font-size="30" font-weight="650" fill="#0f766e">The workflow needed local state without turning Pavo into</text>
-<text x="152" y="542" font-size="30" font-weight="650" fill="#0f766e">a credential dump.</text>
+  <text x="152" y="396" font-size="58" font-weight="900" fill="#064e3b">Secrets needed boundaries</text>
+  <text x="152" y="505" font-size="34" font-weight="650" fill="#0f766e">We needed local settings without leaking tokens or</text>
+<text x="152" y="549" font-size="34" font-weight="650" fill="#0f766e">private data.</text>
 
   <path d="M770 565 V620" stroke="#064e3b" stroke-width="13" stroke-linecap="round"/>
   <path d="M718 608 L770 682 L822 608 Z" fill="#064e3b"/>
 
   <rect x="112" y="705" width="1276" height="205" rx="30" fill="#d1fae5" stroke="#064e3b" stroke-width="6"/>
   <text x="152" y="774" font-size="34" font-weight="900" fill="#047857">SOLUTION</text>
-  <text x="152" y="842" font-size="34" font-weight="800" fill="#064e3b">Pavo stores non-secret config under ~/Eidos/Pavo while</text>
-<text x="152" y="888" font-size="34" font-weight="800" fill="#064e3b">credentials stay in native stores.</text>
+  <text x="152" y="842" font-size="38" font-weight="800" fill="#064e3b">Pavo keeps settings under ~/Eidos/Pavo and leaves</text>
+<text x="152" y="892" font-size="38" font-weight="800" fill="#064e3b">secrets in their proper stores.</text>
 
   <text x="112" y="960" font-size="28" font-weight="800" fill="#064e3b">Manifest Anything</text>
-  <text x="392" y="960" font-size="24" font-weight="650" fill="#047857">Pavo captures the real recording. eidos-transcribe turns it into audio intelligence.</text>
+  <text x="392" y="960" font-size="24" font-weight="650" fill="#047857">Turn recordings into durable intelligence.</text>
 </svg>
