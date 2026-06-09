@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pavo Anchor Review - Speaker 1</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #17211c;
+      background: #f7faf4;
+    }
+    header {
+      padding: 28px 32px;
+      background: #0d3b2e;
+      color: #f9fff7;
+    }
+    main {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      letter-spacing: 0;
+    }
+    .meta {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      color: #d7f5dd;
+    }
+    .instructions {
+      margin: 0 0 18px;
+      padding: 16px;
+      border: 1px solid #bfd7c5;
+      background: #ffffff;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin: 18px 0;
+    }
+    button {
+      border: 1px solid #174835;
+      border-radius: 6px;
+      background: #174835;
+      color: #ffffff;
+      padding: 8px 12px;
+      font: inherit;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: #ffffff;
+      color: #174835;
+    }
+    button:focus-visible,
+    textarea:focus-visible {
+      outline: 3px solid #8ed39a;
+      outline-offset: 2px;
+    }
+    article {
+      margin: 16px 0;
+      padding: 18px;
+      border: 1px solid #cfdfd1;
+      border-radius: 8px;
+      background: #ffffff;
+    }
+    .row-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      margin-bottom: 10px;
+    }
+    h2 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+    code {
+      background: #eef4ee;
+      padding: 2px 5px;
+      border-radius: 4px;
+    }
+    audio {
+      width: 100%;
+      margin: 10px 0;
+    }
+    dl {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 8px 12px;
+      margin: 12px 0 0;
+    }
+    dt {
+      font-weight: 700;
+      color: #315044;
+    }
+    dd {
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+    .status {
+      font-weight: 700;
+      color: #7a4e00;
+    }
+    .review-controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 12px 0;
+    }
+    textarea {
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 70px;
+      margin-top: 8px;
+      padding: 8px;
+      border: 1px solid #bfd7c5;
+      border-radius: 6px;
+      font: inherit;
+    }
+    @media (max-width: 700px) {
+      header { padding: 22px 18px; }
+      main { padding: 16px; }
+      dl { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Pavo Anchor Review - Speaker 1</h1>
+    <div class="meta">
+      <span>20 candidate clips</span>
+      <span>20 pending</span>
+      <span>sheet: docs/plaud-c37-anchor-review-bundle/plaud-c37-speaker1-anchor-review-sheet.json</span>
+    </div>
+  </header>
+  <main>
+    <section class="instructions">
+      Listen for clean SPEAKER_01 anchor clips.
+      Approve only clean target-speaker clips. Reject uncertain, overlapping, noisy, or wrong-speaker clips.
+      Export the reviewed JSON sheet, import it with
+      <code>pavo review anchors import docs/plaud-c37-anchor-review-bundle/plaud-c37-speaker1-anchor-review-sheet.json ~/Downloads/plaud-c37-speaker1-anchor-review-sheet.json</code>,
+      print the corrected decompose command with
+      <code>pavo review anchors rerun-command docs/plaud-c37-anchor-review-bundle/plaud-c37-speaker1-anchor-review-sheet.json /path/to/pavo-decompose-manifest.json</code>,
+      then rerun decomposition and regenerate the Plaud proof report.
+    </section>
+    <section class="actions">
+      <button type="button" id="export-json">Export reviewed JSON</button>
+      <button type="button" class="secondary" id="reset-review">Reset page decisions</button>
+      <span id="review-count">20 pending</span>
+    </section>
+    <article data-review-index="1">
+  <div class="row-head">
+    <h2>Clip 1</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="clips/candidate-01.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="1">Approve</button>
+    <button type="button" class="secondary" data-reject="1">Reject</button>
+    <button type="button" class="secondary" data-pending="1">Pending</button>
+  </div>
+  <textarea data-note="1" placeholder="Reviewer note"></textarea>
+  <dl>
+    <dt>Time</dt><dd>12.06 - 16.06 seconds</dd>
+    <dt>Text</dt><dd>I think I&#x27;d wrap out.</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>00:12-00:16=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>clips/candidate-01.wav</dd>
+  </dl>
+</article>
+<article data-review-index="2">
+  <div class="row-head">
+    <h2>Clip 2</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="clips/candidate-02.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="2">Approve</button>
+    <button type="button" class="secondary" data-reject="2">Reject</button>
+    <button type="button" class="secondary" data-pending="2">Pending</button>
+  </div>
+  <textarea data-note="2" placeholder="Reviewer note"></textarea>
+  <dl>
+    <dt>Time</dt><dd>144.60000000000002 - 148.60000000000002 seconds</dd>
+    <dt>Text</dt><dd>memory.</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>02:25-02:29=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>clips/candidate-02.wav</dd>
+  </dl>
+</article>
+<article data-review-index="3">
+  <div class="row-head">
+    <h2>Clip 3</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="clips/candidate-03.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="3">Approve</button>
+    <button type="button" class="secondary" data-reject="3">Reject</button>
+    <button type="button" class="secondary" data-pending="3">Pending</button>
+  </div>
+  <textarea data-note="3" placeholder="Reviewer note"></textarea>
+  <dl>
+    <dt>Time</dt><dd>937.88 - 941.88 seconds</dd>
+    <dt>Text</dt><dd>I just covered this in a variety of different energy</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>15:38-15:42=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>clips/candidate-03.wav</dd>
+  </dl>
+</article>
+<article data-review-index="4">
+  <div class="row-head">
+    <h2>Clip 4</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="clips/candidate-04.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="4">Approve</button>
+    <button type="button" class="secondary" data-reject="4">Reject</button>
+    <button type="button" class="secondary" data-pending="4">Pending</button>
+  </div>
+  <textarea data-note="4" placeholder="Reviewer note"></textarea>
+  <dl>
+    <dt>Time</dt><dd>933.86 - 937.86 seconds</dd>
+    <dt>Text</dt><dd>Wait, I&#x27;ll ask you.</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>15:34-15:38=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>clips/candidate-04.wav</dd>
+  </dl>
+</article>
+<article data-review-index="5">
+  <div class="row-head">
+    <h2>Clip 5</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="clips/candidate-05.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="5">Approve</button>
+    <button type="button" class="secondary" data-reject="5">Reject</button>
+    <button type="button" class="secondary" data-pending="5">Pending</button>
+  </div>
+  <textarea data-note="5" placeholder="Reviewer note"></textarea>
+  <dl>
+    <dt>Time</dt><dd>732.72 - 736.72 seconds</dd>
+    <dt>Text</dt><dd>Yeah, I think also it&#x27;s like</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>12:13-12:17=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>clips/candidate-05.wav</dd>
+  </dl>
+</article>
+<article data-review-index="6">
+  <div class="row-head">
+    <h2>Clip 6</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="clips/candidate-06.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="6">Approve</button>
+    <button type="button" class="secondary" data-reject="6">Reject</button>
+    <button type="button" class="secondary" data-pending="6">Pending</button>
+  </div>
+  <textarea data-note="6" placeholder="Reviewer note"></textarea>
+  <dl>
+    <dt>Time</dt><dd>339.47999999999996 - 343.47999999999996 seconds</dd>
+    <dt>Text</dt><dd>Now you can build back. If you can build back,</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>05:39-05:43=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>clips/candidate-06.wav</dd>
+  </dl>
+</article>
+<article data-review-index="7">
+  <div class="row-head">
+    <h2>Clip 7</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="clips/candidate-07.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="7">Approve</button>
+    <button type="button" class="secondary" data-reject="7">Reject</button>
+    <button type="button" class="secondary" data-pending="7">Pending</button>
+  </div>
+  <textarea data-note="7" placeholder="Reviewer note"></textarea>
+  <dl>
+    <dt>Time</dt><dd>941.9 - 945.9 seconds</dd>
+    <dt>Text</dt><dd>and compliments by that side.</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>15:42-15:46=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>clips/candidate-07.wav</dd>
+  </dl>
+</article>
+<article data-review-index="8">
+  <div class="row-head">
+    <h2>Clip 8</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="clips/candidate-08.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="8">Approve</button>
+    <button type="button" class="secondary" data-reject="8">Reject</button>
+    <button type="button" class="secondary" data-pending="8">Pending</button>
+  </div>
+  <textarea data-note="8" placeholder="Reviewer note"></textarea>
+  <dl>
+    <dt>Time</dt><dd>16.080000000000002 - 20.080000000000002 seconds</dd>
+    <dt>Text</dt><dd>Fall into IC.</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>00:16-00:20=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>clips/candidate-08.wav</dd>
+  </dl>
+</article>
+<article data-review-index="9">
+  <div class="row-head">
+    <h2>Clip 9</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="clips/candidate-09.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="9">Approve</button>
+    <button type="button" class="secondary" data-reject="9">Reject</button>
+    <button type="button" class="secondary" data-pending="9">Pending</button>
+  </div>
+  <textarea data-note="9" placeholder="Reviewer note"></textarea>
+  <dl>
+    <dt>Time</dt><dd>974.04 - 978.04 seconds</dd>
+    <dt>Text</dt><dd>I&#x27;m driving through Kokomo, Indiana</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>16:14-16:18=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>clips/candidate-09.wav</dd>
+  </dl>
+</article>
+<article data-review-index="10">
+  <div class="row-head">
+    <h2>Clip 10</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="clips/candidate-10.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="10">Approve</button>
+    <button type="button" class="secondary" data-reject="10">Reject</button>
+    <button type="button" class="secondary" data-pending="10">Pending</button>
+  </div>
+  <textarea data-note="10" placeholder="Reviewer note"></textarea>
+  <dl>
+    <dt>Time</dt><dd>1734.6 - 1736.6 seconds</dd>
+    <dt>Text</dt><dd>Thank you.</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>28:55-28:57=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>clips/candidate-10.wav</dd>
+  </dl>
+</article>
+<article data-review-index="11">
+  <div class="row-head">
+    <h2>Clip 11</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="clips/candidate-11.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="11">Approve</button>
+    <button type="button" class="secondary" data-reject="11">Reject</button>
+    <button type="button" class="secondary" data-pending="11">Pending</button>
+  </div>
+  <textarea data-note="11" placeholder="Reviewer note"></textarea>
+  <dl>
+    <dt>Time</dt><dd>299.32000000000005 - 303.32000000000005 seconds</dd>
+    <dt>Text</dt><dd>If these routers become connected to</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>04:59-05:03=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>clips/candidate-11.wav</dd>
+  </dl>
+</article>
+<article data-review-index="12">
+  <div class="row-head">
+    <h2>Clip 12</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="clips/candidate-12.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="12">Approve</button>
+    <button type="button" class="secondary" data-reject="12">Reject</button>
+    <button type="button" class="secondary" data-pending="12">Pending</button>
+  </div>
+  <textarea data-note="12" placeholder="Reviewer note"></textarea>
+  <dl>
+    <dt>Time</dt><dd>1617.92 - 1621.92 seconds</dd>
+    <dt>Text</dt><dd>So if we can figure out a way for this ability here</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>26:58-27:02=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>clips/candidate-12.wav</dd>
+  </dl>
+</article>
+<article data-review-index="13">
+  <div class="row-head">
+    <h2>Clip 13</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="clips/candidate-13.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="13">Approve</button>
+    <button type="button" class="secondary" data-reject="13">Reject</button>
+    <button type="button" class="secondary" data-pending="13">Pending</button>
+  </div>
+  <textarea data-note="13" placeholder="Reviewer note"></textarea>
+  <dl>
+    <dt>Time</dt><dd>1404.84 - 1408.84 seconds</dd>
+    <dt>Text</dt><dd>Is there any one thing that you can think of as I&#x27;m talking this out</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>23:25-23:29=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>clips/candidate-13.wav</dd>
+  </dl>
+</article>
+<article data-review-index="14">
+  <div class="row-head">
+    <h2>Clip 14</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="clips/candidate-14.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="14">Approve</button>
+    <button type="button" class="secondary" data-reject="14">Reject</button>
+    <button type="button" class="secondary" data-pending="14">Pending</button>
+  </div>
+  <textarea data-note="14" placeholder="Reviewer note"></textarea>
+  <dl>
+    <dt>Time</dt><dd>1396.8 - 1400.8 seconds</dd>
+    <dt>Text</dt><dd>it literally can&#x27;t donate a little bit. Like, it&#x27;s not possible to give you</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>23:17-23:21=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>clips/candidate-14.wav</dd>
+  </dl>
+</article>
+<article data-review-index="15">
+  <div class="row-head">
+    <h2>Clip 15</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="clips/candidate-15.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="15">Approve</button>
+    <button type="button" class="secondary" data-reject="15">Reject</button>
+    <button type="button" class="secondary" data-pending="15">Pending</button>
+  </div>
+  <textarea data-note="15" placeholder="Reviewer note"></textarea>
+  <dl>
+    <dt>Time</dt><dd>953.96 - 957.96 seconds</dd>
+    <dt>Text</dt><dd>I felt like that is absolutely awesome. You know what else we can do?</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>15:54-15:58=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>clips/candidate-15.wav</dd>
+  </dl>
+</article>
+<article data-review-index="16">
+  <div class="row-head">
+    <h2>Clip 16</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="clips/candidate-16.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="16">Approve</button>
+    <button type="button" class="secondary" data-reject="16">Reject</button>
+    <button type="button" class="secondary" data-pending="16">Pending</button>
+  </div>
+  <textarea data-note="16" placeholder="Reviewer note"></textarea>
+  <dl>
+    <dt>Time</dt><dd>712.64 - 716.64 seconds</dd>
+    <dt>Text</dt><dd>Most companies are fine.</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>11:53-11:57=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>clips/candidate-16.wav</dd>
+  </dl>
+</article>
+<article data-review-index="17">
+  <div class="row-head">
+    <h2>Clip 17</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="clips/candidate-17.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="17">Approve</button>
+    <button type="button" class="secondary" data-reject="17">Reject</button>
+    <button type="button" class="secondary" data-pending="17">Pending</button>
+  </div>
+  <textarea data-note="17" placeholder="Reviewer note"></textarea>
+  <dl>
+    <dt>Time</dt><dd>1589.8 - 1593.8 seconds</dd>
+    <dt>Text</dt><dd>I&#x27;m going to go load it up with our phone call, take a picture of this</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>26:30-26:34=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>clips/candidate-17.wav</dd>
+  </dl>
+</article>
+<article data-review-index="18">
+  <div class="row-head">
+    <h2>Clip 18</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="clips/candidate-18.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="18">Approve</button>
+    <button type="button" class="secondary" data-reject="18">Reject</button>
+    <button type="button" class="secondary" data-pending="18">Pending</button>
+  </div>
+  <textarea data-note="18" placeholder="Reviewer note"></textarea>
+  <dl>
+    <dt>Time</dt><dd>724.68 - 728.68 seconds</dd>
+    <dt>Text</dt><dd>So that one seems pretty obvious in a way.</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>12:05-12:09=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>clips/candidate-18.wav</dd>
+  </dl>
+</article>
+<article data-review-index="19">
+  <div class="row-head">
+    <h2>Clip 19</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="clips/candidate-19.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="19">Approve</button>
+    <button type="button" class="secondary" data-reject="19">Reject</button>
+    <button type="button" class="secondary" data-pending="19">Pending</button>
+  </div>
+  <textarea data-note="19" placeholder="Reviewer note"></textarea>
+  <dl>
+    <dt>Time</dt><dd>351.53999999999996 - 355.53999999999996 seconds</dd>
+    <dt>Text</dt><dd>This is kind of a new different thing. When you go to</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>05:52-05:56=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>clips/candidate-19.wav</dd>
+  </dl>
+</article>
+<article data-review-index="20">
+  <div class="row-head">
+    <h2>Clip 20</h2>
+    <span class="status" data-status>pending</span>
+  </div>
+  <audio controls preload="metadata" src="clips/candidate-20.wav"></audio>
+  <div class="review-controls">
+    <button type="button" data-approve="20">Approve</button>
+    <button type="button" class="secondary" data-reject="20">Reject</button>
+    <button type="button" class="secondary" data-pending="20">Pending</button>
+  </div>
+  <textarea data-note="20" placeholder="Reviewer note"></textarea>
+  <dl>
+    <dt>Time</dt><dd>1222.54 - 1226.54 seconds</dd>
+    <dt>Text</dt><dd>Like my mind doesn&#x27;t even comprehend how that&#x27;s possible.</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>20:23-20:27=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>clips/candidate-20.wav</dd>
+  </dl>
+</article>
+  </main>
+  <script type="application/json" id="review-sheet-data">{"passed": false, "human_reviewed": false, "review_packet": "/Users/dshanklinbv/repos-eidos-agi/pavo/docs/plaud-c37-speaker1-anchor-review-packet.json", "clip_packet": "docs/plaud-c37-speaker1-anchor-review-clips.json", "target_speaker_label": "SPEAKER_01", "target_speaker_name": "Speaker 1", "candidate_count": 20, "pending_count": 20, "approved_count": 0, "rejected_count": 0, "rows": [{"index": 1, "status": "pending", "approved": false, "target_speaker_label": "SPEAKER_01", "target_speaker_name": "Speaker 1", "start": 12.06, "end": 16.06, "duration": 4.0, "text": "I think I'd wrap out.", "confidence": 1.0, "method": "audio_overlap", "clip_path": "clips/candidate-01.wav", "suggested_speaker_correction": "00:12-00:16=SPEAKER_01", "reviewer_note": "", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-01-001206-001606.wav"}, {"index": 2, "status": "pending", "approved": false, "target_speaker_label": "SPEAKER_01", "target_speaker_name": "Speaker 1", "start": 144.60000000000002, "end": 148.60000000000002, "duration": 4.0, "text": "memory.", "confidence": 1.0, "method": "audio_overlap", "clip_path": "clips/candidate-02.wav", "suggested_speaker_correction": "02:25-02:29=SPEAKER_01", "reviewer_note": "", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-02-022460-022860.wav"}, {"index": 3, "status": "pending", "approved": false, "target_speaker_label": "SPEAKER_01", "target_speaker_name": "Speaker 1", "start": 937.88, "end": 941.88, "duration": 4.0, "text": "I just covered this in a variety of different energy", "confidence": 1.0, "method": "audio_overlap", "clip_path": "clips/candidate-03.wav", "suggested_speaker_correction": "15:38-15:42=SPEAKER_01", "reviewer_note": "", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-03-153788-154188.wav"}, {"index": 4, "status": "pending", "approved": false, "target_speaker_label": "SPEAKER_01", "target_speaker_name": "Speaker 1", "start": 933.86, "end": 937.86, "duration": 4.0, "text": "Wait, I'll ask you.", "confidence": 0.997, "method": "audio_overlap", "clip_path": "clips/candidate-04.wav", "suggested_speaker_correction": "15:34-15:38=SPEAKER_01", "reviewer_note": "", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-04-153386-153786.wav"}, {"index": 5, "status": "pending", "approved": false, "target_speaker_label": "SPEAKER_01", "target_speaker_name": "Speaker 1", "start": 732.72, "end": 736.72, "duration": 4.0, "text": "Yeah, I think also it's like", "confidence": 0.96, "method": "audio_overlap", "clip_path": "clips/candidate-05.wav", "suggested_speaker_correction": "12:13-12:17=SPEAKER_01", "reviewer_note": "", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-05-121272-121672.wav"}, {"index": 6, "status": "pending", "approved": false, "target_speaker_label": "SPEAKER_01", "target_speaker_name": "Speaker 1", "start": 339.47999999999996, "end": 343.47999999999996, "duration": 4.0, "text": "Now you can build back. If you can build back,", "confidence": 0.816, "method": "audio_overlap", "clip_path": "clips/candidate-06.wav", "suggested_speaker_correction": "05:39-05:43=SPEAKER_01", "reviewer_note": "", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-06-053948-054348.wav"}, {"index": 7, "status": "pending", "approved": false, "target_speaker_label": "SPEAKER_01", "target_speaker_name": "Speaker 1", "start": 941.9, "end": 945.9, "duration": 4.0, "text": "and compliments by that side.", "confidence": 0.816, "method": "audio_overlap", "clip_path": "clips/candidate-07.wav", "suggested_speaker_correction": "15:42-15:46=SPEAKER_01", "reviewer_note": "", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-07-154190-154590.wav"}, {"index": 8, "status": "pending", "approved": false, "target_speaker_label": "SPEAKER_01", "target_speaker_name": "Speaker 1", "start": 16.080000000000002, "end": 20.080000000000002, "duration": 4.0, "text": "Fall into IC.", "confidence": 0.784, "method": "audio_overlap", "clip_path": "clips/candidate-08.wav", "suggested_speaker_correction": "00:16-00:20=SPEAKER_01", "reviewer_note": "", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-08-001608-002008.wav"}, {"index": 9, "status": "pending", "approved": false, "target_speaker_label": "SPEAKER_01", "target_speaker_name": "Speaker 1", "start": 974.04, "end": 978.04, "duration": 4.0, "text": "I'm driving through Kokomo, Indiana", "confidence": 0.768, "method": "audio_overlap", "clip_path": "clips/candidate-09.wav", "suggested_speaker_correction": "16:14-16:18=SPEAKER_01", "reviewer_note": "", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-09-161404-161804.wav"}, {"index": 10, "status": "pending", "approved": false, "target_speaker_label": "SPEAKER_01", "target_speaker_name": "Speaker 1", "start": 1734.6, "end": 1736.6, "duration": 2.0, "text": "Thank you.", "confidence": 0.74, "method": "audio_overlap", "clip_path": "clips/candidate-10.wav", "suggested_speaker_correction": "28:55-28:57=SPEAKER_01", "reviewer_note": "", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-10-285460-285660.wav"}, {"index": 11, "status": "pending", "approved": false, "target_speaker_label": "SPEAKER_01", "target_speaker_name": "Speaker 1", "start": 299.32000000000005, "end": 303.32000000000005, "duration": 4.0, "text": "If these routers become connected to", "confidence": 0.722, "method": "audio_overlap", "clip_path": "clips/candidate-11.wav", "suggested_speaker_correction": "04:59-05:03=SPEAKER_01", "reviewer_note": "", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-11-045932-050332.wav"}, {"index": 12, "status": "pending", "approved": false, "target_speaker_label": "SPEAKER_01", "target_speaker_name": "Speaker 1", "start": 1617.92, "end": 1621.92, "duration": 4.0, "text": "So if we can figure out a way for this ability here", "confidence": 0.684, "method": "audio_overlap", "clip_path": "clips/candidate-12.wav", "suggested_speaker_correction": "26:58-27:02=SPEAKER_01", "reviewer_note": "", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-12-265792-270192.wav"}, {"index": 13, "status": "pending", "approved": false, "target_speaker_label": "SPEAKER_01", "target_speaker_name": "Speaker 1", "start": 1404.84, "end": 1408.84, "duration": 4.0, "text": "Is there any one thing that you can think of as I'm talking this out", "confidence": 0.672, "method": "audio_overlap", "clip_path": "clips/candidate-13.wav", "suggested_speaker_correction": "23:25-23:29=SPEAKER_01", "reviewer_note": "", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-13-232484-232884.wav"}, {"index": 14, "status": "pending", "approved": false, "target_speaker_label": "SPEAKER_01", "target_speaker_name": "Speaker 1", "start": 1396.8, "end": 1400.8, "duration": 4.0, "text": "it literally can't donate a little bit. Like, it's not possible to give you", "confidence": 0.656, "method": "audio_overlap", "clip_path": "clips/candidate-14.wav", "suggested_speaker_correction": "23:17-23:21=SPEAKER_01", "reviewer_note": "", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-14-231680-232080.wav"}, {"index": 15, "status": "pending", "approved": false, "target_speaker_label": "SPEAKER_01", "target_speaker_name": "Speaker 1", "start": 953.96, "end": 957.96, "duration": 4.0, "text": "I felt like that is absolutely awesome. You know what else we can do?", "confidence": 0.654, "method": "audio_overlap", "clip_path": "clips/candidate-15.wav", "suggested_speaker_correction": "15:54-15:58=SPEAKER_01", "reviewer_note": "", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-15-155396-155796.wav"}, {"index": 16, "status": "pending", "approved": false, "target_speaker_label": "SPEAKER_01", "target_speaker_name": "Speaker 1", "start": 712.64, "end": 716.64, "duration": 4.0, "text": "Most companies are fine.", "confidence": 0.648, "method": "audio_overlap", "clip_path": "clips/candidate-16.wav", "suggested_speaker_correction": "11:53-11:57=SPEAKER_01", "reviewer_note": "", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-16-115264-115664.wav"}, {"index": 17, "status": "pending", "approved": false, "target_speaker_label": "SPEAKER_01", "target_speaker_name": "Speaker 1", "start": 1589.8, "end": 1593.8, "duration": 4.0, "text": "I'm going to go load it up with our phone call, take a picture of this", "confidence": 0.648, "method": "audio_overlap", "clip_path": "clips/candidate-17.wav", "suggested_speaker_correction": "26:30-26:34=SPEAKER_01", "reviewer_note": "", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-17-262980-263380.wav"}, {"index": 18, "status": "pending", "approved": false, "target_speaker_label": "SPEAKER_01", "target_speaker_name": "Speaker 1", "start": 724.68, "end": 728.68, "duration": 4.0, "text": "So that one seems pretty obvious in a way.", "confidence": 0.624, "method": "audio_overlap", "clip_path": "clips/candidate-18.wav", "suggested_speaker_correction": "12:05-12:09=SPEAKER_01", "reviewer_note": "", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-18-120468-120868.wav"}, {"index": 19, "status": "pending", "approved": false, "target_speaker_label": "SPEAKER_01", "target_speaker_name": "Speaker 1", "start": 351.53999999999996, "end": 355.53999999999996, "duration": 4.0, "text": "This is kind of a new different thing. When you go to", "confidence": 0.616, "method": "audio_overlap", "clip_path": "clips/candidate-19.wav", "suggested_speaker_correction": "05:52-05:56=SPEAKER_01", "reviewer_note": "", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-19-055154-055554.wav"}, {"index": 20, "status": "pending", "approved": false, "target_speaker_label": "SPEAKER_01", "target_speaker_name": "Speaker 1", "start": 1222.54, "end": 1226.54, "duration": 4.0, "text": "Like my mind doesn't even comprehend how that's possible.", "confidence": 0.608, "method": "audio_overlap", "clip_path": "clips/candidate-20.wav", "suggested_speaker_correction": "20:23-20:27=SPEAKER_01", "reviewer_note": "", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-20-202254-202654.wav"}], "instructions": ["Listen to each clip_path.", "Set approved true and status approved only for clean target-speaker clips.", "Set status rejected for wrong-speaker, overlap-heavy, noisy, or uncertain clips.", "Run pavo review anchors corrections <review-sheet> to export --speaker-correction flags."], "source_review_sheet": "docs/plaud-c37-speaker1-anchor-review-sheet.json", "bundle_dir": "docs/plaud-c37-anchor-review-bundle", "copied_clip_count": 20, "missing_clip_count": 0}</script>
+  <script>
+    const originalSheet = JSON.parse(document.getElementById("review-sheet-data").textContent);
+    const decisions = new Map(originalSheet.rows.map((row) => [String(row.index), {
+      status: row.status || "pending",
+      approved: row.approved === true,
+      reviewer_note: row.reviewer_note || ""
+    }]));
+
+    function setDecision(index, status) {
+      const key = String(index);
+      const current = decisions.get(key) || {};
+      current.status = status;
+      current.approved = status === "approved";
+      decisions.set(key, current);
+      const card = document.querySelector(`[data-review-index="${key}"]`);
+      if (card) {
+        card.querySelector("[data-status]").textContent = status;
+      }
+      updateCount();
+    }
+
+    function setNote(index, note) {
+      const key = String(index);
+      const current = decisions.get(key) || {};
+      current.reviewer_note = note;
+      decisions.set(key, current);
+    }
+
+    function buildReviewedSheet() {
+      const rows = originalSheet.rows.map((row) => {
+        const decision = decisions.get(String(row.index)) || {};
+        return {
+          ...row,
+          status: decision.status || "pending",
+          approved: decision.approved === true,
+          reviewer_note: decision.reviewer_note || ""
+        };
+      });
+      const approvedCount = rows.filter((row) => row.status === "approved" && row.approved === true).length;
+      const rejectedCount = rows.filter((row) => row.status === "rejected").length;
+      const pendingCount = rows.filter((row) => row.status === "pending").length;
+      return {
+        ...originalSheet,
+        passed: rows.length > 0 && approvedCount > 0 && pendingCount === 0,
+        human_reviewed: rows.length > 0 && pendingCount === 0,
+        approved_count: approvedCount,
+        rejected_count: rejectedCount,
+        pending_count: pendingCount,
+        rows
+      };
+    }
+
+    function updateCount() {
+      const reviewed = buildReviewedSheet();
+      document.getElementById("review-count").textContent =
+        `${reviewed.approved_count} approved, ${reviewed.rejected_count} rejected, ${reviewed.pending_count} pending`;
+    }
+
+    document.querySelectorAll("[data-approve]").forEach((button) => {
+      button.addEventListener("click", () => setDecision(button.dataset.approve, "approved"));
+    });
+    document.querySelectorAll("[data-reject]").forEach((button) => {
+      button.addEventListener("click", () => setDecision(button.dataset.reject, "rejected"));
+    });
+    document.querySelectorAll("[data-pending]").forEach((button) => {
+      button.addEventListener("click", () => setDecision(button.dataset.pending, "pending"));
+    });
+    document.querySelectorAll("[data-note]").forEach((note) => {
+      note.addEventListener("input", () => setNote(note.dataset.note, note.value));
+    });
+    document.getElementById("export-json").addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify(buildReviewedSheet(), null, 2) + "\n"], { type: "application/json" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "plaud-c37-speaker1-anchor-review-sheet.json";
+      link.click();
+      URL.revokeObjectURL(link.href);
+    });
+    document.getElementById("reset-review").addEventListener("click", () => {
+      decisions.clear();
+      originalSheet.rows.forEach((row) => decisions.set(String(row.index), {
+        status: row.status || "pending",
+        approved: row.approved === true,
+        reviewer_note: row.reviewer_note || ""
+      }));
+      document.querySelectorAll("[data-review-index]").forEach((card) => {
+        const index = card.dataset.reviewIndex;
+        const decision = decisions.get(index);
+        card.querySelector("[data-status]").textContent = decision.status;
+        const note = card.querySelector("[data-note]");
+        if (note) note.value = decision.reviewer_note;
+      });
+      updateCount();
+    });
+    updateCount();
+  </script>
+</body>
+</html>

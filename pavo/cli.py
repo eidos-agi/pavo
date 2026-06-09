@@ -13,6 +13,7 @@ from .overlap import SeparateOverlapsRequest, separate_overlaps
 from .plaud import PlaudCli, PlaudCliError
 from .review import (
     build_anchor_review_rerun_command,
+    create_anchor_review_bundle,
     create_anchor_review_page,
     create_anchor_review_sheet,
     compile_anchor_review_corrections,
@@ -122,6 +123,9 @@ def build_parser() -> argparse.ArgumentParser:
     review_anchors_page = review_anchors_sub.add_parser("page", help="Create an HTML page for listening to anchor clips")
     review_anchors_page.add_argument("review_sheet", type=Path)
     review_anchors_page.add_argument("--out", type=Path, help="Review page HTML path")
+    review_anchors_bundle = review_anchors_sub.add_parser("bundle", help="Create a browser-safe review bundle with copied clips")
+    review_anchors_bundle.add_argument("review_sheet", type=Path)
+    review_anchors_bundle.add_argument("--out-dir", type=Path, required=True, help="Bundle directory")
     review_anchors_verify_page = review_anchors_sub.add_parser("verify-page", help="Verify a generated anchor review HTML page")
     review_anchors_verify_page.add_argument("review_sheet", type=Path)
     review_anchors_verify_page.add_argument("review_page", type=Path)
@@ -351,6 +355,14 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"candidate_count: {result.candidate_count}")
                 print(f"pending_count: {result.pending_count}")
                 return 0
+            if args.review_anchors_command == "bundle":
+                result = create_anchor_review_bundle(args.review_sheet, out_dir=args.out_dir)
+                print(f"bundle_dir: {result.bundle_dir}")
+                print(f"review_sheet: {result.bundled_sheet_path}")
+                print(f"review_page: {result.review_page_path}")
+                print(f"copied_clip_count: {result.copied_clip_count}")
+                print(f"missing_clip_count: {result.missing_clip_count}")
+                return 0 if result.missing_clip_count == 0 else 2
             if args.review_anchors_command == "verify-page":
                 result = verify_anchor_review_page(args.review_sheet, args.review_page)
                 if args.report:

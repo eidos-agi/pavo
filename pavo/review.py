@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shlex
+import shutil
 from html.parser import HTMLParser
 from html import escape
 from dataclasses import dataclass
@@ -89,6 +90,16 @@ class AnchorReviewPageVerificationResult:
             "missing": self.missing,
             "next_required_proof": "human reviewer must approve or reject every clip, then import the reviewed sheet",
         }
+
+
+@dataclass(frozen=True)
+class AnchorReviewBundleResult:
+    review_sheet_path: Path
+    bundle_dir: Path
+    bundled_sheet_path: Path
+    review_page_path: Path
+    copied_clip_count: int
+    missing_clip_count: int
 
 
 def create_anchor_review_sheet(
@@ -452,6 +463,53 @@ def create_anchor_review_page(
     )
 
 
+def create_anchor_review_bundle(
+    review_sheet_path: Path | str,
+    *,
+    out_dir: Path | str,
+) -> AnchorReviewBundleResult:
+    sheet_path = Path(review_sheet_path)
+    sheet = json.loads(sheet_path.read_text())
+    bundle_dir = Path(out_dir)
+    clips_dir = bundle_dir / "clips"
+    clips_dir.mkdir(parents=True, exist_ok=True)
+    copied = 0
+    missing = 0
+    bundled_rows = []
+    for row in sheet.get("rows", []):
+        bundled = dict(row)
+        source = Path(str(row.get("clip_path", ""))).expanduser()
+        if source.exists():
+            clip_name = _bundle_clip_name(row, source)
+            target = clips_dir / clip_name
+            shutil.copy2(source, target)
+            bundled["source_clip_path"] = str(source)
+            bundled["clip_path"] = f"clips/{clip_name}"
+            copied += 1
+        else:
+            missing += 1
+        bundled_rows.append(bundled)
+    bundled_sheet = {
+        **sheet,
+        "source_review_sheet": str(sheet_path),
+        "bundle_dir": str(bundle_dir),
+        "copied_clip_count": copied,
+        "missing_clip_count": missing,
+        "rows": bundled_rows,
+    }
+    bundled_sheet_path = bundle_dir / sheet_path.name
+    bundled_sheet_path.write_text(json.dumps(bundled_sheet, indent=2) + "\n")
+    page_result = create_anchor_review_page(bundled_sheet_path, out_path=bundle_dir / "index.html")
+    return AnchorReviewBundleResult(
+        review_sheet_path=sheet_path,
+        bundle_dir=bundle_dir,
+        bundled_sheet_path=bundled_sheet_path,
+        review_page_path=page_result.review_page_path,
+        copied_clip_count=copied,
+        missing_clip_count=missing,
+    )
+
+
 def import_anchor_review_sheet(
     original_sheet_path: Path | str,
     reviewed_export_path: Path | str,
@@ -706,6 +764,12 @@ def _audio_src(clip_path: Any) -> str:
     if path.is_absolute():
         return path.as_uri()
     return str(path)
+
+
+def _bundle_clip_name(row: dict[str, Any], source: Path) -> str:
+    index = row.get("index")
+    prefix = f"candidate-{int(index):02d}" if isinstance(index, int) else f"candidate-{index or 'unknown'}"
+    return f"{prefix}{source.suffix or '.wav'}"
 
 
 class _ReviewPageParser(HTMLParser):

@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "url": "http://127.0.0.1:9876/index.html",
+  "title": "Pavo Anchor Review - Speaker 1",
+  "h1": "Pavo Anchor Review - Speaker 1",
+  "audio_count": 20,
+  "approve_count": 20,
+  "reject_count": 20,
+  "pending_button_count": 20,
+  "note_count": 20,
+  "export_button_present": true,
+  "reset_button_present": true,
+  "review_count_text": "0 approved, 0 rejected, 20 pending",
+  "import_instruction_present": true,
+  "rerun_instruction_present": true,
+  "first_audio_src": "clips/candidate-01.wav",
+  "first_audio_resolved": "http://127.0.0.1:9876/clips/candidate-01.wav",
+  "method": "in-app browser DOM evaluation over localhost bundle server",
+  "next_required_proof": "human reviewer must approve or reject every bundled clip, export JSON, import it into the authoritative sheet, then rerun decompose"
+}

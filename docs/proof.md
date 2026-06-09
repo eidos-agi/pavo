@@ -185,6 +185,14 @@ Transcript output:
   20 pending controls, 20 note fields, embedded sheet JSON, and import/rerun
   instructions:
   [plaud-c37-anchor-review-page-report.json](plaud-c37-anchor-review-page-report.json).
+- Pavo now also creates a browser-safe review bundle with all 20 WAV clips
+  copied beside `index.html` using relative audio URLs. The bundle can be
+  served locally with
+  `cd docs/plaud-c37-anchor-review-bundle && python3 -m http.server 9876 --bind 127.0.0.1`.
+  Browser DOM verification over `http://127.0.0.1:9876/index.html` confirms the
+  same 20 audio controls and review controls render over HTTP:
+  [plaud-c37-anchor-review-bundle-manifest.json](plaud-c37-anchor-review-bundle-manifest.json),
+  [plaud-c37-anchor-review-browser-report.json](plaud-c37-anchor-review-browser-report.json).
 - The real-media audit now finds accepted Conan/Kaitlin overlap separation:
   both stems pass the trust gate with wrong-window leakage checks. The accepted
   stem ASR manifest writes trusted global-timed evidence for that overlap.

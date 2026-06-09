@@ -5,6 +5,7 @@ from pathlib import Path
 
 from pavo.review import (
     build_anchor_review_rerun_command,
+    create_anchor_review_bundle,
     create_anchor_review_page,
     compile_anchor_review_corrections,
     create_anchor_review_sheet,
@@ -195,6 +196,46 @@ class ReviewTests(unittest.TestCase):
         self.assertTrue(result.import_instruction_present)
         self.assertTrue(result.rerun_instruction_present)
         self.assertEqual(result.as_report()["missing"], [])
+
+    def test_create_anchor_review_bundle_copies_clips_and_uses_relative_audio_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            clip = root / "candidate.wav"
+            clip.write_bytes(b"RIFF")
+            sheet = root / "review-sheet.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "target_speaker_label": "SPEAKER_01",
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "pending",
+                                "approved": False,
+                                "target_speaker_label": "SPEAKER_01",
+                                "start": 12.06,
+                                "end": 16.06,
+                                "clip_path": str(clip),
+                                "suggested_speaker_correction": "00:12-00:16=SPEAKER_01",
+                            }
+                        ],
+                    }
+                )
+            )
+            bundle = root / "bundle"
+
+            result = create_anchor_review_bundle(sheet, out_dir=bundle)
+            bundled_sheet = json.loads(result.bundled_sheet_path.read_text())
+            html = result.review_page_path.read_text()
+            verification = verify_anchor_review_page(result.bundled_sheet_path, result.review_page_path)
+            copied_clip_exists = (bundle / "clips" / "candidate-01.wav").exists()
+
+        self.assertEqual(result.copied_clip_count, 1)
+        self.assertEqual(result.missing_clip_count, 0)
+        self.assertTrue(copied_clip_exists)
+        self.assertEqual(bundled_sheet["rows"][0]["clip_path"], "clips/candidate-01.wav")
+        self.assertIn('src="clips/candidate-01.wav"', html)
+        self.assertTrue(verification.passed)
 
     def test_verify_anchor_review_page_fails_when_controls_are_missing(self):
         with tempfile.TemporaryDirectory() as tmp:
