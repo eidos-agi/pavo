@@ -237,6 +237,7 @@
   "real_media_stem_asr_improvement": false,
   "plaud_decompose_attempt_count": 2,
   "plaud_accepted_stem_attempt_count": 0,
+  "plaud_human_reviewed_attempt_count": 0,
   "merge_policy_reviewed": true,
   "accepted_real_media_report_count": 2,
   "accepted_real_media_report_with_window_checks_count": 1,

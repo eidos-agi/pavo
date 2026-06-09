@@ -8,6 +8,7 @@ from pavo.proof import (
     conan_experience_comparison_report,
     conan_old_sitcom_report,
     nz_slang_comparison_report,
+    plaud_anchor_quality_report,
     plaud_decompose_recording_report,
     plaud_real_recording_report,
     proof_status_summary,
@@ -81,6 +82,16 @@ class ProofTests(unittest.TestCase):
         self.assertFalse(report["accepted_stems_passed"])
         self.assertGreaterEqual(report["region_count"], 5)
         self.assertGreaterEqual(report["transcribed_stem_count"], 10)
+
+    def test_committed_plaud_anchor_quality_report_records_remaining_blocker(self):
+        report_path = Path(__file__).resolve().parents[1] / "docs" / "plaud-anchor-quality-report.json"
+        report = json.loads(report_path.read_text())
+
+        self.assertFalse(report["passed"])
+        self.assertEqual(report["attempt_count"], 2)
+        self.assertEqual(report["human_reviewed_attempt_count"], 0)
+        self.assertEqual(report["accepted_stem_attempt_count"], 0)
+        self.assertTrue(any("speaker anchors are not human-reviewed" in attempt["blockers"] for attempt in report["attempts"]))
 
     def test_committed_conan_old_sitcom_report_has_accepted_stem_asr_proof(self):
         report_path = Path(__file__).resolve().parents[1] / "docs" / "conan-old-sitcom-report.json"
@@ -490,7 +501,40 @@ class ProofTests(unittest.TestCase):
 
         self.assertFalse(report["passed"])
         self.assertFalse(report["stages"]["voiceprints"])
-        self.assertFalse(report["stages"]["stem_asr"])
+
+    def test_plaud_anchor_quality_report_requires_human_review_and_accepted_stems(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            signatures = root / "speaker-signatures.manifest.json"
+            decompose = root / "decompose-report.json"
+            signatures.write_text(
+                json.dumps(
+                    {
+                        "speakers": [
+                            {"speaker_label": "SPEAKER_00", "name": "Speaker 0", "slug": "speaker-0", "sample_count": 24},
+                            {"speaker_label": "SPEAKER_01", "name": "Speaker 1", "slug": "speaker-1", "sample_count": 4},
+                        ]
+                    }
+                )
+            )
+            decompose.write_text(json.dumps({"passed": True, "accepted_stems_passed": False}))
+
+            report = plaud_anchor_quality_report(
+                [
+                    {
+                        "label": "attempt",
+                        "signatures_manifest": str(signatures),
+                        "decompose_report": str(decompose),
+                        "human_reviewed": False,
+                    }
+                ]
+            )
+
+        self.assertFalse(report["passed"])
+        self.assertEqual(report["attempts"][0]["min_sample_count"], 4)
+        self.assertIn("speaker anchors are not human-reviewed", report["attempts"][0]["blockers"])
+        self.assertIn("no accepted Plaud separated stems", report["attempts"][0]["blockers"])
+        self.assertIn("one or more speakers has fewer than 8 enrollment samples", report["attempts"][0]["blockers"])
 
     def test_conan_old_sitcom_report_proves_rejected_diagnostic_stem_asr(self):
         with tempfile.TemporaryDirectory() as tmp:

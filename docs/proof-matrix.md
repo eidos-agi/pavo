@@ -101,6 +101,8 @@ The strongest remaining proof gaps are:
 - human-reviewed real Plaud multi-person overlap recording
   - Current result: 2 real Plaud decompose attempts passed the pipeline, but 0
     Plaud overlap regions have accepted stems.
+  - Evidence: [plaud-anchor-quality-report.json](plaud-anchor-quality-report.json)
+  - Current blocker: 0 Plaud attempts have human-reviewed speaker anchors.
 
 Resolved gap:
 

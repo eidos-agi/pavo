@@ -286,6 +286,66 @@ def plaud_decompose_recording_report(source_dir: Path | str) -> dict[str, Any]:
     }
 
 
+def plaud_anchor_quality_report(attempts: list[dict[str, Any]]) -> dict[str, Any]:
+    attempt_reports = []
+    for attempt in attempts:
+        label = str(attempt.get("label", "plaud-attempt"))
+        signatures_path = Path(str(attempt.get("signatures_manifest", "")))
+        decompose_report_path = Path(str(attempt.get("decompose_report", "")))
+        signatures = _load_json(signatures_path)
+        decompose_report = _load_json(decompose_report_path)
+        speakers = []
+        sample_counts = []
+        for speaker in signatures.get("speakers", []):
+            count = int(speaker.get("sample_count") or 0)
+            sample_counts.append(count)
+            speakers.append(
+                {
+                    "speaker_label": speaker.get("speaker_label"),
+                    "name": speaker.get("name"),
+                    "slug": speaker.get("slug"),
+                    "sample_count": count,
+                    "sample_seconds": speaker.get("sample_seconds"),
+                    "sample_method_counts": speaker.get("sample_method_counts", {}),
+                }
+            )
+        min_samples = min(sample_counts) if sample_counts else 0
+        max_samples = max(sample_counts) if sample_counts else 0
+        imbalance_ratio = round(max_samples / max(min_samples, 1), 4) if sample_counts else None
+        human_reviewed = bool(attempt.get("human_reviewed"))
+        accepted_stems = bool(decompose_report.get("accepted_stems_passed"))
+        attempt_reports.append(
+            {
+                "label": label,
+                "human_reviewed": human_reviewed,
+                "accepted_stems_passed": accepted_stems,
+                "signature_speaker_count": len(speakers),
+                "min_sample_count": min_samples,
+                "max_sample_count": max_samples,
+                "sample_imbalance_ratio": imbalance_ratio,
+                "speakers": speakers,
+                "signatures_manifest": str(signatures_path),
+                "decompose_report": str(decompose_report_path),
+                "blocked": not (human_reviewed and accepted_stems),
+                "blockers": _plaud_attempt_blockers(
+                    human_reviewed=human_reviewed,
+                    accepted_stems=accepted_stems,
+                    min_samples=min_samples,
+                    imbalance_ratio=imbalance_ratio,
+                ),
+            }
+        )
+    passed = any(attempt["human_reviewed"] and attempt["accepted_stems_passed"] for attempt in attempt_reports)
+    return {
+        "passed": passed,
+        "attempt_count": len(attempt_reports),
+        "human_reviewed_attempt_count": sum(1 for attempt in attempt_reports if attempt["human_reviewed"]),
+        "accepted_stem_attempt_count": sum(1 for attempt in attempt_reports if attempt["accepted_stems_passed"]),
+        "attempts": attempt_reports,
+        "next_required_proof": "human-reviewed Plaud speaker anchors plus accepted separated stems on a real multi-speaker Plaud overlap",
+    }
+
+
 def conan_old_sitcom_report(separation_manifest_path: Path | str, stem_asr_manifest_path: Path | str) -> dict[str, Any]:
     separation_manifest = json.loads(Path(separation_manifest_path).read_text())
     stem_asr_manifest = json.loads(Path(stem_asr_manifest_path).read_text())
@@ -531,6 +591,7 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
         "plaud_transcribe": _load_json(docs / "plaud-real-recording-report.json"),
         "plaud_decompose": _load_json(docs / "plaud-d535-decompose-report.json"),
         "plaud_c37_decompose": _load_json(docs / "plaud-c37-decompose-report.json"),
+        "plaud_anchor_quality": _load_json(docs / "plaud-anchor-quality-report.json"),
         "demo_video": _load_json(docs / "conan-demo-video-report.json"),
         "accepted_stems": _load_json(docs / "real-media-accepted-stems-audit.json"),
         "stem_asr_improvement": _load_json(docs / "stem-asr-improvement-report.json"),
@@ -612,6 +673,7 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
         "real_media_stem_asr_improvement": real_media_stem_asr_improvement,
         "plaud_decompose_attempt_count": plaud_decompose_attempt_count,
         "plaud_accepted_stem_attempt_count": plaud_accepted_stem_attempt_count,
+        "plaud_human_reviewed_attempt_count": reports["plaud_anchor_quality"].get("human_reviewed_attempt_count", 0),
         "merge_policy_reviewed": merge_policy_reviewed,
         "accepted_real_media_report_count": reports["accepted_stems"].get("accepted_report_count", 0),
         "accepted_real_media_report_with_window_checks_count": reports["accepted_stems"].get(
@@ -626,6 +688,25 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
 
 def _load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text()) if path.exists() else {}
+
+
+def _plaud_attempt_blockers(
+    *,
+    human_reviewed: bool,
+    accepted_stems: bool,
+    min_samples: int,
+    imbalance_ratio: float | None,
+) -> list[str]:
+    blockers = []
+    if not human_reviewed:
+        blockers.append("speaker anchors are not human-reviewed")
+    if not accepted_stems:
+        blockers.append("no accepted Plaud separated stems")
+    if min_samples < 8:
+        blockers.append("one or more speakers has fewer than 8 enrollment samples")
+    if imbalance_ratio is not None and imbalance_ratio > 4.0:
+        blockers.append("speaker enrollment samples are imbalanced")
+    return blockers
 
 
 def _stem_report_trusted(stem: dict[str, Any]) -> bool:

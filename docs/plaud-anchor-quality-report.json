@@ -1,0 +1,88 @@
+{
+  "passed": false,
+  "attempt_count": 2,
+  "human_reviewed_attempt_count": 0,
+  "accepted_stem_attempt_count": 0,
+  "attempts": [
+    {
+      "label": "plaud-d535-generic2",
+      "human_reviewed": false,
+      "accepted_stems_passed": false,
+      "signature_speaker_count": 2,
+      "min_sample_count": 2,
+      "max_sample_count": 7,
+      "sample_imbalance_ratio": 3.5,
+      "speakers": [
+        {
+          "speaker_label": "SPEAKER_00",
+          "name": "Speaker 0",
+          "slug": "speaker-0",
+          "sample_count": 2,
+          "sample_seconds": 8.0,
+          "sample_method_counts": {
+            "audio_overlap": 2
+          }
+        },
+        {
+          "speaker_label": "SPEAKER_01",
+          "name": "Speaker 1",
+          "slug": "speaker-1",
+          "sample_count": 7,
+          "sample_seconds": 45.72,
+          "sample_method_counts": {
+            "audio_overlap": 7
+          }
+        }
+      ],
+      "signatures_manifest": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/process-call/speaker-pipeline/speaker-signatures/speaker-signatures.manifest.json",
+      "decompose_report": "docs/plaud-d535-decompose-report.json",
+      "blocked": true,
+      "blockers": [
+        "speaker anchors are not human-reviewed",
+        "no accepted Plaud separated stems",
+        "one or more speakers has fewer than 8 enrollment samples"
+      ]
+    },
+    {
+      "label": "plaud-c37-generic2-pad025",
+      "human_reviewed": false,
+      "accepted_stems_passed": false,
+      "signature_speaker_count": 2,
+      "min_sample_count": 5,
+      "max_sample_count": 33,
+      "sample_imbalance_ratio": 6.6,
+      "speakers": [
+        {
+          "speaker_label": "SPEAKER_00",
+          "name": "Speaker 0",
+          "slug": "speaker-0",
+          "sample_count": 33,
+          "sample_seconds": 132.0,
+          "sample_method_counts": {
+            "audio_overlap": 33
+          }
+        },
+        {
+          "speaker_label": "SPEAKER_01",
+          "name": "Speaker 1",
+          "slug": "speaker-1",
+          "sample_count": 5,
+          "sample_seconds": 20.0,
+          "sample_method_counts": {
+            "audio_overlap": 5
+          }
+        }
+      ],
+      "signatures_manifest": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/process-call/speaker-pipeline/speaker-signatures/speaker-signatures.manifest.json",
+      "decompose_report": "docs/plaud-c37-decompose-report.json",
+      "blocked": true,
+      "blockers": [
+        "speaker anchors are not human-reviewed",
+        "no accepted Plaud separated stems",
+        "one or more speakers has fewer than 8 enrollment samples",
+        "speaker enrollment samples are imbalanced"
+      ]
+    }
+  ],
+  "next_required_proof": "human-reviewed Plaud speaker anchors plus accepted separated stems on a real multi-speaker Plaud overlap"
+}
