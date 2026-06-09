@@ -10,7 +10,7 @@ from .audio import run_audio_doctor
 from .config import DEFAULT_HOME, home_from_arg, init_home
 from .download import save_audio
 from .plaud import PlaudCli, PlaudCliError
-from .transcribe import TranscribeRequest, transcribe_recording
+from .transcribe import ProcessAudioRequest, TranscribeRequest, process_audio, transcribe_recording
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -24,6 +24,14 @@ def build_parser() -> argparse.ArgumentParser:
     audio = subparsers.add_parser("audio", help="Audio intelligence checks")
     audio_sub = audio.add_subparsers(dest="audio_command", required=True)
     audio_sub.add_parser("doctor", help="Check eidos-transcribe readiness")
+    audio_process = audio_sub.add_parser("process", help="Process imported audio with eidos-transcribe speaker analysis")
+    audio_process.add_argument("audio_path", type=Path)
+    audio_process.add_argument("--source-id", required=True, help="Stable source identifier for the imported audio")
+    audio_process.add_argument("--title", help="Human-readable source title")
+    audio_process.add_argument("--context-term", action="append", default=[], help="Known-good term to pass to eidos-transcribe")
+    audio_process.add_argument("--context-file", type=Path, help="Context file to pass to eidos-transcribe")
+    audio_process.add_argument("--engine", action="append", default=[], help="ASR engine to run; repeatable. Defaults to faster-whisper.")
+    audio_process.add_argument("--num-speakers", type=int, help="Expected speaker count")
 
     transcribe = subparsers.add_parser("transcribe", help="Transcribe a Plaud recording with eidos-transcribe")
     transcribe.add_argument("recording_id")
@@ -94,6 +102,29 @@ def main(argv: list[str] | None = None) -> int:
             result = run_audio_doctor(home)
             print(result.report, end="")
             return result.exit_code
+        if args.audio_command == "process":
+            try:
+                result = process_audio(
+                    ProcessAudioRequest(
+                        audio_path=args.audio_path,
+                        source_id=args.source_id,
+                        home=home,
+                        title=args.title,
+                        context_terms=args.context_term,
+                        context_file=args.context_file,
+                        engines=args.engine or ["faster-whisper"],
+                        num_speakers=args.num_speakers,
+                    )
+                )
+            except (FileNotFoundError, subprocess.CalledProcessError, RuntimeError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            print(f"source_id: {result.source_id}")
+            print(f"audio_path: {result.audio_path}")
+            print(f"audio_sha256: {result.audio_sha256}")
+            print(f"process_output_dir: {result.output_dir}")
+            print(f"manifest: {result.manifest_path}")
+            return 0
 
     if args.command == "transcribe":
         try:

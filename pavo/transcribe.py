@@ -36,6 +36,28 @@ class TranscribeResult:
     command: list[str]
 
 
+@dataclass(frozen=True)
+class ProcessAudioRequest:
+    audio_path: Path
+    source_id: str
+    home: Path = DEFAULT_HOME
+    title: str | None = None
+    context_terms: list[str] | None = None
+    context_file: Path | None = None
+    engines: list[str] | None = None
+    num_speakers: int | None = None
+
+
+@dataclass(frozen=True)
+class ProcessAudioResult:
+    source_id: str
+    audio_path: Path
+    audio_sha256: str
+    output_dir: Path
+    manifest_path: Path
+    command: list[str]
+
+
 def default_runner(args: list[str]) -> str:
     completed = subprocess.run(
         args,
@@ -103,6 +125,67 @@ def transcribe_recording(
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
     return TranscribeResult(
         recording_id=request.recording_id,
+        audio_path=audio_path,
+        audio_sha256=audio_hash,
+        output_dir=output_dir,
+        manifest_path=manifest_path,
+        command=command,
+    )
+
+
+def process_audio(
+    request: ProcessAudioRequest,
+    *,
+    runner: Runner = default_runner,
+) -> ProcessAudioResult:
+    pavo_home = init_home(request.home)
+    audio_path = request.audio_path.expanduser().resolve()
+    if not audio_path.exists():
+        raise FileNotFoundError(f"Audio file not found: {audio_path}")
+
+    audio_bytes = audio_path.read_bytes()
+    audio_hash = __import__("hashlib").sha256(audio_bytes).hexdigest()
+    source_dir = pavo_home.cache_dir / "imports" / request.source_id
+    output_dir = source_dir / "process-call"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    command = [
+        "eidos-transcribe",
+        "process-call",
+        str(audio_path),
+        "--out-dir",
+        str(output_dir),
+    ]
+    for engine in request.engines or ["faster-whisper"]:
+        command.extend(["--engine", engine])
+    if request.title:
+        command.extend(["--title", request.title])
+    for term in request.context_terms or []:
+        command.extend(["--context-term", term])
+    if request.context_file:
+        command.extend(["--context-file", str(request.context_file.expanduser())])
+    if request.num_speakers:
+        command.extend(["--num-speakers", str(request.num_speakers)])
+
+    runner(command)
+    manifest_path = source_dir / "pavo-process-manifest.json"
+    manifest = {
+        "source_id": request.source_id,
+        "audio_path": str(audio_path),
+        "audio_sha256": audio_hash,
+        "process_output_dir": str(output_dir),
+        "eidos_transcribe_manifest": str(output_dir / "process-call.manifest.json"),
+        "command": command,
+        "engines": request.engines or ["faster-whisper"],
+        "title": request.title,
+        "context_terms": request.context_terms or [],
+        "context_file": str(request.context_file.expanduser()) if request.context_file else None,
+        "num_speakers": request.num_speakers,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+    return ProcessAudioResult(
+        source_id=request.source_id,
         audio_path=audio_path,
         audio_sha256=audio_hash,
         output_dir=output_dir,

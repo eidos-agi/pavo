@@ -165,6 +165,7 @@ pavo plaud files
 pavo plaud audio-url <recording-id>
 pavo plaud download <recording-id>
 pavo audio doctor
+pavo audio process ./clip.mp4 --source-id youtube_<id> --num-speakers 6
 pavo transcribe <recording-id> --context-term Plaud
 ```
 
@@ -176,6 +177,11 @@ SHA-256 hash.
 first. It calls `eidos-transcribe` as a subprocess and writes the transcript
 bundle under `~/Eidos/Pavo/cache/plaud/<recording-id>/transcribe/`. Pavo records
 its own run manifest next to the audio as `pavo-transcribe-manifest.json`.
+
+`pavo audio process` runs imported audio or video-derived audio through
+`eidos-transcribe process-call`, including speaker analysis. It writes output to
+`~/Eidos/Pavo/cache/imports/<source-id>/process-call/` and records a
+`pavo-process-manifest.json` with the source file hash and command.
 
 ## Tests
 

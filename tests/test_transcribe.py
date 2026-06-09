@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from pavo.transcribe import TranscribeRequest, transcribe_recording
+from pavo.transcribe import ProcessAudioRequest, TranscribeRequest, process_audio, transcribe_recording
 
 
 class TranscribeTests(unittest.TestCase):
@@ -77,3 +77,42 @@ class TranscribeTests(unittest.TestCase):
 
         self.assertEqual(result.audio_path, audio_path)
         self.assertEqual(len(calls), 1)
+
+    def test_process_audio_invokes_process_call_for_imported_media(self):
+        calls = []
+
+        def runner(args):
+            calls.append(args)
+            out_dir = Path(args[args.index("--out-dir") + 1])
+            out_dir.mkdir(parents=True, exist_ok=True)
+            (out_dir / "manifest.json").write_text("{}\n")
+            return "ok\n"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "Pavo"
+            audio_path = Path(tmp) / "clip.mp4"
+            audio_path.write_bytes(b"video bytes")
+
+            result = process_audio(
+                ProcessAudioRequest(
+                    audio_path=audio_path,
+                    source_id="youtube_KxJWK8R7uVQ",
+                    home=home,
+                    title="When The Always Sunny Cast Met Danny DeVito",
+                    context_terms=["Danny DeVito", "Conan"],
+                    engines=["faster-whisper"],
+                    num_speakers=4,
+                ),
+                runner=runner,
+            )
+
+            self.assertEqual(result.source_id, "youtube_KxJWK8R7uVQ")
+            self.assertEqual(result.audio_path, audio_path.resolve())
+            self.assertEqual(calls[0][0:2], ["eidos-transcribe", "process-call"])
+            self.assertIn("--num-speakers", calls[0])
+            self.assertIn("4", calls[0])
+            self.assertTrue(result.manifest_path.exists())
+            manifest = json.loads(result.manifest_path.read_text())
+            self.assertEqual(manifest["source_id"], "youtube_KxJWK8R7uVQ")
+            self.assertEqual(manifest["title"], "When The Always Sunny Cast Met Danny DeVito")
+            self.assertEqual(manifest["context_terms"], ["Danny DeVito", "Conan"])
