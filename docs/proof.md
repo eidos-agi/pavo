@@ -193,6 +193,11 @@ Transcript output:
   same 20 audio controls and review controls render over HTTP:
   [plaud-c37-anchor-review-bundle-manifest.json](plaud-c37-anchor-review-bundle-manifest.json),
   [plaud-c37-anchor-review-browser-report.json](plaud-c37-anchor-review-browser-report.json).
+- The combined review gate now checks sheet status, page verification, bundle
+  readiness, browser verification, and rerun-command readiness in one report:
+  [plaud-c37-anchor-review-gate-report.json](plaud-c37-anchor-review-gate-report.json).
+  It currently passes every UI/bundle check and fails only because 20 review
+  rows are still pending and no speaker-anchor clips are approved.
 - The real-media audit now finds accepted Conan/Kaitlin overlap separation:
   both stems pass the trust gate with wrong-window leakage checks. The accepted
   stem ASR manifest writes trusted global-timed evidence for that overlap.

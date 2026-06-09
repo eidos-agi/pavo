@@ -1,0 +1,17 @@
+{
+  "passed": false,
+  "review_sheet": "docs/plaud-c37-speaker1-anchor-review-sheet.json",
+  "human_reviewed": false,
+  "approved_count": 0,
+  "rejected_count": 0,
+  "pending_count": 20,
+  "page_ready": true,
+  "bundle_ready": true,
+  "browser_verified": true,
+  "rerun_command_ready": false,
+  "blockers": [
+    "20 review rows are still pending",
+    "no speaker-anchor clips are approved"
+  ],
+  "next_action": "review the bundled clips, export JSON, import it, then run pavo review anchors rerun-command"
+}

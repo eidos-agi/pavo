@@ -9,6 +9,7 @@ from pavo.review import (
     create_anchor_review_page,
     compile_anchor_review_corrections,
     create_anchor_review_sheet,
+    gate_anchor_review,
     import_anchor_review_sheet,
     summarize_anchor_review_sheet,
     verify_anchor_review_page,
@@ -37,6 +38,27 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(payload["approved_count"], 0)
         self.assertEqual(payload["pending_count"], 20)
         self.assertIn("no approved speaker corrections", payload["blocked_reason"])
+
+    def test_committed_plaud_c37_review_gate_waits_for_human_review(self):
+        docs = Path(__file__).resolve().parents[1] / "docs"
+
+        result = gate_anchor_review(
+            docs / "plaud-c37-speaker1-anchor-review-sheet.json",
+            page_report_path=docs / "plaud-c37-anchor-review-page-report.json",
+            bundle_manifest_path=docs / "plaud-c37-anchor-review-bundle-manifest.json",
+            browser_report_path=docs / "plaud-c37-anchor-review-browser-report.json",
+            rerun_report_path=docs / "plaud-c37-anchor-rerun-command-report.json",
+        )
+
+        self.assertFalse(result.passed)
+        self.assertFalse(result.human_reviewed)
+        self.assertTrue(result.page_ready)
+        self.assertTrue(result.bundle_ready)
+        self.assertTrue(result.browser_verified)
+        self.assertEqual(result.approved_count, 0)
+        self.assertEqual(result.pending_count, 20)
+        self.assertIn("20 review rows are still pending", result.blockers)
+        self.assertIn("no speaker-anchor clips are approved", result.blockers)
 
     def test_create_anchor_review_sheet_starts_pending_without_approved_corrections(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -414,6 +436,45 @@ class ReviewTests(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "no approved speaker corrections"):
                 build_anchor_review_rerun_command(sheet, manifest)
+
+    def test_gate_anchor_review_passes_when_review_and_rerun_are_ready(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sheet = root / "review-sheet.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {"index": 1, "status": "approved", "approved": True},
+                            {"index": 2, "status": "rejected", "approved": False},
+                        ]
+                    }
+                )
+            )
+            page = root / "page.json"
+            bundle = root / "bundle.json"
+            browser = root / "browser.json"
+            rerun = root / "rerun.json"
+            page.write_text(json.dumps({"passed": True}))
+            bundle.write_text(json.dumps({"passed": True}))
+            browser.write_text(json.dumps({"passed": True}))
+            rerun.write_text(json.dumps({"rerun_command_ready": True}))
+
+            result = gate_anchor_review(
+                sheet,
+                page_report_path=page,
+                bundle_manifest_path=bundle,
+                browser_report_path=browser,
+                rerun_report_path=rerun,
+            )
+
+        self.assertTrue(result.passed)
+        self.assertTrue(result.human_reviewed)
+        self.assertEqual(result.approved_count, 1)
+        self.assertEqual(result.rejected_count, 1)
+        self.assertEqual(result.pending_count, 0)
+        self.assertEqual(result.blockers, [])
+        self.assertEqual(result.next_action, "run the rerun command and regenerate Plaud decompose proof")
 
 
 if __name__ == "__main__":

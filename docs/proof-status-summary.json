@@ -255,6 +255,11 @@
   "plaud_anchor_review_browser_verified": true,
   "plaud_anchor_review_browser_audio_count": 20,
   "plaud_anchor_review_browser_approve_count": 20,
+  "plaud_anchor_review_gate_passed": false,
+  "plaud_anchor_review_gate_blockers": [
+    "20 review rows are still pending",
+    "no speaker-anchor clips are approved"
+  ],
   "plaud_anchor_rerun_command_ready": false,
   "plaud_anchor_rerun_command_approved_count": 0,
   "plaud_anchor_rerun_command_pending_count": 20,

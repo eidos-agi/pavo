@@ -17,6 +17,7 @@ from .review import (
     create_anchor_review_page,
     create_anchor_review_sheet,
     compile_anchor_review_corrections,
+    gate_anchor_review,
     import_anchor_review_sheet,
     summarize_anchor_review_sheet,
     verify_anchor_review_page,
@@ -138,6 +139,13 @@ def build_parser() -> argparse.ArgumentParser:
     review_anchors_rerun.add_argument("review_sheet", type=Path)
     review_anchors_rerun.add_argument("pavo_decompose_manifest", type=Path)
     review_anchors_rerun.add_argument("--source-id", help="Override rerun source id; defaults to original source id plus _reviewed")
+    review_anchors_gate = review_anchors_sub.add_parser("gate", help="Check whether anchor review is ready for corrected decompose rerun")
+    review_anchors_gate.add_argument("review_sheet", type=Path)
+    review_anchors_gate.add_argument("--page-report", type=Path)
+    review_anchors_gate.add_argument("--bundle-manifest", type=Path)
+    review_anchors_gate.add_argument("--browser-report", type=Path)
+    review_anchors_gate.add_argument("--rerun-report", type=Path)
+    review_anchors_gate.add_argument("--report", type=Path, help="Write machine-readable gate report JSON")
     review_anchors_corrections = review_anchors_sub.add_parser("corrections", help="Print approved --speaker-correction flags")
     review_anchors_corrections.add_argument("review_sheet", type=Path)
 
@@ -405,6 +413,31 @@ def main(argv: list[str] | None = None) -> int:
                     return 2
                 print(result.shell_command)
                 return 0
+            if args.review_anchors_command == "gate":
+                result = gate_anchor_review(
+                    args.review_sheet,
+                    page_report_path=args.page_report,
+                    bundle_manifest_path=args.bundle_manifest,
+                    browser_report_path=args.browser_report,
+                    rerun_report_path=args.rerun_report,
+                )
+                if args.report:
+                    args.report.parent.mkdir(parents=True, exist_ok=True)
+                    args.report.write_text(__import__("json").dumps(result.as_report(), indent=2) + "\n")
+                    print(f"report: {args.report}")
+                print(f"passed: {str(result.passed).lower()}")
+                print(f"human_reviewed: {str(result.human_reviewed).lower()}")
+                print(f"approved_count: {result.approved_count}")
+                print(f"rejected_count: {result.rejected_count}")
+                print(f"pending_count: {result.pending_count}")
+                print(f"page_ready: {str(result.page_ready).lower()}")
+                print(f"bundle_ready: {str(result.bundle_ready).lower()}")
+                print(f"browser_verified: {str(result.browser_verified).lower()}")
+                print(f"rerun_command_ready: {str(result.rerun_command_ready).lower()}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+                print(f"next_action: {result.next_action}")
+                return 0 if result.passed else 2
             if args.review_anchors_command == "corrections":
                 result = compile_anchor_review_corrections(args.review_sheet)
                 if result.cli_args:

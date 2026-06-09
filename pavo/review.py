@@ -102,6 +102,38 @@ class AnchorReviewBundleResult:
     missing_clip_count: int
 
 
+@dataclass(frozen=True)
+class AnchorReviewGateResult:
+    review_sheet_path: Path
+    passed: bool
+    human_reviewed: bool
+    approved_count: int
+    rejected_count: int
+    pending_count: int
+    page_ready: bool
+    bundle_ready: bool
+    browser_verified: bool
+    rerun_command_ready: bool
+    blockers: list[str]
+    next_action: str
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "passed": self.passed,
+            "review_sheet": str(self.review_sheet_path),
+            "human_reviewed": self.human_reviewed,
+            "approved_count": self.approved_count,
+            "rejected_count": self.rejected_count,
+            "pending_count": self.pending_count,
+            "page_ready": self.page_ready,
+            "bundle_ready": self.bundle_ready,
+            "browser_verified": self.browser_verified,
+            "rerun_command_ready": self.rerun_command_ready,
+            "blockers": self.blockers,
+            "next_action": self.next_action,
+        }
+
+
 def create_anchor_review_sheet(
     clip_packet_path: Path | str,
     *,
@@ -668,6 +700,66 @@ def verify_anchor_review_page(
     )
 
 
+def gate_anchor_review(
+    review_sheet_path: Path | str,
+    *,
+    page_report_path: Path | str | None = None,
+    bundle_manifest_path: Path | str | None = None,
+    browser_report_path: Path | str | None = None,
+    rerun_report_path: Path | str | None = None,
+) -> AnchorReviewGateResult:
+    sheet_path = Path(review_sheet_path)
+    summary = summarize_anchor_review_sheet(sheet_path)
+    page_report = _load_optional_json(page_report_path)
+    bundle_manifest = _load_optional_json(bundle_manifest_path)
+    browser_report = _load_optional_json(browser_report_path)
+    rerun_report = _load_optional_json(rerun_report_path)
+    page_ready = bool(page_report.get("passed"))
+    bundle_ready = bool(bundle_manifest.get("passed"))
+    browser_verified = bool(browser_report.get("passed"))
+    rerun_command_ready = bool(rerun_report.get("rerun_command_ready"))
+    blockers = []
+    if not page_ready:
+        blockers.append("anchor review page is not verified")
+    if not bundle_ready:
+        blockers.append("browser-safe anchor review bundle is not ready")
+    if not browser_verified:
+        blockers.append("anchor review bundle has not been browser-verified")
+    if not summary["human_reviewed"]:
+        blockers.append(f"{summary['pending_count']} review rows are still pending")
+    if not summary["approved_count"]:
+        blockers.append("no speaker-anchor clips are approved")
+    if summary["human_reviewed"] and summary["approved_count"] and not rerun_command_ready:
+        blockers.append("rerun command is not ready")
+    passed = bool(
+        page_ready
+        and bundle_ready
+        and browser_verified
+        and summary["human_reviewed"]
+        and summary["approved_count"]
+        and rerun_command_ready
+    )
+    next_action = (
+        "run the rerun command and regenerate Plaud decompose proof"
+        if passed
+        else "review the bundled clips, export JSON, import it, then run pavo review anchors rerun-command"
+    )
+    return AnchorReviewGateResult(
+        review_sheet_path=sheet_path,
+        passed=passed,
+        human_reviewed=summary["human_reviewed"],
+        approved_count=summary["approved_count"],
+        rejected_count=summary["rejected_count"],
+        pending_count=summary["pending_count"],
+        page_ready=page_ready,
+        bundle_ready=bundle_ready,
+        browser_verified=browser_verified,
+        rerun_command_ready=rerun_command_ready,
+        blockers=blockers,
+        next_action=next_action,
+    )
+
+
 def summarize_anchor_review_sheet(review_sheet_path: Path | str) -> dict[str, Any]:
     sheet_path = Path(review_sheet_path)
     sheet = json.loads(sheet_path.read_text())
@@ -764,6 +856,13 @@ def _audio_src(clip_path: Any) -> str:
     if path.is_absolute():
         return path.as_uri()
     return str(path)
+
+
+def _load_optional_json(path: Path | str | None) -> dict[str, Any]:
+    if path is None:
+        return {}
+    json_path = Path(path)
+    return json.loads(json_path.read_text()) if json_path.exists() else {}
 
 
 def _bundle_clip_name(row: dict[str, Any], source: Path) -> str:
