@@ -192,6 +192,63 @@ def plaud_real_recording_report(recording_dir: Path | str) -> dict[str, Any]:
     }
 
 
+def conan_old_sitcom_report(separation_manifest_path: Path | str, stem_asr_manifest_path: Path | str) -> dict[str, Any]:
+    separation_manifest = json.loads(Path(separation_manifest_path).read_text())
+    stem_asr_manifest = json.loads(Path(stem_asr_manifest_path).read_text())
+    region_paths = [Path(path) for path in separation_manifest.get("regions", [])]
+    region_reports = [json.loads(path.read_text()) for path in region_paths if path.exists()]
+    decomposed_path = Path(stem_asr_manifest.get("decomposed_transcript_json", ""))
+    decomposed = json.loads(decomposed_path.read_text()) if decomposed_path.exists() else {}
+    diagnostic_segments = decomposed.get("segments", [])
+    trusted_segments = [segment for segment in diagnostic_segments if segment.get("trusted") is True]
+    rejected_segments = [segment for segment in diagnostic_segments if segment.get("trusted") is False]
+    accepted_regions = [report for report in region_reports if report.get("accepted") is True]
+    stem_reports = [
+        {
+            "speaker_slug": slug,
+            "target": stem.get("target"),
+            "whole_clip_best": stem.get("whole_clip", {}).get("best"),
+            "margin": stem.get("whole_clip", {}).get("margin"),
+            "wrong_rate": stem.get("wrong_rate"),
+            "path": stem.get("path"),
+        }
+        for report in region_reports
+        for slug, stem in report.get("stem_reports", {}).items()
+    ]
+    overlap_detected = bool(
+        separation_manifest.get("candidate_count", 0) > 0
+        and region_reports
+        and any("rolling_mixed" in str(report.get("region", {}).get("immune", "")) for report in region_reports)
+    )
+    diagnostic_available = bool(
+        stem_asr_manifest.get("include_rejected") is True
+        and stem_asr_manifest.get("transcribed_stem_count", 0) >= len(stem_reports)
+        and rejected_segments
+        and not trusted_segments
+    )
+    passed = bool(overlap_detected and region_reports and not accepted_regions and diagnostic_available)
+    return {
+        "passed": passed,
+        "overlap_detected": overlap_detected,
+        "candidate_count": separation_manifest.get("candidate_count", 0),
+        "region_count": len(region_reports),
+        "accepted_region_count": len(accepted_regions),
+        "all_regions_rejected": bool(region_reports and not accepted_regions),
+        "stem_count": len(stem_reports),
+        "stem_reports": stem_reports,
+        "diagnostic_available": diagnostic_available,
+        "include_rejected": stem_asr_manifest.get("include_rejected"),
+        "transcribed_stem_count": stem_asr_manifest.get("transcribed_stem_count", 0),
+        "diagnostic_segment_count": len(diagnostic_segments),
+        "trusted_segment_count": len(trusted_segments),
+        "rejected_segment_count": len(rejected_segments),
+        "merge_policy": decomposed.get("merge_policy"),
+        "separation_manifest": str(separation_manifest_path),
+        "stem_asr_manifest": str(stem_asr_manifest_path),
+        "decomposed_transcript_json": str(decomposed_path),
+    }
+
+
 def _find_case(comparison: dict[str, Any], label: str) -> dict[str, Any]:
     for case in comparison.get("cases", []):
         if case.get("label") == label:

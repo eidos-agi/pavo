@@ -21,6 +21,7 @@ Outputs:
 
 - `/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom/stem-asr-diagnostic/decomposed-transcript.json`
 - `/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-old-sitcom/stem-asr-diagnostic/decomposed-transcript.json`
+- Machine-readable "That Old Sitcom" report: [conan-old-sitcom-report.json](conan-old-sitcom-report.json)
 
 ## Results
 

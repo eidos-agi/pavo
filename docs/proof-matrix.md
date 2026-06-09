@@ -72,6 +72,7 @@ Status values:
 22. Conan "That Old Sitcom" Test - `fixture-backed`
    - Evidence: local Conan overlap reports exist, current reports are rejected, and rejected stems have diagnostic ASR evidence.
    - Evidence: `docs/conan-diagnostic-stems.md`
+   - Evidence: [conan-old-sitcom-report.json](conan-old-sitcom-report.json)
 23. New Zealand Accent Slang Test - `fixture-backed`
    - Evidence: `~/Eidos/Pavo/demos/nz-accent-test/`.
    - Evidence: [nz-slang-comparison-report.json](nz-slang-comparison-report.json)

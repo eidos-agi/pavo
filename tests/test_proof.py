@@ -6,6 +6,7 @@ from pathlib import Path
 from pavo.proof import (
     conan_demo_video_report,
     conan_experience_comparison_report,
+    conan_old_sitcom_report,
     nz_slang_comparison_report,
     plaud_real_recording_report,
 )
@@ -50,6 +51,16 @@ class ProofTests(unittest.TestCase):
         self.assertTrue(report["stages"]["transcribe"])
         self.assertIn("decomposition", report["missing_stages"])
         self.assertIn("stem_asr", report["missing_stages"])
+
+    def test_committed_conan_old_sitcom_report_is_passing_rejected_diagnostic_proof(self):
+        report_path = Path(__file__).resolve().parents[1] / "docs" / "conan-old-sitcom-report.json"
+        report = json.loads(report_path.read_text())
+
+        self.assertTrue(report["passed"])
+        self.assertTrue(report["overlap_detected"])
+        self.assertTrue(report["all_regions_rejected"])
+        self.assertTrue(report["diagnostic_available"])
+        self.assertEqual(report["trusted_segment_count"], 0)
 
     def test_conan_experience_comparison_proves_pavo_adds_named_speaker_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -302,6 +313,105 @@ class ProofTests(unittest.TestCase):
         self.assertTrue(report["passed"])
         self.assertFalse(report["partial"])
         self.assertEqual(report["missing_stages"], [])
+
+    def test_conan_old_sitcom_report_proves_rejected_diagnostic_stem_asr(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            region_dir = root / "region-01"
+            diag_dir = root / "stem-asr-diagnostic"
+            region_dir.mkdir()
+            diag_dir.mkdir()
+            analysis = region_dir / "analysis.json"
+            analysis.write_text(
+                json.dumps(
+                    {
+                        "region": {"immune": "not_checked+rolling_mixed"},
+                        "accepted": False,
+                        "stem_reports": {
+                            "conan-obrien": {
+                                "target": "Conan O'Brien",
+                                "whole_clip": {"best": "Conan O'Brien", "margin": 0.06},
+                                "wrong_rate": 0.3333,
+                                "path": str(region_dir / "conan-obrien.wav"),
+                            },
+                            "kaitlin-olson": {
+                                "target": "Kaitlin Olson",
+                                "whole_clip": {"best": "Kaitlin Olson", "margin": 0.05},
+                                "wrong_rate": 0.3333,
+                                "path": str(region_dir / "kaitlin-olson.wav"),
+                            },
+                        },
+                    }
+                )
+            )
+            separation_manifest = root / "separate-overlaps.manifest.json"
+            separation_manifest.write_text(json.dumps({"candidate_count": 1, "regions": [str(analysis)]}))
+            decomposed = diag_dir / "decomposed-transcript.json"
+            decomposed.write_text(
+                json.dumps(
+                    {
+                        "merge_policy": "evidence only; does not replace canonical transcript",
+                        "segments": [
+                            {"trusted": False, "source": "diagnostic_rejected_stem"},
+                            {"trusted": False, "source": "diagnostic_rejected_stem"},
+                        ],
+                    }
+                )
+            )
+            stem_asr_manifest = diag_dir / "stem-asr.manifest.json"
+            stem_asr_manifest.write_text(
+                json.dumps(
+                    {
+                        "include_rejected": True,
+                        "transcribed_stem_count": 2,
+                        "decomposed_transcript_json": str(decomposed),
+                    }
+                )
+            )
+
+            report = conan_old_sitcom_report(separation_manifest, stem_asr_manifest)
+
+        self.assertTrue(report["passed"])
+        self.assertEqual(report["accepted_region_count"], 0)
+        self.assertEqual(report["transcribed_stem_count"], 2)
+        self.assertEqual(report["rejected_segment_count"], 2)
+
+    def test_conan_old_sitcom_report_fails_if_rejected_stems_become_trusted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            region_dir = root / "region-01"
+            diag_dir = root / "stem-asr-diagnostic"
+            region_dir.mkdir()
+            diag_dir.mkdir()
+            analysis = region_dir / "analysis.json"
+            analysis.write_text(
+                json.dumps(
+                    {
+                        "region": {"immune": "not_checked+rolling_mixed"},
+                        "accepted": False,
+                        "stem_reports": {"conan-obrien": {"target": "Conan O'Brien", "whole_clip": {"best": "Conan O'Brien"}}},
+                    }
+                )
+            )
+            separation_manifest = root / "separate-overlaps.manifest.json"
+            separation_manifest.write_text(json.dumps({"candidate_count": 1, "regions": [str(analysis)]}))
+            decomposed = diag_dir / "decomposed-transcript.json"
+            decomposed.write_text(json.dumps({"segments": [{"trusted": True}]}))
+            stem_asr_manifest = diag_dir / "stem-asr.manifest.json"
+            stem_asr_manifest.write_text(
+                json.dumps(
+                    {
+                        "include_rejected": True,
+                        "transcribed_stem_count": 1,
+                        "decomposed_transcript_json": str(decomposed),
+                    }
+                )
+            )
+
+            report = conan_old_sitcom_report(separation_manifest, stem_asr_manifest)
+
+        self.assertFalse(report["passed"])
+        self.assertFalse(report["diagnostic_available"])
 
 
 if __name__ == "__main__":
