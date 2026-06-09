@@ -1,7 +1,7 @@
 {
   "name": "pavo",
   "version": "0.1.0",
-  "description": "Manifest Anything: capture Plaud recordings, preserve real audio, and route transcription through Eidos tooling.",
+  "description": "Manifest Anything: wrap Plaud CLI and MCP to control audio files, speaker identification, dictionaries, routing, and tasks.",
   "author": {
     "name": "Eidos AGI",
     "email": "daniel@eidosagi.com",
@@ -13,7 +13,7 @@
   "keywords": [
     "audio",
     "codex",
-    "eidos",
+    "recordings",
     "plaud",
     "transcription"
   ]

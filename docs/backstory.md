@@ -1,18 +1,19 @@
 # Backstory
 
-Pavo exists because a Plaud recorder by itself is not enough for Eidos work.
-Plaud can capture meetings and produce useful notes, but the product workflow
-does not give an agent a durable, auditable path from the real recording to
-transcription evidence, speaker evidence, dictionaries, and later reprocessing.
+Pavo exists because Plaud is excellent at capture, but the stock Plaud workflow
+is not enough when recordings need to become real working intelligence. A user
+needs more control over the actual audio files, speaker identification, custom
+dictionaries per call, routing, task creation, and durable archives.
 
 The goal is simple:
 
 ```text
-Plaud Cloud -> real audio -> local manifest -> eidos-transcribe -> better transcript -> durable archive
+Plaud Cloud -> real audio -> speaker-aware transcript -> routed notes and tasks -> durable archive
 ```
 
-Pavo owns the capture and orchestration layer. `eidos-transcribe` owns the
-audio-intelligence layer.
+Pavo owns the Plaud wrapper, file control, routing, task creation, and archive
+layer. `eidos-transcribe` owns the audio-intelligence layer that Pavo can call
+as an installable package.
 
 ## Why Plaud Alone Was Not Sufficient
 
@@ -29,10 +30,10 @@ engine outputs as evidence instead of trusting one transcript.
 
 ### 2. The real audio needed to be discoverable from Plaud Cloud
 
-The first practical problem was proving that Daniel's Plaud account could be
-reached and that the real recording files could be listed and downloaded. Plaud
-exposed multiple surfaces: a CLI and an MCP server. They were related but not
-identical, and each had its own setup behavior.
+The first practical problem was proving that a Plaud account could be reached
+and that the real recording files could be listed and downloaded. Plaud exposed
+multiple surfaces: a CLI and an MCP server. They were related but not identical,
+and each had its own setup behavior.
 
 Pavo keeps those surfaces separate. It can call the Plaud CLI today, and its
 design leaves room for a Plaud MCP adapter without making the MCP path the only
@@ -70,9 +71,9 @@ temporary URLs the durable record.
 
 ### 6. Local configuration needed to be private and inspectable
 
-Pavo needed a company-local operating folder without becoming a credential
-dump. Plaud tokens belong to the Plaud CLI. Google credentials belong to Google
-credential stores. OpenAI credentials belong to their normal stores.
+Pavo needed a local operating folder without becoming a credential dump. Plaud
+tokens belong to the Plaud CLI. Google credentials belong to Google credential
+stores. OpenAI credentials belong to their normal stores.
 
 Pavo stores non-secret config and cache state under:
 
@@ -84,8 +85,8 @@ That keeps the system inspectable while avoiding secrets in the repo or plugin.
 
 ### 7. Google Drive should become the durable archive
 
-Daniel preferred Drive as the durable destination. That means Pavo needs to
-track local files, manifests, transcripts, and future Drive artifact ids without
+Google Drive is the first durable archive target. That means Pavo needs to track
+local files, manifests, transcripts, and future Drive artifact ids without
 duplicating uploads or losing the original source audio.
 
 Pavo is the right layer for Drive sync because Drive is orchestration and
@@ -93,13 +94,12 @@ storage. `eidos-transcribe` should not know about Plaud or Drive.
 
 ### 8. Generic transcription misses domain terms
 
-Real Eidos recordings contain names, companies, project names, account concepts,
-and invented tool names. A generic recognizer can produce plausible but wrong
-words.
+Real recordings contain names, companies, product names, account concepts, and
+call-specific terms. A generic recognizer can produce plausible but wrong words.
 
 `eidos-transcribe` addresses this with context terms and context files. Pavo can
-pass terms such as `Plaud` and `Pavo`, while future Pavo profiles can pass
-reviewed personal or company dictionaries.
+pass a custom dictionary per call, while future Pavo profiles can pass reviewed
+personal, company, customer, or project dictionaries.
 
 ### 9. One recognizer is not enough for important audio
 
@@ -154,16 +154,18 @@ recording lifecycle stable.
 Pavo solves:
 
 - Plaud recording discovery.
+- Plaud CLI and Plaud MCP wrapping.
 - Real audio download.
 - Local cache and config structure.
 - Recording manifests.
-- Future Google Drive sync.
+- Google Drive archiving.
+- Intelligent routing and task creation.
 - Agent/plugin instructions for safe use.
 
 `eidos-transcribe` solves:
 
 - Multi-engine transcription.
-- Context-aware spelling and scoring.
+- Call-specific dictionaries and context-aware scoring.
 - Raw-output preservation.
 - Transcript manifests.
 - Speaker diarization bakeoffs.

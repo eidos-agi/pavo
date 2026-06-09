@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1050" viewBox="0 0 1600 1050" role="img" aria-labelledby="title desc">
   <title id="title">Pavo problem solution 4: The AI tool path was flaky</title>
-  <desc id="desc">Problem: The Plaud MCP setup worked, but Codex could not always see it right away. Solution: Pavo keeps a simple command-line path that works even when tools are hidden.</desc>
+  <desc id="desc">Problem: Plaud MCP can work, but an agent may not see it right away. Solution: Pavo keeps both paths: MCP when available, CLI when that is more reliable.</desc>
   <rect width="1600" height="1050" fill="#f4fff8"/>
   <rect x="54" y="54" width="1492" height="940" rx="44" fill="#ecfdf5" stroke="#064e3b" stroke-width="8"/>
   <circle cx="1370" cy="146" r="62" fill="#10b981" stroke="#064e3b" stroke-width="7"/>
@@ -12,17 +12,17 @@
   <rect x="112" y="255" width="1276" height="285" rx="30" fill="#ffffff" stroke="#064e3b" stroke-width="6"/>
   <text x="152" y="324" font-size="34" font-weight="900" fill="#ff5f7e">PROBLEM</text>
   <text x="152" y="396" font-size="58" font-weight="900" fill="#064e3b">The AI tool path was flaky</text>
-  <text x="152" y="505" font-size="34" font-weight="650" fill="#0f766e">The Plaud MCP setup worked, but Codex could not always</text>
-<text x="152" y="549" font-size="34" font-weight="650" fill="#0f766e">see it right away.</text>
+  <text x="152" y="505" font-size="34" font-weight="650" fill="#0f766e">Plaud MCP can work, but an agent may not see it right</text>
+<text x="152" y="549" font-size="34" font-weight="650" fill="#0f766e">away.</text>
 
   <path d="M770 565 V620" stroke="#064e3b" stroke-width="13" stroke-linecap="round"/>
   <path d="M718 608 L770 682 L822 608 Z" fill="#064e3b"/>
 
   <rect x="112" y="705" width="1276" height="205" rx="30" fill="#d1fae5" stroke="#064e3b" stroke-width="6"/>
   <text x="152" y="774" font-size="34" font-weight="900" fill="#047857">SOLUTION</text>
-  <text x="152" y="842" font-size="38" font-weight="800" fill="#064e3b">Pavo keeps a simple command-line path that works even</text>
-<text x="152" y="892" font-size="38" font-weight="800" fill="#064e3b">when tools are hidden.</text>
+  <text x="152" y="842" font-size="38" font-weight="800" fill="#064e3b">Pavo keeps both paths: MCP when available, CLI when that</text>
+<text x="152" y="892" font-size="38" font-weight="800" fill="#064e3b">is more reliable.</text>
 
   <text x="112" y="960" font-size="28" font-weight="800" fill="#064e3b">Manifest Anything</text>
-  <text x="392" y="960" font-size="24" font-weight="650" fill="#047857">Turn recordings into durable intelligence.</text>
+  <text x="392" y="960" font-size="24" font-weight="650" fill="#047857">Turn Plaud recordings into useful work.</text>
 </svg>

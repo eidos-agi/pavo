@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1050" viewBox="0 0 1600 1050" role="img" aria-labelledby="title desc">
   <title id="title">Pavo problem solution 2: The audio was hard to get</title>
-  <desc id="desc">Problem: The recording lived in Plaud Cloud behind app and tool layers. Solution: Pavo finds the recording and brings the audio onto the computer.</desc>
+  <desc id="desc">Problem: The recording lived in Plaud Cloud behind app and tool layers. Solution: Pavo wraps Plaud CLI and Plaud MCP so the audio can be found and pulled down.</desc>
   <rect width="1600" height="1050" fill="#f4fff8"/>
   <rect x="54" y="54" width="1492" height="940" rx="44" fill="#ecfdf5" stroke="#064e3b" stroke-width="8"/>
   <circle cx="1370" cy="146" r="62" fill="#10b981" stroke="#064e3b" stroke-width="7"/>
@@ -20,9 +20,9 @@
 
   <rect x="112" y="705" width="1276" height="205" rx="30" fill="#d1fae5" stroke="#064e3b" stroke-width="6"/>
   <text x="152" y="774" font-size="34" font-weight="900" fill="#047857">SOLUTION</text>
-  <text x="152" y="842" font-size="38" font-weight="800" fill="#064e3b">Pavo finds the recording and brings the audio onto the</text>
-<text x="152" y="892" font-size="38" font-weight="800" fill="#064e3b">computer.</text>
+  <text x="152" y="842" font-size="38" font-weight="800" fill="#064e3b">Pavo wraps Plaud CLI and Plaud MCP so the audio can be</text>
+<text x="152" y="892" font-size="38" font-weight="800" fill="#064e3b">found and pulled down.</text>
 
   <text x="112" y="960" font-size="28" font-weight="800" fill="#064e3b">Manifest Anything</text>
-  <text x="392" y="960" font-size="24" font-weight="650" fill="#047857">Turn recordings into durable intelligence.</text>
+  <text x="392" y="960" font-size="24" font-weight="650" fill="#047857">Turn Plaud recordings into useful work.</text>
 </svg>

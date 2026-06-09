@@ -4,25 +4,28 @@
 
 **Manifest Anything.**
 
-Pavo is the Eidos capture CLI for Plaud recordings. Its first job is to prove
-that Daniel's Plaud account can be reached, list recordings, obtain temporary
-audio URLs, and download the real audio files for later upload to Google Drive.
+Pavo is a control layer for Plaud recordings. It wraps the Plaud CLI and Plaud
+MCP surfaces so you can get more control over the actual audio files, speaker
+identification, custom dictionaries per call, intelligent routing, task
+creation, and durable archives.
 
 ## Why Pavo Exists
 
-Pavo exists because Plaud alone was not enough for Eidos work. Plaud can capture
-meetings and produce useful notes, but the product workflow did not give an
-agent a durable, auditable path from the real recording to transcription
-evidence, speaker evidence, dictionaries, and later reprocessing.
+Pavo exists because Plaud is excellent at capture, but the stock Plaud workflow
+is not enough when recordings need to become real working intelligence. A user
+needs access to the audio itself, control over where it goes, better speaker
+identification, call-specific vocabulary, and a way to turn a recording into
+follow-up work.
 
 The target loop is:
 
 ```text
-Plaud Cloud -> real audio -> local manifest -> eidos-transcribe -> better transcript -> durable archive
+Plaud Cloud -> real audio -> speaker-aware transcript -> routed notes and tasks -> durable archive
 ```
 
-Pavo owns the capture and orchestration layer. `eidos-transcribe` owns the
-installable audio-intelligence layer.
+Pavo owns the Plaud wrapper, file control, routing, and archive layer. For the
+audio intelligence layer, Pavo uses `eidos-transcribe` as an installable package
+that can improve independently.
 
 The problems we hit:
 
@@ -45,9 +48,9 @@ The problems we hit:
 7. **Recordings needed a home.** Local cache is not enough for a durable
    archive. Pavo is being built to sync audio, notes, and manifests into Google
    Drive.
-8. **AI misheard important words.** Names, companies, and Eidos tool names can
-   sound like other words. `eidos-transcribe` lets Pavo pass known vocabulary so
-   transcripts get smarter.
+8. **AI misheard important words.** Names, companies, product names, and
+   call-specific terms can sound like other words. `eidos-transcribe` lets Pavo
+   pass a custom dictionary for each call so transcripts get smarter.
 9. **One transcript was too fragile.** One AI model can miss things another
    model catches. `eidos-transcribe` can compare multiple engines and keep the
    evidence.
@@ -63,45 +66,45 @@ The problems we hit:
 
 ## Problem -> Solution Cards
 
-![Transcript-only access was not enough](assets/problem-solutions/01-transcript-only.svg)
+![Plaud notes were not enough](assets/problem-solutions/01-transcript-only.svg)
 
-![Real audio had to be discoverable](assets/problem-solutions/02-discover-real-audio.svg)
+![The audio was hard to get](assets/problem-solutions/02-discover-real-audio.svg)
 
-![Account identity was not obvious](assets/problem-solutions/03-account-identity.svg)
+![The account was confusing](assets/problem-solutions/03-account-identity.svg)
 
-![MCP install did not mean Codex visibility](assets/problem-solutions/04-mcp-visibility.svg)
+![The AI tool path was flaky](assets/problem-solutions/04-mcp-visibility.svg)
 
-![Temporary URLs are not durable artifacts](assets/problem-solutions/05-temporary-urls.svg)
+![Links expired](assets/problem-solutions/05-temporary-urls.svg)
 
-![Config needed to be private and inspectable](assets/problem-solutions/06-private-config.svg)
+![Secrets needed boundaries](assets/problem-solutions/06-private-config.svg)
 
-![Google Drive should become the archive](assets/problem-solutions/07-drive-archive.svg)
+![Recordings needed somewhere to go](assets/problem-solutions/07-drive-archive.svg)
 
-![Generic transcription misses domain terms](assets/problem-solutions/08-domain-terms.svg)
+![AI misheard important words](assets/problem-solutions/08-domain-terms.svg)
 
-![One recognizer was not enough](assets/problem-solutions/09-multi-engine.svg)
+![One transcript was too fragile](assets/problem-solutions/09-multi-engine.svg)
 
-![Speaker identity needs audio evidence](assets/problem-solutions/10-speaker-identity.svg)
+![Who spoke mattered](assets/problem-solutions/10-speaker-identity.svg)
 
-![Overlaps and noise need custom handling](assets/problem-solutions/11-overlap-noise.svg)
+![Messy audio needed help](assets/problem-solutions/11-overlap-noise.svg)
 
-![Audio intelligence had to be updatable](assets/problem-solutions/12-updatable-package.svg)
+![The system needed to improve over time](assets/problem-solutions/12-updatable-package.svg)
 
 The short version:
 
-- **Pavo solves:** Plaud discovery, real audio download, local cache/config,
-  recording manifests, future Google Drive sync, and agent/plugin routing.
-- **`eidos-transcribe` solves:** multi-engine transcription, context-aware
-  scoring, raw-output preservation, transcript manifests, speaker diarization,
-  speaker signatures, rolling acoustic fingerprints, overlap analysis, and
-  future reprocessing as models and dictionaries improve.
+- **Pavo solves:** Plaud CLI/MCP wrapping, real audio download, local file
+  control, recording manifests, Google Drive archiving, routing, task creation,
+  and agent/plugin access.
+- **`eidos-transcribe` solves:** better transcription, speaker identification,
+  custom dictionaries, multi-engine comparison, messy-audio analysis, and future
+  reprocessing as models improve.
 
 Read the full [backstory](docs/backstory.md) for the longer version.
 
 The original parrot scribe mascot is preserved at
 [`assets/mascot.png`](assets/mascot.png).
 
-Pavo stores local non-secret configuration under:
+By default, Pavo stores local non-secret configuration under:
 
 ```text
 ~/Eidos/Pavo/

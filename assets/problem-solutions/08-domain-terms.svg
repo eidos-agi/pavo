@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1050" viewBox="0 0 1600 1050" role="img" aria-labelledby="title desc">
   <title id="title">Pavo problem solution 8: AI misheard important words</title>
-  <desc id="desc">Problem: Names, companies, and Eidos tool names can sound like other words. Solution: eidos-transcribe lets Pavo pass known vocabulary so transcripts get smarter.</desc>
+  <desc id="desc">Problem: Names, companies, product names, and call-specific terms can sound wrong. Solution: Pavo passes a custom dictionary per call so transcripts understand the context.</desc>
   <rect width="1600" height="1050" fill="#f4fff8"/>
   <rect x="54" y="54" width="1492" height="940" rx="44" fill="#ecfdf5" stroke="#064e3b" stroke-width="8"/>
   <circle cx="1370" cy="146" r="62" fill="#10b981" stroke="#064e3b" stroke-width="7"/>
@@ -12,17 +12,17 @@
   <rect x="112" y="255" width="1276" height="285" rx="30" fill="#ffffff" stroke="#064e3b" stroke-width="6"/>
   <text x="152" y="324" font-size="34" font-weight="900" fill="#ff5f7e">PROBLEM</text>
   <text x="152" y="396" font-size="58" font-weight="900" fill="#064e3b">AI misheard important words</text>
-  <text x="152" y="505" font-size="34" font-weight="650" fill="#0f766e">Names, companies, and Eidos tool names can sound like</text>
-<text x="152" y="549" font-size="34" font-weight="650" fill="#0f766e">other words.</text>
+  <text x="152" y="505" font-size="34" font-weight="650" fill="#0f766e">Names, companies, product names, and call-specific terms</text>
+<text x="152" y="549" font-size="34" font-weight="650" fill="#0f766e">can sound wrong.</text>
 
   <path d="M770 565 V620" stroke="#064e3b" stroke-width="13" stroke-linecap="round"/>
   <path d="M718 608 L770 682 L822 608 Z" fill="#064e3b"/>
 
   <rect x="112" y="705" width="1276" height="205" rx="30" fill="#d1fae5" stroke="#064e3b" stroke-width="6"/>
   <text x="152" y="774" font-size="34" font-weight="900" fill="#047857">SOLUTION</text>
-  <text x="152" y="842" font-size="38" font-weight="800" fill="#064e3b">eidos-transcribe lets Pavo pass known vocabulary so</text>
-<text x="152" y="892" font-size="38" font-weight="800" fill="#064e3b">transcripts get smarter.</text>
+  <text x="152" y="842" font-size="38" font-weight="800" fill="#064e3b">Pavo passes a custom dictionary per call so transcripts</text>
+<text x="152" y="892" font-size="38" font-weight="800" fill="#064e3b">understand the context.</text>
 
   <text x="112" y="960" font-size="28" font-weight="800" fill="#064e3b">Manifest Anything</text>
-  <text x="392" y="960" font-size="24" font-weight="650" fill="#047857">Turn recordings into durable intelligence.</text>
+  <text x="392" y="960" font-size="24" font-weight="650" fill="#047857">Turn Plaud recordings into useful work.</text>
 </svg>

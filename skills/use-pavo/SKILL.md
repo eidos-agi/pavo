@@ -1,13 +1,14 @@
 ---
 name: use-pavo
-description: Use when the user asks about Pavo, Plaud recordings, Plaud audio capture, real recording files, Pavo manifests, Pavo Google Drive sync planning, or transcribing Plaud audio through Eidos tooling.
+description: Use when the user asks about Pavo, Plaud recordings, Plaud CLI, Plaud MCP, real audio files, speaker identification, custom dictionaries, Pavo manifests, Google Drive sync planning, routing, or task creation from recordings.
 ---
 
 # Use Pavo
 
-Pavo is the Eidos capture tool for Plaud recordings. Its job is to preserve the
-real audio, create auditable manifests, and route transcription through
-`eidos-transcribe`.
+Pavo is a control layer for Plaud recordings. It wraps the Plaud CLI and Plaud
+MCP surfaces so agents can work with the real audio files, speaker-aware
+transcripts, custom dictionaries per call, routing, task creation, and durable
+archives.
 
 ## Source of Truth
 
@@ -73,7 +74,7 @@ Expected local path:
 ~/Eidos/Pavo/cache/plaud/<recording-id>/audio.mp3
 ```
 
-### Transcribe Through Eidos
+### Transcribe With Call-Specific Vocabulary
 
 ```bash
 pavo transcribe <recording-id> --context-term Plaud --context-term Pavo

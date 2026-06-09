@@ -1,7 +1,7 @@
 {
   "name": "pavo",
   "version": "0.1.0",
-  "description": "Manifest Anything: capture Plaud recordings, preserve real audio, and route transcription through Eidos tooling.",
+  "description": "Manifest Anything: wrap Plaud CLI and MCP to control audio files, speaker identification, dictionaries, routing, and tasks.",
   "author": {
     "name": "Eidos AGI",
     "email": "daniel@eidosagi.com",
@@ -13,15 +13,15 @@
   "keywords": [
     "audio",
     "codex",
-    "eidos",
+    "recordings",
     "plaud",
     "transcription"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Pavo",
-    "shortDescription": "Capture Plaud audio and manifest it for Codex.",
-    "longDescription": "Pavo routes Codex to the local pavo CLI for Plaud recording discovery, real-audio download, manifest inspection, and transcription orchestration through eidos-transcribe. The plugin is intentionally thin; the CLI/package remains the source of truth.",
+    "shortDescription": "Control Plaud recordings beyond the stock app.",
+    "longDescription": "Pavo routes Codex to the local pavo CLI for Plaud CLI/MCP access, real-audio download, manifest inspection, speaker-aware transcription, custom dictionaries, routing, and task creation. The plugin is intentionally thin; the CLI/package remains the source of truth.",
     "developerName": "Eidos AGI",
     "category": "Productivity",
     "capabilities": [
@@ -29,7 +29,9 @@
       "Audio Capture",
       "Plaud",
       "Transcription",
-      "Manifesting"
+      "Diarization",
+      "Dictionaries",
+      "Task Routing"
     ],
     "websiteURL": "https://github.com/eidos-agi/pavo",
     "privacyPolicyURL": "https://github.com/eidos-agi/pavo/blob/main/SECURITY.md",
