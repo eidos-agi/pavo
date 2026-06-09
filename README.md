@@ -72,6 +72,32 @@ The problems we hit:
     installed, upgraded, tested, and versioned independently while Pavo keeps
     the recording lifecycle stable.
 
+## Problem -> Solution Cards
+
+![Transcript-only access was not enough](assets/problem-solutions/01-transcript-only.svg)
+
+![Real audio had to be discoverable](assets/problem-solutions/02-discover-real-audio.svg)
+
+![Account identity was not obvious](assets/problem-solutions/03-account-identity.svg)
+
+![MCP install did not mean Codex visibility](assets/problem-solutions/04-mcp-visibility.svg)
+
+![Temporary URLs are not durable artifacts](assets/problem-solutions/05-temporary-urls.svg)
+
+![Config needed to be private and inspectable](assets/problem-solutions/06-private-config.svg)
+
+![Google Drive should become the archive](assets/problem-solutions/07-drive-archive.svg)
+
+![Generic transcription misses domain terms](assets/problem-solutions/08-domain-terms.svg)
+
+![One recognizer was not enough](assets/problem-solutions/09-multi-engine.svg)
+
+![Speaker identity needs audio evidence](assets/problem-solutions/10-speaker-identity.svg)
+
+![Overlaps and noise need custom handling](assets/problem-solutions/11-overlap-noise.svg)
+
+![Audio intelligence had to be updatable](assets/problem-solutions/12-updatable-package.svg)
+
 The short version:
 
 - **Pavo solves:** Plaud discovery, real audio download, local cache/config,
