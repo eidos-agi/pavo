@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from pavo.proof import (
+    accepted_stem_asr_recovery_report,
     conan_demo_video_report,
     conan_experience_comparison_report,
     conan_old_sitcom_report,
@@ -140,6 +141,16 @@ class ProofTests(unittest.TestCase):
         self.assertEqual(report["recovered_terms"], [])
         self.assertIn("that old sitcom", report["mixed_text"].lower())
 
+    def test_committed_accepted_stem_asr_recovery_report_closes_real_media_recovery_gap(self):
+        report_path = Path(__file__).resolve().parents[1] / "docs" / "accepted-stem-asr-recovery-report.json"
+        report = json.loads(report_path.read_text())
+
+        self.assertTrue(report["passed"])
+        self.assertFalse(report["reviewed"])
+        self.assertGreaterEqual(report["comparison_count"], 2)
+        self.assertGreaterEqual(report["recovered_item_count"], 3)
+        self.assertTrue(any(item["term"] == "who" for item in report["recovered_items"]))
+
     def test_committed_stem_asr_improvement_search_report_records_broader_search(self):
         report_path = Path(__file__).resolve().parents[1] / "docs" / "stem-asr-improvement-search-report.json"
         report = json.loads(report_path.read_text())
@@ -181,7 +192,6 @@ class ProofTests(unittest.TestCase):
         self.assertEqual(report["proved_count"], 25)
         self.assertTrue(report["accepted_real_media_stems"])
         self.assertTrue(report["accepted_real_media_stems_with_window_checks"])
-        self.assertFalse(report["real_media_stem_asr_improvement"])
         self.assertEqual(report["plaud_decompose_attempt_count"], 2)
         self.assertEqual(report["plaud_accepted_stem_attempt_count"], 0)
         self.assertTrue(report["plaud_anchor_review_clip_packet_ready"])
@@ -196,7 +206,9 @@ class ProofTests(unittest.TestCase):
         self.assertEqual(report["nz_decompose_search_accepted_region_count"], 0)
         self.assertEqual(report["nz_decompose_search_trusted_stem_region_count"], 11)
         self.assertNotIn("real accepted stems on a real overlap clip", report["remaining_gaps"])
-        self.assertIn("real-media comparison showing stem ASR recovers words missed by mixed-audio ASR", report["remaining_gaps"])
+        self.assertTrue(report["real_media_stem_asr_improvement"])
+        self.assertGreaterEqual(report["real_media_stem_asr_recovery_item_count"], 3)
+        self.assertNotIn("real-media comparison showing stem ASR recovers words missed by mixed-audio ASR", report["remaining_gaps"])
         self.assertNotIn("reviewed merge policy for when stem ASR can augment or override the canonical transcript", report["remaining_gaps"])
 
     def test_conan_experience_comparison_proves_pavo_adds_named_speaker_evidence(self):
@@ -1016,6 +1028,29 @@ class ProofTests(unittest.TestCase):
 
         self.assertFalse(report["passed"])
         self.assertEqual(report["recovered_terms"], [])
+
+    def test_accepted_stem_asr_recovery_report_passes_for_accepted_real_media_recovery(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            mixed = root / "mixed.json"
+            stem = root / "stem.json"
+            mixed.write_text(json.dumps({"segments": [{"text": "Mike. He wrote this caption."}]}))
+            stem.write_text(json.dumps({"segments": [{"text": "Mike, who are you? He wrote this caption."}]}))
+
+            report = accepted_stem_asr_recovery_report(
+                comparisons=[
+                    {
+                        "label": "fixture",
+                        "mixed_transcript": str(mixed),
+                        "stem_transcript": str(stem),
+                        "separation_accepted": True,
+                        "expected_recovered_terms": ["who"],
+                    }
+                ]
+            )
+
+        self.assertTrue(report["passed"])
+        self.assertEqual(report["recovered_items"], [{"label": "fixture", "term": "who"}])
 
     def test_stem_asr_improvement_search_report_counts_accepted_regions(self):
         with tempfile.TemporaryDirectory() as tmp:

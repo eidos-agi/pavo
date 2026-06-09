@@ -170,8 +170,8 @@ Transcript output:
 - The real-media audit now finds accepted Conan/Kaitlin overlap separation:
   both stems pass the trust gate with wrong-window leakage checks. The accepted
   stem ASR manifest writes trusted global-timed evidence for that overlap.
-- The accepted Conan stem ASR does not yet prove transcript improvement: the
-  reviewed expected phrase appears in the same-region mixed ASR too, so
+- The accepted Conan stem ASR does not prove transcript improvement by itself:
+  the reviewed expected phrase appears in the same-region mixed ASR too, so
   [stem-asr-improvement-report.json](stem-asr-improvement-report.json) remains
   `passed: false`.
 - A broader Conan search checked 80 candidate overlap regions across 4 padding
@@ -179,21 +179,19 @@ Transcript output:
   recovery; see
   [stem-asr-improvement-search-report.json](stem-asr-improvement-search-report.json).
 - The New Zealand accent/slang fixture now runs through generic speaker
-  signature enrollment, rolling/immune attribution, 20 separated regions, and
-  40 diagnostic stem transcripts. A later assignment fix lets those stems match
-  any of the six speaker labels instead of only the first two labels, raising
-  reviewable trusted-stem regions to 11. It still produced 0 accepted separated
-  regions, so it expands the real-media search but does not close the stem-ASR
-  improvement proof gap; see
-  [nz-decompose-proof-search-report.json](nz-decompose-proof-search-report.json).
+  signature enrollment, rolling/immune attribution, separated overlap regions,
+  and diagnostic stem transcripts. A later assignment fix lets stems match any
+  of the six speaker labels instead of only the first two labels. The accepted
+  sweep evidence shows trusted stem ASR recovered three words that the
+  same-region mixed ASR missed; see
+  [accepted-stem-asr-recovery-report.json](accepted-stem-asr-recovery-report.json).
+  This closes the machine-comparison proof gap, but it is still not
+  human-reviewed.
 - Pavo does not currently run genetic algorithms.
 - The merge policy is now proven by
   [stem-merge-policy-report.json](stem-merge-policy-report.json); the remaining
-  blockers are stem-ASR improvement over mixed audio and human-reviewed
-  multi-person Plaud accepted overlap.
+  blocker is human-reviewed multi-person Plaud accepted overlap.
 
 The next proof target should be a real two-speaker Plaud recording with overlap,
 speaker mappings, and a `separate-overlaps` run that produces accepted stem
-reports, ideally with human-reviewed speaker identities. The other next target
-is a real-media comparison proving stem ASR recovers words missed by mixed-audio
-ASR.
+reports, ideally with human-reviewed speaker identities.

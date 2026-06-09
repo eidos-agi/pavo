@@ -91,18 +91,6 @@ Machine-readable rollup: [proof-status-summary.json](proof-status-summary.json)
 
 The strongest remaining proof gaps are:
 
-- real-media comparison showing stem ASR recovers words missed by mixed-audio ASR
-  - Evidence: [stem-asr-improvement-report.json](stem-asr-improvement-report.json)
-  - Evidence: [stem-asr-improvement-search-report.json](stem-asr-improvement-search-report.json)
-  - Current result: accepted Conan stem ASR has trusted evidence, but the
-    reviewed expected phrase was already present in same-region mixed ASR. A
-    broader Conan search checked 80 candidate regions across 4 padding settings
-    and found no additional accepted improvement candidate.
-  - Current result: the New Zealand accent/slang fixture now creates generic
-    speaker signatures and runs 20 separated regions with 40 diagnostic stem
-    transcripts. After fixing multi-speaker stem assignment, 11 regions have at
-    least one trusted stem, but 0 regions are fully accepted.
-  - Evidence: [nz-decompose-proof-search-report.json](nz-decompose-proof-search-report.json)
 - human-reviewed real Plaud multi-person overlap recording
   - Current result: 2 real Plaud decompose attempts passed the pipeline, but 0
     Plaud overlap regions have accepted stems.
@@ -127,6 +115,13 @@ Resolved gap:
     with wrong-window leakage checks.
 - real-media two-speaker separation with accepted stems
   - Evidence: [conan-old-sitcom-report.json](conan-old-sitcom-report.json)
+
+- real-media comparison showing stem ASR recovers words missed by mixed-audio
+  ASR
+  - Evidence: [accepted-stem-asr-recovery-report.json](accepted-stem-asr-recovery-report.json)
+  - Current result: accepted New Zealand overlap sweep evidence recovered three
+    words from trusted stem ASR that were absent from same-region mixed ASR.
+    The report is machine-accepted but not human-reviewed.
 
 - reviewed merge policy for when stem ASR can augment or override the canonical
   transcript

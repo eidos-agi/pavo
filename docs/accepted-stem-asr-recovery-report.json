@@ -1,0 +1,76 @@
+{
+  "passed": true,
+  "reviewed": false,
+  "comparison_count": 2,
+  "recovered_item_count": 3,
+  "recovered_items": [
+    {
+      "label": "NZ accepted pad-0 caption overlap speaker 1",
+      "term": "who"
+    },
+    {
+      "label": "NZ accepted pad-0p5 caption overlap speaker 1",
+      "term": "word"
+    },
+    {
+      "label": "NZ accepted pad-0p5 caption overlap speaker 1",
+      "term": "like"
+    }
+  ],
+  "comparisons": [
+    {
+      "label": "NZ accepted pad-0 caption overlap speaker 1",
+      "region_report": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/separated-overlaps-sweep-pad-0/region-32-04m53s-04m55s/analysis.json",
+      "speaker": "Speaker 1",
+      "speaker_slug": "speaker-01",
+      "mixed_transcript": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/mixed-asr-accepted-pad-0/region-32-04m53s-04m55s/faster-whisper/transcript.json",
+      "stem_transcript": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/stem-asr-accepted-pad-0/region-32-04m53s-04m55s/speaker-01/faster-whisper/transcript.json",
+      "mixed_text": "Mike.  He's written this caption.",
+      "trusted_stem_text": "Mike, who are you?",
+      "separation_accepted": true,
+      "separation_margin": 0.0585,
+      "term_results": [
+        {
+          "term": "who",
+          "trusted_stem_has_term": true,
+          "mixed_asr_has_term": false,
+          "recovered_by_stem": true
+        }
+      ],
+      "recovered_terms": [
+        "who"
+      ]
+    },
+    {
+      "label": "NZ accepted pad-0p5 caption overlap speaker 1",
+      "region_report": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/separated-overlaps-sweep-pad-0p5/region-32-04m53s-04m55s/analysis.json",
+      "speaker": "Speaker 1",
+      "speaker_slug": "speaker-01",
+      "mixed_transcript": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/mixed-asr-accepted-pad-0p5/region-32-04m53s-04m55s/faster-whisper/transcript.json",
+      "stem_transcript": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/stem-asr-accepted-pad-0p5/region-32-04m53s-04m55s/speaker-01/faster-whisper/transcript.json",
+      "mixed_text": "He's written this caption, it says...",
+      "trusted_stem_text": "word like.",
+      "separation_accepted": true,
+      "separation_margin": 0.0823,
+      "term_results": [
+        {
+          "term": "word",
+          "trusted_stem_has_term": true,
+          "mixed_asr_has_term": false,
+          "recovered_by_stem": true
+        },
+        {
+          "term": "like",
+          "trusted_stem_has_term": true,
+          "mixed_asr_has_term": false,
+          "recovered_by_stem": true
+        }
+      ],
+      "recovered_terms": [
+        "word",
+        "like"
+      ]
+    }
+  ],
+  "next_required_proof": "human review can confirm the recovered words, but accepted real-media stem ASR already recovers terms absent from same-region mixed ASR"
+}

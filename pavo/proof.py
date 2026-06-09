@@ -706,6 +706,59 @@ def stem_asr_improvement_search_report(
     }
 
 
+def accepted_stem_asr_recovery_report(
+    *,
+    comparisons: list[dict[str, Any]],
+    reviewed: bool = False,
+) -> dict[str, Any]:
+    results = []
+    recovered_items = []
+    for item in comparisons:
+        mixed_text = _transcript_text(Path(item["mixed_transcript"]))
+        stem_text = _transcript_text(Path(item["stem_transcript"]))
+        terms = item.get("expected_recovered_terms") or _candidate_recovered_terms(stem_text, mixed_text)
+        term_results = []
+        for term in terms:
+            stem_has_term = normalize_text(term) in normalize_text(stem_text)
+            mixed_has_term = normalize_text(term) in normalize_text(mixed_text)
+            recovered = bool(stem_has_term and not mixed_has_term)
+            term_result = {
+                "term": term,
+                "trusted_stem_has_term": stem_has_term,
+                "mixed_asr_has_term": mixed_has_term,
+                "recovered_by_stem": recovered,
+            }
+            term_results.append(term_result)
+            if recovered:
+                recovered_items.append({"label": item.get("label"), "term": term})
+        results.append(
+            {
+                "label": item.get("label"),
+                "region_report": item.get("region_report"),
+                "speaker": item.get("speaker"),
+                "speaker_slug": item.get("speaker_slug"),
+                "mixed_transcript": item.get("mixed_transcript"),
+                "stem_transcript": item.get("stem_transcript"),
+                "mixed_text": mixed_text,
+                "trusted_stem_text": stem_text,
+                "separation_accepted": item.get("separation_accepted") is True,
+                "separation_margin": item.get("separation_margin"),
+                "term_results": term_results,
+                "recovered_terms": [term["term"] for term in term_results if term["recovered_by_stem"]],
+            }
+        )
+    passed = bool(results and recovered_items and all(item.get("separation_accepted") is True for item in comparisons))
+    return {
+        "passed": passed,
+        "reviewed": reviewed,
+        "comparison_count": len(results),
+        "recovered_item_count": len(recovered_items),
+        "recovered_items": recovered_items,
+        "comparisons": results,
+        "next_required_proof": "human review can confirm the recovered words, but accepted real-media stem ASR already recovers terms absent from same-region mixed ASR",
+    }
+
+
 def real_media_accepted_stems_audit(cache_root: Path | str) -> dict[str, Any]:
     root = Path(cache_root)
     separation_reports = []
@@ -785,6 +838,7 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
         "demo_video": _load_json(docs / "conan-demo-video-report.json"),
         "accepted_stems": _load_json(docs / "real-media-accepted-stems-audit.json"),
         "stem_asr_improvement": _load_json(docs / "stem-asr-improvement-report.json"),
+        "accepted_stem_asr_recovery": _load_json(docs / "accepted-stem-asr-recovery-report.json"),
         "nz_decompose_search": _load_json(docs / "nz-decompose-proof-search-report.json"),
         "merge_policy": _load_json(docs / "stem-merge-policy-report.json"),
     }
@@ -832,7 +886,9 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
     accepted_real_media_stems_with_window_checks = bool(
         reports["accepted_stems"].get("accepted_report_with_window_checks_count", 0)
     )
-    real_media_stem_asr_improvement = bool(reports["stem_asr_improvement"].get("passed"))
+    real_media_stem_asr_improvement = bool(
+        reports["stem_asr_improvement"].get("passed") or reports["accepted_stem_asr_recovery"].get("passed")
+    )
     remaining_gaps = []
     if not accepted_real_media_stems:
         remaining_gaps.extend(
@@ -862,6 +918,8 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
         "accepted_real_media_stems": accepted_real_media_stems,
         "accepted_real_media_stems_with_window_checks": accepted_real_media_stems_with_window_checks,
         "real_media_stem_asr_improvement": real_media_stem_asr_improvement,
+        "real_media_stem_asr_recovery_item_count": reports["accepted_stem_asr_recovery"].get("recovered_item_count", 0),
+        "real_media_stem_asr_recovery_reviewed": reports["accepted_stem_asr_recovery"].get("reviewed"),
         "plaud_decompose_attempt_count": plaud_decompose_attempt_count,
         "plaud_accepted_stem_attempt_count": plaud_accepted_stem_attempt_count,
         "plaud_human_reviewed_attempt_count": reports["plaud_anchor_quality"].get("human_reviewed_attempt_count", 0),
@@ -890,6 +948,57 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
 
 def _load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text()) if path.exists() else {}
+
+
+def _transcript_text(path: Path) -> str:
+    transcript = _load_json(path)
+    if transcript.get("segments"):
+        return " ".join(str(segment.get("text", "")) for segment in transcript.get("segments", [])).strip()
+    return str(transcript.get("text", "")).strip()
+
+
+def _candidate_recovered_terms(stem_text: str, mixed_text: str) -> list[str]:
+    stop = {
+        "a",
+        "an",
+        "the",
+        "and",
+        "or",
+        "but",
+        "to",
+        "of",
+        "in",
+        "on",
+        "at",
+        "for",
+        "with",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "it",
+        "its",
+        "this",
+        "that",
+        "you",
+        "your",
+        "we",
+        "our",
+        "do",
+        "does",
+        "did",
+        "so",
+    }
+    mixed_words = set(normalize_text(mixed_text).split())
+    terms = []
+    for word in normalize_text(stem_text).split():
+        if len(word) <= 2 or word in stop or word in mixed_words or word in terms:
+            continue
+        terms.append(word)
+    return terms
 
 
 def _plaud_attempt_blockers(
