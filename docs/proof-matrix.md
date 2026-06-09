@@ -109,7 +109,11 @@ The strongest remaining proof gaps are:
   - Current result: the review page embeds all 20 WAV clips, proposed
     corrections, approve/reject controls, reviewer notes, and JSON export.
     Pavo now validates and imports that export with `pavo review anchors import`
-    before `--speaker-correction` flags are generated.
+    before `--speaker-correction` flags are generated. `pavo review anchors
+    rerun-command` then prints a corrected decompose command from the original
+    Pavo manifest plus approved corrections.
+  - Rerun command report:
+    [plaud-c37-anchor-rerun-command-report.json](plaud-c37-anchor-rerun-command-report.json)
   - Current result: 20 rows are pending and 0 rows are approved, so no
     `--speaker-correction` flags are exported yet.
 

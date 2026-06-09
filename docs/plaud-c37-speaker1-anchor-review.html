@@ -147,8 +147,9 @@
       Approve only clean target-speaker clips. Reject uncertain, overlapping, noisy, or wrong-speaker clips.
       Export the reviewed JSON sheet, import it with
       <code>pavo review anchors import docs/plaud-c37-speaker1-anchor-review-sheet.json ~/Downloads/plaud-c37-speaker1-anchor-review-sheet.json</code>,
-      then run
-      <code>pavo review anchors corrections docs/plaud-c37-speaker1-anchor-review-sheet.json</code>.
+      print the corrected decompose command with
+      <code>pavo review anchors rerun-command docs/plaud-c37-speaker1-anchor-review-sheet.json /path/to/pavo-decompose-manifest.json</code>,
+      then rerun decomposition and regenerate the Plaud proof report.
     </section>
     <section class="actions">
       <button type="button" id="export-json">Export reviewed JSON</button>

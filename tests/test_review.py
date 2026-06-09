@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from pavo.review import (
+    build_anchor_review_rerun_command,
     create_anchor_review_page,
     compile_anchor_review_corrections,
     create_anchor_review_sheet,
@@ -24,6 +25,16 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(summary["pending_count"], 20)
         self.assertEqual(summary["approved_count"], 0)
         self.assertEqual(corrections.cli_args, [])
+
+    def test_committed_plaud_c37_rerun_command_report_waits_for_approved_review(self):
+        report = Path(__file__).resolve().parents[1] / "docs" / "plaud-c37-anchor-rerun-command-report.json"
+        payload = json.loads(report.read_text())
+
+        self.assertFalse(payload["passed"])
+        self.assertFalse(payload["rerun_command_ready"])
+        self.assertEqual(payload["approved_count"], 0)
+        self.assertEqual(payload["pending_count"], 20)
+        self.assertIn("no approved speaker corrections", payload["blocked_reason"])
 
     def test_create_anchor_review_sheet_starts_pending_without_approved_corrections(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -246,6 +257,67 @@ class ReviewTests(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "immutable field clip_path"):
                 import_anchor_review_sheet(original, exported)
+
+    def test_build_anchor_review_rerun_command_preserves_decompose_options(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sheet = root / "review-sheet.json"
+            manifest = root / "pavo-decompose-manifest.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "approved",
+                                "approved": True,
+                                "target_speaker_label": "SPEAKER_01",
+                                "start": 12.06,
+                                "end": 16.06,
+                                "suggested_speaker_correction": "00:12-00:16=SPEAKER_01",
+                            }
+                        ],
+                    }
+                )
+            )
+            manifest.write_text(
+                json.dumps(
+                    {
+                        "source_id": "plaud_c37_original",
+                        "audio_path": "/tmp/audio.mp3",
+                        "engines": ["faster-whisper"],
+                        "title": "Plaud c37",
+                        "context_terms": ["Plaud", "Pavo"],
+                        "num_speakers": 2,
+                        "speakers": ["SPEAKER_00=Speaker 0=speaker-0", "SPEAKER_01=Speaker 1=speaker-1"],
+                        "max_regions": 5,
+                        "padding": 0.25,
+                        "min_duration": 0.25,
+                        "include_rejected_stems": True,
+                    }
+                )
+            )
+
+            result = build_anchor_review_rerun_command(sheet, manifest)
+
+        self.assertEqual(result.approved_count, 1)
+        self.assertEqual(result.command[:5], ["pavo", "audio", "decompose", "/tmp/audio.mp3", "--source-id"])
+        self.assertIn("plaud_c37_original_reviewed", result.command)
+        self.assertIn("--speaker-correction", result.command)
+        self.assertIn("00:12-00:16=SPEAKER_01", result.command)
+        self.assertIn("--include-rejected-stems", result.command)
+        self.assertIn("'Plaud c37'", result.shell_command)
+
+    def test_build_anchor_review_rerun_command_requires_approved_corrections(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sheet = root / "review-sheet.json"
+            manifest = root / "pavo-decompose-manifest.json"
+            sheet.write_text(json.dumps({"rows": [{"status": "pending", "approved": False}]}))
+            manifest.write_text(json.dumps({"source_id": "source", "audio_path": "/tmp/audio.mp3"}))
+
+            with self.assertRaisesRegex(ValueError, "no approved speaker corrections"):
+                build_anchor_review_rerun_command(sheet, manifest)
 
 
 if __name__ == "__main__":

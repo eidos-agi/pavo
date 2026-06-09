@@ -1,0 +1,10 @@
+{
+  "passed": false,
+  "review_sheet": "docs/plaud-c37-speaker1-anchor-review-sheet.json",
+  "pavo_decompose_manifest": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/pavo-decompose-manifest.json",
+  "approved_count": 0,
+  "pending_count": 20,
+  "rerun_command_ready": false,
+  "blocked_reason": "review sheet has no approved speaker corrections",
+  "next_required_proof": "approve clean c37 speaker-anchor clips, import the reviewed sheet, then run pavo review anchors rerun-command"
+}

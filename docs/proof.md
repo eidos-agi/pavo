@@ -173,7 +173,12 @@ Transcript output:
   and lets the reviewer approve, reject, annotate, and export an updated JSON
   sheet without opening clip paths or editing JSON by hand. The exported sheet
   can be validated and imported with `pavo review anchors import`, which rejects
-  changed clip identities before corrections are generated.
+  changed clip identities before corrections are generated. Once approved rows
+  exist, `pavo review anchors rerun-command` prints the exact corrected
+  `pavo audio decompose` command from the original Pavo manifest plus the
+  approved `--speaker-correction` flags. The current c37 sheet still has no
+  approved rows, so the rerun command report correctly remains blocked:
+  [plaud-c37-anchor-rerun-command-report.json](plaud-c37-anchor-rerun-command-report.json).
 - The real-media audit now finds accepted Conan/Kaitlin overlap separation:
   both stems pass the trust gate with wrong-window leakage checks. The accepted
   stem ASR manifest writes trusted global-timed evidence for that overlap.

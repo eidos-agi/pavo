@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 from html import escape
 from dataclasses import dataclass
 from pathlib import Path
@@ -39,6 +40,15 @@ class AnchorReviewImportResult:
     rejected_count: int
     pending_count: int
     human_reviewed: bool
+
+
+@dataclass(frozen=True)
+class AnchorReviewRerunCommandResult:
+    review_sheet_path: Path
+    manifest_path: Path
+    approved_count: int
+    command: list[str]
+    shell_command: str
 
 
 def create_anchor_review_sheet(
@@ -281,8 +291,9 @@ def create_anchor_review_page(
       Approve only clean target-speaker clips. Reject uncertain, overlapping, noisy, or wrong-speaker clips.
       Export the reviewed JSON sheet, import it with
       <code>pavo review anchors import {escape(str(sheet_path))} ~/Downloads/{escape(sheet_path.name)}</code>,
-      then run
-      <code>pavo review anchors corrections {escape(str(sheet_path))}</code>.
+      print the corrected decompose command with
+      <code>pavo review anchors rerun-command {escape(str(sheet_path))} /path/to/pavo-decompose-manifest.json</code>,
+      then rerun decomposition and regenerate the Plaud proof report.
     </section>
     <section class="actions">
       <button type="button" id="export-json">Export reviewed JSON</button>
@@ -450,6 +461,54 @@ def import_anchor_review_sheet(
         rejected_count=rejected_count,
         pending_count=pending_count,
         human_reviewed=bool(imported_rows and not pending_count),
+    )
+
+
+def build_anchor_review_rerun_command(
+    review_sheet_path: Path | str,
+    pavo_decompose_manifest_path: Path | str,
+    *,
+    source_id: str | None = None,
+) -> AnchorReviewRerunCommandResult:
+    sheet_path = Path(review_sheet_path)
+    manifest_path = Path(pavo_decompose_manifest_path)
+    corrections = compile_anchor_review_corrections(sheet_path)
+    if not corrections.corrections:
+        raise ValueError("review sheet has no approved speaker corrections")
+    manifest = json.loads(manifest_path.read_text())
+    rerun_source_id = source_id or f"{manifest.get('source_id')}_reviewed"
+    command = [
+        "pavo",
+        "audio",
+        "decompose",
+        str(manifest["audio_path"]),
+        "--source-id",
+        rerun_source_id,
+    ]
+    for engine in manifest.get("engines") or ["faster-whisper"]:
+        command.extend(["--engine", str(engine)])
+    if manifest.get("title"):
+        command.extend(["--title", str(manifest["title"])])
+    for term in manifest.get("context_terms") or []:
+        command.extend(["--context-term", str(term)])
+    if manifest.get("context_file"):
+        command.extend(["--context-file", str(manifest["context_file"])])
+    if manifest.get("num_speakers"):
+        command.extend(["--num-speakers", str(manifest["num_speakers"])])
+    for speaker in manifest.get("speakers") or []:
+        command.extend(["--speaker", str(speaker)])
+    command.extend(corrections.cli_args)
+    command.extend(["--max-regions", str(manifest.get("max_regions", 3))])
+    command.extend(["--padding", str(manifest.get("padding", 1.0))])
+    command.extend(["--min-duration", str(manifest.get("min_duration", 1.0))])
+    if manifest.get("include_rejected_stems"):
+        command.append("--include-rejected-stems")
+    return AnchorReviewRerunCommandResult(
+        review_sheet_path=sheet_path,
+        manifest_path=manifest_path,
+        approved_count=corrections.approved_count,
+        command=command,
+        shell_command=shlex.join(command),
     )
 
 

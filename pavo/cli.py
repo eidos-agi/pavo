@@ -12,6 +12,7 @@ from .download import save_audio
 from .overlap import SeparateOverlapsRequest, separate_overlaps
 from .plaud import PlaudCli, PlaudCliError
 from .review import (
+    build_anchor_review_rerun_command,
     create_anchor_review_page,
     create_anchor_review_sheet,
     compile_anchor_review_corrections,
@@ -124,6 +125,10 @@ def build_parser() -> argparse.ArgumentParser:
     review_anchors_import.add_argument("review_sheet", type=Path)
     review_anchors_import.add_argument("reviewed_export", type=Path)
     review_anchors_import.add_argument("--out", type=Path, help="Imported review sheet path; defaults to replacing review_sheet")
+    review_anchors_rerun = review_anchors_sub.add_parser("rerun-command", help="Print decompose rerun command with approved corrections")
+    review_anchors_rerun.add_argument("review_sheet", type=Path)
+    review_anchors_rerun.add_argument("pavo_decompose_manifest", type=Path)
+    review_anchors_rerun.add_argument("--source-id", help="Override rerun source id; defaults to original source id plus _reviewed")
     review_anchors_corrections = review_anchors_sub.add_parser("corrections", help="Print approved --speaker-correction flags")
     review_anchors_corrections.add_argument("review_sheet", type=Path)
 
@@ -354,6 +359,18 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"approved_count: {result.approved_count}")
                 print(f"rejected_count: {result.rejected_count}")
                 print(f"pending_count: {result.pending_count}")
+                return 0
+            if args.review_anchors_command == "rerun-command":
+                try:
+                    result = build_anchor_review_rerun_command(
+                        args.review_sheet,
+                        args.pavo_decompose_manifest,
+                        source_id=args.source_id,
+                    )
+                except (KeyError, ValueError) as exc:
+                    print(str(exc), file=sys.stderr)
+                    return 2
+                print(result.shell_command)
                 return 0
             if args.review_anchors_command == "corrections":
                 result = compile_anchor_review_corrections(args.review_sheet)
