@@ -17,6 +17,8 @@ Useful cases:
 
 - Reviewed speaker anchors for named captioning.
 - Short overlap review for the "that old sitcom" moment.
+- Speaker-change recall for short interjections, independent from whether the
+  final speaker attribution is accepted.
 - Pavo-branded burned-caption preview.
 - Comparison against YouTube captions without copying full transcripts into
   the repo.
@@ -46,6 +48,7 @@ Useful cases:
 
 - Accent and slang vocabulary with a context dictionary.
 - Multi-speaker news-style diarization without reviewed names.
+- Speaker-change recall before speaker-name mapping.
 - Comparison against YouTube auto-captions, which have no speaker names or
   diarization.
 - Term checks for phrases such as `box of birds`, `sweet as`, and
@@ -84,4 +87,5 @@ Current proof notes:
 
 The useful limitation is clear: Pavo can discover clusters, preserve more
 call-specific phrasing, and render captions, but this fixture still needs
-human-reviewed speaker-name mapping before final named output.
+speaker-change recall scoring and human-reviewed speaker-name mapping before
+final named output.

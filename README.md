@@ -37,6 +37,9 @@ transcription run.
 See [media tests](docs/media-tests.md) for the real Conan overlap fixture and
 the New Zealand accent/slang fixture.
 
+See [diarization direction](docs/diarization.md) for the current product
+principle: detect speaker changes first, then attribute and merge.
+
 ## Why Pavo Exists
 
 Pavo exists because Plaud is excellent at capture, but the stock Plaud workflow
