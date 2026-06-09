@@ -249,6 +249,42 @@ def conan_old_sitcom_report(separation_manifest_path: Path | str, stem_asr_manif
     }
 
 
+def real_media_accepted_stems_audit(cache_root: Path | str) -> dict[str, Any]:
+    root = Path(cache_root)
+    separation_reports = []
+    for path in sorted(root.rglob("analysis.json")):
+        try:
+            payload = json.loads(path.read_text())
+        except json.JSONDecodeError:
+            continue
+        if "stem_reports" not in payload:
+            continue
+        stem_reports = payload.get("stem_reports", {})
+        separation_reports.append(
+            {
+                "path": str(path),
+                "accepted": payload.get("accepted") is True,
+                "region_start": payload.get("region", {}).get("start"),
+                "region_end": payload.get("region", {}).get("end"),
+                "stem_count": len(stem_reports),
+                "wrong_rates": {slug: stem.get("wrong_rate") for slug, stem in stem_reports.items()},
+                "margins": {slug: stem.get("whole_clip", {}).get("margin") for slug, stem in stem_reports.items()},
+            }
+        )
+
+    accepted = [report for report in separation_reports if report["accepted"]]
+    return {
+        "passed": bool(accepted),
+        "cache_root": str(root),
+        "separation_report_count": len(separation_reports),
+        "accepted_report_count": len(accepted),
+        "rejected_report_count": len(separation_reports) - len(accepted),
+        "accepted_reports": accepted,
+        "reports": separation_reports,
+        "next_required_proof": "at least one real-media overlap separation report with accepted: true and trusted stem ASR evidence",
+    }
+
+
 def _find_case(comparison: dict[str, Any], label: str) -> dict[str, Any]:
     for case in comparison.get("cases", []):
         if case.get("label") == label:

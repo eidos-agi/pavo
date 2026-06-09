@@ -88,6 +88,7 @@ Status values:
 The strongest remaining proof gaps are:
 
 - real accepted stems on a real overlap clip
+  - Evidence: [real-media-accepted-stems-audit.json](real-media-accepted-stems-audit.json)
 - real-media two-speaker separation with accepted stems
 - real-media comparison showing stem ASR recovers words missed by mixed-audio ASR
 - real Plaud multi-speaker overlap recording

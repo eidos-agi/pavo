@@ -9,6 +9,7 @@ from pavo.proof import (
     conan_old_sitcom_report,
     nz_slang_comparison_report,
     plaud_real_recording_report,
+    real_media_accepted_stems_audit,
 )
 
 
@@ -61,6 +62,14 @@ class ProofTests(unittest.TestCase):
         self.assertTrue(report["all_regions_rejected"])
         self.assertTrue(report["diagnostic_available"])
         self.assertEqual(report["trusted_segment_count"], 0)
+
+    def test_committed_real_media_accepted_stems_audit_records_current_gap(self):
+        report_path = Path(__file__).resolve().parents[1] / "docs" / "real-media-accepted-stems-audit.json"
+        report = json.loads(report_path.read_text())
+
+        self.assertFalse(report["passed"])
+        self.assertEqual(report["accepted_report_count"], 0)
+        self.assertGreaterEqual(report["separation_report_count"], 1)
 
     def test_conan_experience_comparison_proves_pavo_adds_named_speaker_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -412,6 +421,51 @@ class ProofTests(unittest.TestCase):
 
         self.assertFalse(report["passed"])
         self.assertFalse(report["diagnostic_available"])
+
+    def test_real_media_accepted_stems_audit_passes_when_any_report_is_accepted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            region = root / "region-01"
+            region.mkdir()
+            (region / "analysis.json").write_text(
+                json.dumps(
+                    {
+                        "accepted": True,
+                        "region": {"start": 10.0, "end": 12.0},
+                        "stem_reports": {
+                            "speaker-a": {"wrong_rate": 0.0, "whole_clip": {"margin": 0.2}},
+                            "speaker-b": {"wrong_rate": 0.0, "whole_clip": {"margin": 0.3}},
+                        },
+                    }
+                )
+            )
+
+            report = real_media_accepted_stems_audit(root)
+
+        self.assertTrue(report["passed"])
+        self.assertEqual(report["accepted_report_count"], 1)
+        self.assertEqual(report["accepted_reports"][0]["stem_count"], 2)
+
+    def test_real_media_accepted_stems_audit_fails_when_reports_are_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            region = root / "region-01"
+            region.mkdir()
+            (region / "analysis.json").write_text(
+                json.dumps(
+                    {
+                        "accepted": False,
+                        "region": {"start": 10.0, "end": 12.0},
+                        "stem_reports": {"speaker-a": {"wrong_rate": 0.5, "whole_clip": {"margin": 0.01}}},
+                    }
+                )
+            )
+
+            report = real_media_accepted_stems_audit(root)
+
+        self.assertFalse(report["passed"])
+        self.assertEqual(report["accepted_report_count"], 0)
+        self.assertEqual(report["rejected_report_count"], 1)
 
 
 if __name__ == "__main__":

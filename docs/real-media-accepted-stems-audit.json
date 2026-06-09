@@ -1,0 +1,56 @@
+{
+  "passed": false,
+  "cache_root": "/Users/dshanklinbv/Eidos/Pavo/cache",
+  "separation_report_count": 3,
+  "accepted_report_count": 0,
+  "rejected_report_count": 3,
+  "accepted_reports": [],
+  "reports": [
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-old-sitcom/region-01-00m15s-00m17s/analysis.json",
+      "accepted": false,
+      "region_start": 15.96,
+      "region_end": 17.77,
+      "stem_count": 2,
+      "wrong_rates": {
+        "conan-obrien": 1.0,
+        "kaitlin-olson": 0.0
+      },
+      "margins": {
+        "conan-obrien": 0.0032,
+        "kaitlin-olson": 0.1368
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom/region-01-00m18s-00m18s/analysis.json",
+      "accepted": false,
+      "region_start": 18.04,
+      "region_end": 18.96,
+      "stem_count": 2,
+      "wrong_rates": {
+        "conan-obrien": 0.3333,
+        "kaitlin-olson": 0.3333
+      },
+      "margins": {
+        "conan-obrien": 0.0655,
+        "kaitlin-olson": 0.0517
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/separated-overlaps-old-sitcom/region-01-00m15s-00m17s/analysis.json",
+      "accepted": false,
+      "region_start": 15.96,
+      "region_end": 17.77,
+      "stem_count": 2,
+      "wrong_rates": {
+        "conan-obrien": 1.0,
+        "kaitlin-olson": 0.0
+      },
+      "margins": {
+        "conan-obrien": 0.0032,
+        "kaitlin-olson": 0.1368
+      }
+    }
+  ],
+  "next_required_proof": "at least one real-media overlap separation report with accepted: true and trusted stem ASR evidence"
+}
