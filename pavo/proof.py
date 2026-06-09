@@ -399,6 +399,65 @@ def stem_asr_improvement_report(
     }
 
 
+def stem_asr_improvement_search_report(
+    manifest_paths: list[Path | str],
+    *,
+    improvement_report: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    manifests = []
+    accepted_reports = []
+    candidate_count = 0
+    region_count = 0
+    for manifest_path in manifest_paths:
+        manifest_path = Path(manifest_path)
+        manifest = _load_json(manifest_path)
+        manifest_regions = []
+        for region_text in manifest.get("regions", []):
+            region_path = Path(region_text)
+            region = _load_json(region_path)
+            if not region:
+                continue
+            accepted = region.get("accepted") is True
+            region_count += 1
+            if accepted:
+                accepted_reports.append(str(region_path))
+            manifest_regions.append(
+                {
+                    "path": str(region_path),
+                    "accepted": accepted,
+                    "start": region.get("region", {}).get("start"),
+                    "end": region.get("region", {}).get("end"),
+                    "text": region.get("region", {}).get("text"),
+                    "trusted_stem_count": sum(
+                        1 for stem in region.get("stem_reports", {}).values() if _stem_report_trusted(stem)
+                    ),
+                    "stem_count": len(region.get("stem_reports", {})),
+                }
+            )
+        candidate_count += int(manifest.get("candidate_count") or len(manifest_regions))
+        manifests.append(
+            {
+                "path": str(manifest_path),
+                "candidate_count": manifest.get("candidate_count"),
+                "region_count": len(manifest_regions),
+                "accepted_region_count": sum(1 for region in manifest_regions if region["accepted"]),
+                "regions": manifest_regions,
+            }
+        )
+    improvement_passed = bool((improvement_report or {}).get("passed"))
+    return {
+        "passed": improvement_passed,
+        "manifest_count": len(manifests),
+        "candidate_count": candidate_count,
+        "region_count": region_count,
+        "accepted_region_count": len(accepted_reports),
+        "accepted_reports": accepted_reports,
+        "improvement_passed": improvement_passed,
+        "manifests": manifests,
+        "next_required_proof": "accepted region whose trusted stem ASR recovers reviewed words absent from same-region mixed ASR",
+    }
+
+
 def real_media_accepted_stems_audit(cache_root: Path | str) -> dict[str, Any]:
     root = Path(cache_root)
     separation_reports = []

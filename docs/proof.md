@@ -159,6 +159,10 @@ Transcript output:
   reviewed expected phrase appears in the same-region mixed ASR too, so
   [stem-asr-improvement-report.json](stem-asr-improvement-report.json) remains
   `passed: false`.
+- A broader Conan search checked 80 candidate overlap regions across 4 padding
+  settings and did not find another accepted region that proves stem-ASR word
+  recovery; see
+  [stem-asr-improvement-search-report.json](stem-asr-improvement-search-report.json).
 - Pavo does not currently run genetic algorithms.
 - The merge policy is now proven by
   [stem-merge-policy-report.json](stem-merge-policy-report.json); the remaining

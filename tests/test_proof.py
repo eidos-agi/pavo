@@ -12,6 +12,7 @@ from pavo.proof import (
     plaud_real_recording_report,
     proof_status_summary,
     real_media_accepted_stems_audit,
+    stem_asr_improvement_search_report,
     stem_asr_improvement_report,
 )
 
@@ -101,6 +102,16 @@ class ProofTests(unittest.TestCase):
         self.assertGreater(report["trusted_stem_segment_count"], 0)
         self.assertEqual(report["recovered_terms"], [])
         self.assertIn("that old sitcom", report["mixed_text"].lower())
+
+    def test_committed_stem_asr_improvement_search_report_records_broader_search(self):
+        report_path = Path(__file__).resolve().parents[1] / "docs" / "stem-asr-improvement-search-report.json"
+        report = json.loads(report_path.read_text())
+
+        self.assertFalse(report["passed"])
+        self.assertGreaterEqual(report["manifest_count"], 4)
+        self.assertGreaterEqual(report["region_count"], 20)
+        self.assertGreaterEqual(report["accepted_region_count"], 1)
+        self.assertFalse(report["improvement_passed"])
 
     def test_committed_real_media_accepted_stems_audit_records_accepted_overlap(self):
         report_path = Path(__file__).resolve().parents[1] / "docs" / "real-media-accepted-stems-audit.json"
@@ -793,6 +804,33 @@ class ProofTests(unittest.TestCase):
 
         self.assertFalse(report["passed"])
         self.assertEqual(report["recovered_terms"], [])
+
+    def test_stem_asr_improvement_search_report_counts_accepted_regions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            accepted = root / "accepted.json"
+            rejected = root / "rejected.json"
+            manifest = root / "separate-overlaps.manifest.json"
+            accepted.write_text(
+                json.dumps(
+                    {
+                        "accepted": True,
+                        "region": {"start": 1.0, "end": 2.0, "text": "accepted"},
+                        "stem_reports": {
+                            "a": {"target": "A", "whole_clip": {"best": "A", "margin": 0.2}, "wrong_rate": 0.0}
+                        },
+                    }
+                )
+            )
+            rejected.write_text(json.dumps({"accepted": False, "region": {"start": 3.0, "end": 4.0}, "stem_reports": {}}))
+            manifest.write_text(json.dumps({"candidate_count": 2, "regions": [str(accepted), str(rejected)]}))
+
+            report = stem_asr_improvement_search_report([manifest], improvement_report={"passed": False})
+
+        self.assertFalse(report["passed"])
+        self.assertEqual(report["candidate_count"], 2)
+        self.assertEqual(report["accepted_region_count"], 1)
+        self.assertEqual(report["manifests"][0]["accepted_region_count"], 1)
 
     def test_proof_status_summary_keeps_goal_open_without_real_accepted_stems(self):
         with tempfile.TemporaryDirectory() as tmp:

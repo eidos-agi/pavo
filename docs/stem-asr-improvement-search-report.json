@@ -1,0 +1,766 @@
+{
+  "passed": false,
+  "manifest_count": 4,
+  "candidate_count": 80,
+  "region_count": 80,
+  "accepted_region_count": 1,
+  "accepted_reports": [
+    "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p25/region-02-00m18s-00m18s/analysis.json"
+  ],
+  "improvement_passed": false,
+  "manifests": [
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0/separate-overlaps.manifest.json",
+      "candidate_count": 20,
+      "region_count": 20,
+      "accepted_region_count": 0,
+      "regions": [
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0/region-01-00m05s-00m06s/analysis.json",
+          "accepted": false,
+          "start": 5.56,
+          "end": 6.84,
+          "text": "what was that experience like?",
+          "trusted_stem_count": 1,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0/region-02-00m18s-00m18s/analysis.json",
+          "accepted": false,
+          "start": 18.04,
+          "end": 18.96,
+          "text": "That old sitcom.",
+          "trusted_stem_count": 1,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0/region-03-00m49s-00m51s/analysis.json",
+          "accepted": false,
+          "start": 49.3,
+          "end": 51.1,
+          "text": "Oh, that was you in character.",
+          "trusted_stem_count": 1,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0/region-04-01m08s-01m10s/analysis.json",
+          "accepted": false,
+          "start": 68.94,
+          "end": 70.42,
+          "text": "Do you ever tell, do you ever say,",
+          "trusted_stem_count": 1,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0/region-05-01m14s-01m15s/analysis.json",
+          "accepted": false,
+          "start": 74.7,
+          "end": 75.66,
+          "text": "We know that's coming.",
+          "trusted_stem_count": 1,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0/region-06-01m34s-01m39s/analysis.json",
+          "accepted": false,
+          "start": 94.3,
+          "end": 99.3,
+          "text": "And watches, and you came in like a tornado,",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0/region-07-01m43s-01m45s/analysis.json",
+          "accepted": false,
+          "start": 103.42,
+          "end": 105.22,
+          "text": "my father had a box of teeth throughout.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0/region-08-01m49s-01m51s/analysis.json",
+          "accepted": false,
+          "start": 109.62,
+          "end": 111.0,
+          "text": "And you came firing",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0/region-09-02m26s-02m27s/analysis.json",
+          "accepted": false,
+          "start": 146.86,
+          "end": 147.7,
+          "text": "And watches.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0/region-10-02m56s-02m57s/analysis.json",
+          "accepted": false,
+          "start": 176.06,
+          "end": 177.78,
+          "text": "We were like, all right, it's been a good run.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0/region-11-03m03s-03m08s/analysis.json",
+          "accepted": false,
+          "start": 183.61,
+          "end": 188.22,
+          "text": "never done a teeth show with where I brought my box.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0/region-12-03m13s-03m14s/analysis.json",
+          "accepted": false,
+          "start": 193.42,
+          "end": 194.82,
+          "text": "We're only halfway through our run.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0/region-13-03m32s-03m34s/analysis.json",
+          "accepted": false,
+          "start": 212.34,
+          "end": 214.7,
+          "text": "We can review it with you.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0/region-14-03m38s-03m39s/analysis.json",
+          "accepted": false,
+          "start": 218.26,
+          "end": 219.9,
+          "text": "Here's where no one could follow you.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0/region-15-03m50s-03m52s/analysis.json",
+          "accepted": false,
+          "start": 230.58,
+          "end": 232.14,
+          "text": "You keep bringing us back to it,",
+          "trusted_stem_count": 1,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0/region-16-03m54s-03m56s/analysis.json",
+          "accepted": false,
+          "start": 234.46,
+          "end": 236.3,
+          "text": "He's gonna go home and check his claws",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0/region-17-04m01s-04m03s/analysis.json",
+          "accepted": false,
+          "start": 241.48,
+          "end": 243.02,
+          "text": "I mean, how do you get through a day",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0/region-18-04m07s-04m08s/analysis.json",
+          "accepted": false,
+          "start": 247.98,
+          "end": 248.94,
+          "text": "It's the same thing.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0/region-19-04m12s-04m13s/analysis.json",
+          "accepted": false,
+          "start": 252.16,
+          "end": 253.46,
+          "text": "our time will run out,",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0/region-20-04m18s-04m20s/analysis.json",
+          "accepted": false,
+          "start": 258.88,
+          "end": 260.22,
+          "text": "I mean, if you had boxes of teeth,",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        }
+      ]
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p1/separate-overlaps.manifest.json",
+      "candidate_count": 20,
+      "region_count": 20,
+      "accepted_region_count": 0,
+      "regions": [
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p1/region-01-00m05s-00m06s/analysis.json",
+          "accepted": false,
+          "start": 5.56,
+          "end": 6.84,
+          "text": "what was that experience like?",
+          "trusted_stem_count": 1,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p1/region-02-00m18s-00m18s/analysis.json",
+          "accepted": false,
+          "start": 18.04,
+          "end": 18.96,
+          "text": "That old sitcom.",
+          "trusted_stem_count": 1,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p1/region-03-00m49s-00m51s/analysis.json",
+          "accepted": false,
+          "start": 49.3,
+          "end": 51.1,
+          "text": "Oh, that was you in character.",
+          "trusted_stem_count": 1,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p1/region-04-01m08s-01m10s/analysis.json",
+          "accepted": false,
+          "start": 68.94,
+          "end": 70.42,
+          "text": "Do you ever tell, do you ever say,",
+          "trusted_stem_count": 1,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p1/region-05-01m14s-01m15s/analysis.json",
+          "accepted": false,
+          "start": 74.7,
+          "end": 75.66,
+          "text": "We know that's coming.",
+          "trusted_stem_count": 1,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p1/region-06-01m34s-01m39s/analysis.json",
+          "accepted": false,
+          "start": 94.3,
+          "end": 99.3,
+          "text": "And watches, and you came in like a tornado,",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p1/region-07-01m43s-01m45s/analysis.json",
+          "accepted": false,
+          "start": 103.42,
+          "end": 105.22,
+          "text": "my father had a box of teeth throughout.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p1/region-08-01m49s-01m51s/analysis.json",
+          "accepted": false,
+          "start": 109.62,
+          "end": 111.0,
+          "text": "And you came firing",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p1/region-09-02m26s-02m27s/analysis.json",
+          "accepted": false,
+          "start": 146.86,
+          "end": 147.7,
+          "text": "And watches.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p1/region-10-02m56s-02m57s/analysis.json",
+          "accepted": false,
+          "start": 176.06,
+          "end": 177.78,
+          "text": "We were like, all right, it's been a good run.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p1/region-11-03m03s-03m08s/analysis.json",
+          "accepted": false,
+          "start": 183.61,
+          "end": 188.22,
+          "text": "never done a teeth show with where I brought my box.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p1/region-12-03m13s-03m14s/analysis.json",
+          "accepted": false,
+          "start": 193.42,
+          "end": 194.82,
+          "text": "We're only halfway through our run.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p1/region-13-03m32s-03m34s/analysis.json",
+          "accepted": false,
+          "start": 212.34,
+          "end": 214.7,
+          "text": "We can review it with you.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p1/region-14-03m38s-03m39s/analysis.json",
+          "accepted": false,
+          "start": 218.26,
+          "end": 219.9,
+          "text": "Here's where no one could follow you.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p1/region-15-03m50s-03m52s/analysis.json",
+          "accepted": false,
+          "start": 230.58,
+          "end": 232.14,
+          "text": "You keep bringing us back to it,",
+          "trusted_stem_count": 1,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p1/region-16-03m54s-03m56s/analysis.json",
+          "accepted": false,
+          "start": 234.46,
+          "end": 236.3,
+          "text": "He's gonna go home and check his claws",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p1/region-17-04m01s-04m03s/analysis.json",
+          "accepted": false,
+          "start": 241.48,
+          "end": 243.02,
+          "text": "I mean, how do you get through a day",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p1/region-18-04m07s-04m08s/analysis.json",
+          "accepted": false,
+          "start": 247.98,
+          "end": 248.94,
+          "text": "It's the same thing.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p1/region-19-04m12s-04m13s/analysis.json",
+          "accepted": false,
+          "start": 252.16,
+          "end": 253.46,
+          "text": "our time will run out,",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p1/region-20-04m18s-04m20s/analysis.json",
+          "accepted": false,
+          "start": 258.88,
+          "end": 260.22,
+          "text": "I mean, if you had boxes of teeth,",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        }
+      ]
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p25/separate-overlaps.manifest.json",
+      "candidate_count": 20,
+      "region_count": 20,
+      "accepted_region_count": 1,
+      "regions": [
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p25/region-01-00m05s-00m06s/analysis.json",
+          "accepted": false,
+          "start": 5.56,
+          "end": 6.84,
+          "text": "what was that experience like?",
+          "trusted_stem_count": 1,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p25/region-02-00m18s-00m18s/analysis.json",
+          "accepted": true,
+          "start": 18.04,
+          "end": 18.96,
+          "text": "That old sitcom.",
+          "trusted_stem_count": 2,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p25/region-03-00m49s-00m51s/analysis.json",
+          "accepted": false,
+          "start": 49.3,
+          "end": 51.1,
+          "text": "Oh, that was you in character.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p25/region-04-01m08s-01m10s/analysis.json",
+          "accepted": false,
+          "start": 68.94,
+          "end": 70.42,
+          "text": "Do you ever tell, do you ever say,",
+          "trusted_stem_count": 1,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p25/region-05-01m14s-01m15s/analysis.json",
+          "accepted": false,
+          "start": 74.7,
+          "end": 75.66,
+          "text": "We know that's coming.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p25/region-06-01m34s-01m39s/analysis.json",
+          "accepted": false,
+          "start": 94.3,
+          "end": 99.3,
+          "text": "And watches, and you came in like a tornado,",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p25/region-07-01m43s-01m45s/analysis.json",
+          "accepted": false,
+          "start": 103.42,
+          "end": 105.22,
+          "text": "my father had a box of teeth throughout.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p25/region-08-01m49s-01m51s/analysis.json",
+          "accepted": false,
+          "start": 109.62,
+          "end": 111.0,
+          "text": "And you came firing",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p25/region-09-02m26s-02m27s/analysis.json",
+          "accepted": false,
+          "start": 146.86,
+          "end": 147.7,
+          "text": "And watches.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p25/region-10-02m56s-02m57s/analysis.json",
+          "accepted": false,
+          "start": 176.06,
+          "end": 177.78,
+          "text": "We were like, all right, it's been a good run.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p25/region-11-03m03s-03m08s/analysis.json",
+          "accepted": false,
+          "start": 183.61,
+          "end": 188.22,
+          "text": "never done a teeth show with where I brought my box.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p25/region-12-03m13s-03m14s/analysis.json",
+          "accepted": false,
+          "start": 193.42,
+          "end": 194.82,
+          "text": "We're only halfway through our run.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p25/region-13-03m32s-03m34s/analysis.json",
+          "accepted": false,
+          "start": 212.34,
+          "end": 214.7,
+          "text": "We can review it with you.",
+          "trusted_stem_count": 1,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p25/region-14-03m38s-03m39s/analysis.json",
+          "accepted": false,
+          "start": 218.26,
+          "end": 219.9,
+          "text": "Here's where no one could follow you.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p25/region-15-03m50s-03m52s/analysis.json",
+          "accepted": false,
+          "start": 230.58,
+          "end": 232.14,
+          "text": "You keep bringing us back to it,",
+          "trusted_stem_count": 1,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p25/region-16-03m54s-03m56s/analysis.json",
+          "accepted": false,
+          "start": 234.46,
+          "end": 236.3,
+          "text": "He's gonna go home and check his claws",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p25/region-17-04m01s-04m03s/analysis.json",
+          "accepted": false,
+          "start": 241.48,
+          "end": 243.02,
+          "text": "I mean, how do you get through a day",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p25/region-18-04m07s-04m08s/analysis.json",
+          "accepted": false,
+          "start": 247.98,
+          "end": 248.94,
+          "text": "It's the same thing.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p25/region-19-04m12s-04m13s/analysis.json",
+          "accepted": false,
+          "start": 252.16,
+          "end": 253.46,
+          "text": "our time will run out,",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p25/region-20-04m18s-04m20s/analysis.json",
+          "accepted": false,
+          "start": 258.88,
+          "end": 260.22,
+          "text": "I mean, if you had boxes of teeth,",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        }
+      ]
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p5/separate-overlaps.manifest.json",
+      "candidate_count": 20,
+      "region_count": 20,
+      "accepted_region_count": 0,
+      "regions": [
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p5/region-01-00m05s-00m06s/analysis.json",
+          "accepted": false,
+          "start": 5.56,
+          "end": 6.84,
+          "text": "what was that experience like?",
+          "trusted_stem_count": 1,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p5/region-02-00m18s-00m18s/analysis.json",
+          "accepted": false,
+          "start": 18.04,
+          "end": 18.96,
+          "text": "That old sitcom.",
+          "trusted_stem_count": 1,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p5/region-03-00m49s-00m51s/analysis.json",
+          "accepted": false,
+          "start": 49.3,
+          "end": 51.1,
+          "text": "Oh, that was you in character.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p5/region-04-01m08s-01m10s/analysis.json",
+          "accepted": false,
+          "start": 68.94,
+          "end": 70.42,
+          "text": "Do you ever tell, do you ever say,",
+          "trusted_stem_count": 1,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p5/region-05-01m14s-01m15s/analysis.json",
+          "accepted": false,
+          "start": 74.7,
+          "end": 75.66,
+          "text": "We know that's coming.",
+          "trusted_stem_count": 1,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p5/region-06-01m34s-01m39s/analysis.json",
+          "accepted": false,
+          "start": 94.3,
+          "end": 99.3,
+          "text": "And watches, and you came in like a tornado,",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p5/region-07-01m43s-01m45s/analysis.json",
+          "accepted": false,
+          "start": 103.42,
+          "end": 105.22,
+          "text": "my father had a box of teeth throughout.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p5/region-08-01m49s-01m51s/analysis.json",
+          "accepted": false,
+          "start": 109.62,
+          "end": 111.0,
+          "text": "And you came firing",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p5/region-09-02m26s-02m27s/analysis.json",
+          "accepted": false,
+          "start": 146.86,
+          "end": 147.7,
+          "text": "And watches.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p5/region-10-02m56s-02m57s/analysis.json",
+          "accepted": false,
+          "start": 176.06,
+          "end": 177.78,
+          "text": "We were like, all right, it's been a good run.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p5/region-11-03m03s-03m08s/analysis.json",
+          "accepted": false,
+          "start": 183.61,
+          "end": 188.22,
+          "text": "never done a teeth show with where I brought my box.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p5/region-12-03m13s-03m14s/analysis.json",
+          "accepted": false,
+          "start": 193.42,
+          "end": 194.82,
+          "text": "We're only halfway through our run.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p5/region-13-03m32s-03m34s/analysis.json",
+          "accepted": false,
+          "start": 212.34,
+          "end": 214.7,
+          "text": "We can review it with you.",
+          "trusted_stem_count": 1,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p5/region-14-03m38s-03m39s/analysis.json",
+          "accepted": false,
+          "start": 218.26,
+          "end": 219.9,
+          "text": "Here's where no one could follow you.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p5/region-15-03m50s-03m52s/analysis.json",
+          "accepted": false,
+          "start": 230.58,
+          "end": 232.14,
+          "text": "You keep bringing us back to it,",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p5/region-16-03m54s-03m56s/analysis.json",
+          "accepted": false,
+          "start": 234.46,
+          "end": 236.3,
+          "text": "He's gonna go home and check his claws",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p5/region-17-04m01s-04m03s/analysis.json",
+          "accepted": false,
+          "start": 241.48,
+          "end": 243.02,
+          "text": "I mean, how do you get through a day",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p5/region-18-04m07s-04m08s/analysis.json",
+          "accepted": false,
+          "start": 247.98,
+          "end": 248.94,
+          "text": "It's the same thing.",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p5/region-19-04m12s-04m13s/analysis.json",
+          "accepted": false,
+          "start": 252.16,
+          "end": 253.46,
+          "text": "our time will run out,",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        },
+        {
+          "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-broad-pad-0p5/region-20-04m18s-04m20s/analysis.json",
+          "accepted": false,
+          "start": 258.88,
+          "end": 260.22,
+          "text": "I mean, if you had boxes of teeth,",
+          "trusted_stem_count": 0,
+          "stem_count": 2
+        }
+      ]
+    }
+  ],
+  "next_required_proof": "accepted region whose trusted stem ASR recovers reviewed words absent from same-region mixed ASR"
+}
