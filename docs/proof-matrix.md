@@ -109,6 +109,10 @@ The strongest remaining proof gaps are:
     [plaud-c37-speaker1-anchor-review-clips.json](plaud-c37-speaker1-anchor-review-clips.json)
   - Current result: 20 c37 Speaker 1 candidate clips exist and are ready for
     human review before corrected Plaud decomposition is rerun.
+  - Review sheet:
+    [plaud-c37-speaker1-anchor-review-sheet.json](plaud-c37-speaker1-anchor-review-sheet.json)
+  - Current result: 20 rows are pending and 0 rows are approved, so no
+    `--speaker-correction` flags are exported yet.
 
 Resolved gap:
 

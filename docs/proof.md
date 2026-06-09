@@ -163,6 +163,10 @@ Transcript output:
   a human can listen to the likely Speaker 1 anchors before rerunning the
   Plaud decompose path with corrections:
   [plaud-c37-speaker1-anchor-review-clips.json](plaud-c37-speaker1-anchor-review-clips.json).
+- Pavo now turns those clips into a pending human review sheet:
+  [plaud-c37-speaker1-anchor-review-sheet.json](plaud-c37-speaker1-anchor-review-sheet.json).
+  The sheet currently has 20 pending rows and 0 approved corrections, so no
+  unreviewed clip can be exported as a speaker override.
 - The real-media audit now finds accepted Conan/Kaitlin overlap separation:
   both stems pass the trust gate with wrong-window leakage checks. The accepted
   stem ASR manifest writes trusted global-timed evidence for that overlap.

@@ -729,6 +729,7 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
         "plaud_c37_decompose": _load_json(docs / "plaud-c37-decompose-report.json"),
         "plaud_anchor_quality": _load_json(docs / "plaud-anchor-quality-report.json"),
         "plaud_anchor_review_clips": _load_json(docs / "plaud-c37-speaker1-anchor-review-clips.json"),
+        "plaud_anchor_review_sheet": _load_json(docs / "plaud-c37-speaker1-anchor-review-sheet.json"),
         "demo_video": _load_json(docs / "conan-demo-video-report.json"),
         "accepted_stems": _load_json(docs / "real-media-accepted-stems-audit.json"),
         "stem_asr_improvement": _load_json(docs / "stem-asr-improvement-report.json"),
@@ -813,6 +814,9 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
         "plaud_human_reviewed_attempt_count": reports["plaud_anchor_quality"].get("human_reviewed_attempt_count", 0),
         "plaud_anchor_review_clip_packet_ready": bool(reports["plaud_anchor_review_clips"].get("passed")),
         "plaud_anchor_review_clip_count": reports["plaud_anchor_review_clips"].get("clip_count", 0),
+        "plaud_anchor_review_sheet_ready": bool(reports["plaud_anchor_review_sheet"].get("rows")),
+        "plaud_anchor_review_sheet_pending_count": reports["plaud_anchor_review_sheet"].get("pending_count", 0),
+        "plaud_anchor_review_sheet_approved_count": reports["plaud_anchor_review_sheet"].get("approved_count", 0),
         "merge_policy_reviewed": merge_policy_reviewed,
         "accepted_real_media_report_count": reports["accepted_stems"].get("accepted_report_count", 0),
         "accepted_real_media_report_with_window_checks_count": reports["accepted_stems"].get(

@@ -181,6 +181,8 @@ pavo audio decompose ./clip.mp4 --source-id youtube_<id> --num-speakers 6 \
   --speaker "SPEAKER_00=Conan O'Brien=conan-obrien"
 pavo audio decompose ./clip.mp4 --source-id youtube_<id> --include-rejected-stems
 pavo audio separate-overlaps youtube_<id> --start 17 --end 21 --min-duration 0.25
+pavo review anchors init docs/plaud-c37-speaker1-anchor-review-clips.json
+pavo review anchors corrections docs/plaud-c37-speaker1-anchor-review-sheet.json
 pavo video render youtube_<id> --title "Reviewed call" --duration 30
 pavo transcribe <recording-id> --context-term Plaud
 ```
@@ -213,12 +215,17 @@ automatically replace the canonical transcript without a reviewed merge policy.
 `pavo video render` burns captions into a video using the best transcript JSON
 from a processed source. It prefers rolling/immune or verified named artifacts
 when available, falls back to labeled speaker output, and writes
-`pavo-render-manifest.json` next to the processed source.
+`pavo-render-manifest.json` next to the processed source so caption rendering
+can avoid pretending uncertainty is certainty.
 
 `pavo audio separate-overlaps` runs the source-separation review path for mixed
 speaker regions that the rolling fingerprint marks as suspect. It writes
-separated stems, a score report for each stem, and `pavo-overlap-manifest.json`
-so caption rendering can avoid pretending uncertainty is certainty.
+separated stems, a score report for each stem, and `pavo-overlap-manifest.json`.
+
+`pavo review anchors init` creates a pending review sheet from speaker-anchor
+clips. After a human marks clean rows as `approved`, `pavo review anchors
+corrections` prints the exact `--speaker-correction` flags for the corrected
+`pavo audio decompose` rerun.
 
 ## Tests
 

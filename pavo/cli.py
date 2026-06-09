@@ -11,6 +11,7 @@ from .config import DEFAULT_HOME, home_from_arg, init_home
 from .download import save_audio
 from .overlap import SeparateOverlapsRequest, separate_overlaps
 from .plaud import PlaudCli, PlaudCliError
+from .review import create_anchor_review_sheet, compile_anchor_review_corrections, summarize_anchor_review_sheet
 from .render import RenderVideoRequest, render_video
 from .transcribe import (
     DecomposeAudioRequest,
@@ -100,6 +101,18 @@ def build_parser() -> argparse.ArgumentParser:
     video_render.add_argument("--fps", type=int, help="Output frames per second")
     video_render.add_argument("--start", type=float, help="Start time in seconds")
     video_render.add_argument("--duration", type=float, help="Render only this many seconds")
+
+    review = subparsers.add_parser("review", help="Human review helpers")
+    review_sub = review.add_subparsers(dest="review_command", required=True)
+    review_anchors = review_sub.add_parser("anchors", help="Review speaker anchor clips")
+    review_anchors_sub = review_anchors.add_subparsers(dest="review_anchors_command", required=True)
+    review_anchors_init = review_anchors_sub.add_parser("init", help="Create a pending review sheet from a clip packet")
+    review_anchors_init.add_argument("clip_packet", type=Path)
+    review_anchors_init.add_argument("--out", type=Path, help="Review sheet JSON path")
+    review_anchors_summary = review_anchors_sub.add_parser("summary", help="Summarize review progress")
+    review_anchors_summary.add_argument("review_sheet", type=Path)
+    review_anchors_corrections = review_anchors_sub.add_parser("corrections", help="Print approved --speaker-correction flags")
+    review_anchors_corrections.add_argument("review_sheet", type=Path)
 
     config = subparsers.add_parser("config", help="Inspect local Pavo config")
     config_sub = config.add_subparsers(dest="config_command", required=True)
@@ -291,6 +304,29 @@ def main(argv: list[str] | None = None) -> int:
             print(f"output_video: {result.out_path}")
             print(f"manifest: {result.manifest_path}")
             return 0
+
+    if args.command == "review":
+        if args.review_command == "anchors":
+            if args.review_anchors_command == "init":
+                result = create_anchor_review_sheet(args.clip_packet, out_path=args.out)
+                print(f"review_sheet: {result.review_sheet_path}")
+                print(f"candidate_count: {result.candidate_count}")
+                print(f"pending_count: {result.pending_count}")
+                return 0
+            if args.review_anchors_command == "summary":
+                summary = summarize_anchor_review_sheet(args.review_sheet)
+                print(f"review_sheet: {summary['review_sheet']}")
+                print(f"human_reviewed: {str(summary['human_reviewed']).lower()}")
+                print(f"candidate_count: {summary['candidate_count']}")
+                print(f"approved_count: {summary['approved_count']}")
+                print(f"rejected_count: {summary['rejected_count']}")
+                print(f"pending_count: {summary['pending_count']}")
+                return 0
+            if args.review_anchors_command == "corrections":
+                result = compile_anchor_review_corrections(args.review_sheet)
+                if result.cli_args:
+                    print(" ".join(result.cli_args))
+                return 0
 
     if args.command == "config":
         pavo_home = init_home(home)
