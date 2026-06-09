@@ -34,6 +34,9 @@ separation for overlap regions, and proof manifests that show what happened.
 See [proof](docs/proof.md) for current test results and a real Plaud audio
 transcription run.
 
+See [media tests](docs/media-tests.md) for the real Conan overlap fixture and
+the New Zealand accent/slang fixture.
+
 ## Why Pavo Exists
 
 Pavo exists because Plaud is excellent at capture, but the stock Plaud workflow
