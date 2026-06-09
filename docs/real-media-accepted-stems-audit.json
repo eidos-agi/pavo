@@ -1,11 +1,56 @@
 {
   "passed": false,
   "cache_root": "/Users/dshanklinbv/Eidos/Pavo/cache",
-  "separation_report_count": 3,
+  "separation_report_count": 6,
   "accepted_report_count": 0,
-  "rejected_report_count": 3,
+  "rejected_report_count": 6,
   "accepted_reports": [],
   "reports": [
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps/region-01-00m00s-00m05s/analysis.json",
+      "accepted": false,
+      "region_start": 0.0,
+      "region_end": 5.0,
+      "stem_count": 2,
+      "wrong_rates": {
+        "speaker-0": 0.2,
+        "speaker-1": 0.375
+      },
+      "margins": {
+        "speaker-0": 0.0265,
+        "speaker-1": 0.0324
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps/region-02-00m07s-00m13s/analysis.json",
+      "accepted": false,
+      "region_start": 7.76,
+      "region_end": 13.0,
+      "stem_count": 2,
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 0.4167
+      },
+      "margins": {
+        "speaker-0": 0.0558,
+        "speaker-1": 0.0044
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps/region-03-00m54s-00m59s/analysis.json",
+      "accepted": false,
+      "region_start": 54.78,
+      "region_end": 59.89,
+      "stem_count": 2,
+      "wrong_rates": {
+        "speaker-0": 1.0,
+        "speaker-1": 0.0833
+      },
+      "margins": {
+        "speaker-0": 0.0847,
+        "speaker-1": 0.0891
+      }
+    },
     {
       "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-old-sitcom/region-01-00m15s-00m17s/analysis.json",
       "accepted": false,

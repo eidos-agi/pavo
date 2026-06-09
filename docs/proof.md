@@ -107,8 +107,10 @@ The `eidos-transcribe` manifest records:
 Machine-readable proof report:
 
 - [plaud-real-recording-report.json](plaud-real-recording-report.json)
+- [plaud-d535-decompose-report.json](plaud-d535-decompose-report.json)
 - Current result: `partial: true`
-- Full item-24 result: `passed: false`
+- Full item-24 pipeline result: `passed: true`
+- Accepted stem result: `accepted_stems_passed: false`
 
 Transcript output:
 
@@ -136,8 +138,14 @@ Transcript output:
 - The machine-readable report currently marks voiceprints, speaker-change
   detection, decomposition, and stem ASR as missing for this real Plaud
   recording.
+- A second Plaud recording, `d535f050e8b65bd1ee0cf144cf215873`, now proves the
+  voiceprint-first pipeline can run on real Plaud audio with generic speaker
+  labels: download, two speaker signatures, rolling speaker-change evidence,
+  three separated regions, diagnostic stem ASR, and manifests.
+- The separated regions in that Plaud run are still rejected by the quality
+  gates, so this is not accepted-stem proof.
 - Pavo does not currently run genetic algorithms.
 
 The next proof target should be a real two-speaker Plaud recording with overlap,
 speaker mappings, and a `separate-overlaps` run that produces accepted stem
-reports.
+reports, ideally with human-reviewed speaker identities.

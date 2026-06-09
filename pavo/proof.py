@@ -192,6 +192,100 @@ def plaud_real_recording_report(recording_dir: Path | str) -> dict[str, Any]:
     }
 
 
+def plaud_decompose_recording_report(source_dir: Path | str) -> dict[str, Any]:
+    root = Path(source_dir)
+    pavo_manifest_path = root / "pavo-decompose-manifest.json"
+    pavo_manifest = json.loads(pavo_manifest_path.read_text()) if pavo_manifest_path.exists() else {}
+    eidos_manifest_path = Path(
+        pavo_manifest.get("eidos_transcribe_manifest", root / "decompose-transcribe" / "decompose-transcribe.manifest.json")
+    )
+    eidos_manifest = json.loads(eidos_manifest_path.read_text()) if eidos_manifest_path.exists() else {}
+    signatures_manifest_text = eidos_manifest.get("speaker_signatures_manifest")
+    speaker_manifest_path = root / "decompose-transcribe" / "process-call" / "speaker-pipeline" / "speaker-pipeline.manifest.json"
+    if signatures_manifest_text:
+        candidate_speaker_manifest = Path(signatures_manifest_text).parent.parent / "speaker-pipeline.manifest.json"
+        if candidate_speaker_manifest.exists():
+            speaker_manifest_path = candidate_speaker_manifest
+    speaker_manifest = json.loads(speaker_manifest_path.read_text()) if speaker_manifest_path.exists() else {}
+    signatures_path = Path(signatures_manifest_text) if signatures_manifest_text else root / "__missing_speaker_signatures__.json"
+    signatures = json.loads(signatures_path.read_text()) if signatures_path.exists() else {}
+    separation_manifest_text = eidos_manifest.get("overlap_separation_manifest")
+    separation_manifest_path = Path(separation_manifest_text) if separation_manifest_text else root / "__missing_separation__.json"
+    separation_manifest = json.loads(separation_manifest_path.read_text()) if separation_manifest_path.exists() else {}
+    stem_asr_manifest_text = eidos_manifest.get("stem_asr_manifest")
+    stem_asr_manifest_path = Path(stem_asr_manifest_text) if stem_asr_manifest_text else root / "__missing_stem_asr__.json"
+    stem_asr_manifest = json.loads(stem_asr_manifest_path.read_text()) if stem_asr_manifest_path.exists() else {}
+    decomposed_text = eidos_manifest.get("decomposed_transcript_json")
+    decomposed_path = Path(decomposed_text) if decomposed_text else root / "__missing_decomposed_transcript__.json"
+    decomposed = json.loads(decomposed_path.read_text()) if decomposed_path.exists() else {}
+
+    region_reports = []
+    for path_text in separation_manifest.get("regions", []):
+        path = Path(path_text)
+        if not path.exists():
+            continue
+        payload = json.loads(path.read_text())
+        stem_reports = payload.get("stem_reports", {})
+        region_reports.append(
+            {
+                "path": str(path),
+                "accepted": payload.get("accepted") is True,
+                "start": payload.get("region", {}).get("start"),
+                "end": payload.get("region", {}).get("end"),
+                "stem_count": len(stem_reports),
+                "wrong_rates": {slug: stem.get("wrong_rate") for slug, stem in stem_reports.items()},
+                "margins": {slug: stem.get("whole_clip", {}).get("margin") for slug, stem in stem_reports.items()},
+            }
+        )
+    diagnostic_segments = decomposed.get("segments", [])
+    trusted_segments = [segment for segment in diagnostic_segments if segment.get("trusted") is True]
+    audio_path_text = pavo_manifest.get("audio_path")
+    stages = {
+        "download": bool(audio_path_text) and Path(audio_path_text).exists(),
+        "voiceprints": signatures_path.exists() and len(signatures.get("speakers", [])) >= 2,
+        "speaker_change_detection": bool(speaker_manifest.get("speaker_immune_summary", {}).get("segments")),
+        "decomposition": eidos_manifest_path.exists() and bool(eidos_manifest.get("overlap_separation_manifest")),
+        "stem_asr": stem_asr_manifest_path.exists() and stem_asr_manifest.get("transcribed_stem_count", 0) > 0,
+        "manifests": pavo_manifest_path.exists()
+        and eidos_manifest_path.exists()
+        and speaker_manifest_path.exists()
+        and signatures_path.exists()
+        and separation_manifest_path.exists()
+        and stem_asr_manifest_path.exists(),
+    }
+    accepted_regions = [region for region in region_reports if region["accepted"]]
+    passed = all(stages.values()) and int(speaker_manifest.get("num_speakers") or 0) >= 2
+    return {
+        "passed": passed,
+        "accepted_stems_passed": bool(accepted_regions),
+        "source_id": pavo_manifest.get("source_id"),
+        "audio_sha256": pavo_manifest.get("audio_sha256"),
+        "num_speakers": speaker_manifest.get("num_speakers"),
+        "best_method": speaker_manifest.get("best_method"),
+        "speaker_signature_count": len(signatures.get("speakers", [])),
+        "signature_sample_counts": {
+            speaker.get("slug"): speaker.get("sample_count") for speaker in signatures.get("speakers", [])
+        },
+        "immune_counts": speaker_manifest.get("speaker_immune_summary", {}).get("immune_counts", {}),
+        "separated_region_count": eidos_manifest.get("separated_region_count", 0),
+        "region_count": len(region_reports),
+        "accepted_region_count": len(accepted_regions),
+        "transcribed_stem_count": stem_asr_manifest.get("transcribed_stem_count", 0),
+        "diagnostic_segment_count": len(diagnostic_segments),
+        "trusted_segment_count": len(trusted_segments),
+        "stages": stages,
+        "regions": region_reports,
+        "pavo_manifest": str(pavo_manifest_path),
+        "eidos_manifest": str(eidos_manifest_path),
+        "speaker_manifest": str(speaker_manifest_path),
+        "signatures_manifest": str(signatures_path),
+        "separation_manifest": str(separation_manifest_path),
+        "stem_asr_manifest": str(stem_asr_manifest_path),
+        "decomposed_transcript_json": str(decomposed_path),
+        "caveat": "Pipeline proof passes, but all separated regions are currently rejected; accepted real-media stems remain unproven.",
+    }
+
+
 def conan_old_sitcom_report(separation_manifest_path: Path | str, stem_asr_manifest_path: Path | str) -> dict[str, Any]:
     separation_manifest = json.loads(Path(separation_manifest_path).read_text())
     stem_asr_manifest = json.loads(Path(stem_asr_manifest_path).read_text())

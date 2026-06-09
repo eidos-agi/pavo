@@ -77,8 +77,9 @@ Status values:
    - Evidence: `~/Eidos/Pavo/demos/nz-accent-test/`.
    - Evidence: [nz-slang-comparison-report.json](nz-slang-comparison-report.json)
 24. Plaud Real Recording Test - `fixture-backed`
-   - Evidence: single-speaker Plaud proof exists; multi-speaker overlap proof is still missing.
+   - Evidence: real Plaud two-speaker pipeline proof exists; accepted stems are still missing.
    - Evidence: [plaud-real-recording-report.json](plaud-real-recording-report.json)
+   - Evidence: [plaud-d535-decompose-report.json](plaud-d535-decompose-report.json)
 25. End-to-End Demo Video Test - `fixture-backed`
    - Evidence: `~/Eidos/Pavo/demos/conan-pavo-demo/pavo-conan-demo.mp4`.
    - Evidence: [conan-demo-video-report.json](conan-demo-video-report.json)
@@ -91,6 +92,6 @@ The strongest remaining proof gaps are:
   - Evidence: [real-media-accepted-stems-audit.json](real-media-accepted-stems-audit.json)
 - real-media two-speaker separation with accepted stems
 - real-media comparison showing stem ASR recovers words missed by mixed-audio ASR
-- real Plaud multi-speaker overlap recording
+- human-reviewed real Plaud multi-person overlap recording
 - reviewed merge policy for when stem ASR can augment or override the canonical
   transcript
