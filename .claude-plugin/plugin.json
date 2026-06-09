@@ -1,0 +1,20 @@
+{
+  "name": "pavo",
+  "version": "0.1.0",
+  "description": "Manifest Anything: capture Plaud recordings, preserve real audio, and route transcription through Eidos tooling.",
+  "author": {
+    "name": "Eidos AGI",
+    "email": "daniel@eidosagi.com",
+    "url": "https://github.com/eidos-agi"
+  },
+  "homepage": "https://github.com/eidos-agi/pavo",
+  "repository": "https://github.com/eidos-agi/pavo",
+  "license": "MIT",
+  "keywords": [
+    "audio",
+    "codex",
+    "eidos",
+    "plaud",
+    "transcription"
+  ]
+}

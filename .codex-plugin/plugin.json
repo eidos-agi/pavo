@@ -1,0 +1,44 @@
+{
+  "name": "pavo",
+  "version": "0.1.0",
+  "description": "Manifest Anything: capture Plaud recordings, preserve real audio, and route transcription through Eidos tooling.",
+  "author": {
+    "name": "Eidos AGI",
+    "email": "daniel@eidosagi.com",
+    "url": "https://github.com/eidos-agi"
+  },
+  "homepage": "https://github.com/eidos-agi/pavo",
+  "repository": "https://github.com/eidos-agi/pavo",
+  "license": "MIT",
+  "keywords": [
+    "audio",
+    "codex",
+    "eidos",
+    "plaud",
+    "transcription"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Pavo",
+    "shortDescription": "Capture Plaud audio and manifest it for Codex.",
+    "longDescription": "Pavo routes Codex to the local pavo CLI for Plaud recording discovery, real-audio download, manifest inspection, and transcription orchestration through eidos-transcribe. The plugin is intentionally thin; the CLI/package remains the source of truth.",
+    "developerName": "Eidos AGI",
+    "category": "Productivity",
+    "capabilities": [
+      "CLI",
+      "Audio Capture",
+      "Plaud",
+      "Transcription",
+      "Manifesting"
+    ],
+    "websiteURL": "https://github.com/eidos-agi/pavo",
+    "privacyPolicyURL": "https://github.com/eidos-agi/pavo/blob/main/SECURITY.md",
+    "termsOfServiceURL": "https://github.com/eidos-agi/pavo/blob/main/LICENSE",
+    "defaultPrompt": [
+      "Use Pavo to list my latest Plaud recordings.",
+      "Use Pavo to download and transcribe a Plaud recording.",
+      "Use Pavo doctor to check Plaud, local config, and transcription readiness."
+    ],
+    "brandColor": "#047857"
+  }
+}
