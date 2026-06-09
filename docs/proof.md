@@ -170,7 +170,8 @@ Transcript output:
 - Pavo also writes a local HTML listening page for that same sheet:
   [plaud-c37-speaker1-anchor-review.html](plaud-c37-speaker1-anchor-review.html).
   It embeds all 20 WAV clips with their proposed `--speaker-correction` values
-  so the human review can be completed without opening clip paths by hand.
+  and lets the reviewer approve, reject, annotate, and export an updated JSON
+  sheet without opening clip paths or editing JSON by hand.
 - The real-media audit now finds accepted Conan/Kaitlin overlap separation:
   both stems pass the trust gate with wrong-window leakage checks. The accepted
   stem ASR manifest writes trusted global-timed evidence for that overlap.

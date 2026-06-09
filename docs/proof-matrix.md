@@ -106,6 +106,8 @@ The strongest remaining proof gaps are:
     [plaud-c37-speaker1-anchor-review-sheet.json](plaud-c37-speaker1-anchor-review-sheet.json)
   - Review page:
     [plaud-c37-speaker1-anchor-review.html](plaud-c37-speaker1-anchor-review.html)
+  - Current result: the review page embeds all 20 WAV clips, proposed
+    corrections, approve/reject controls, reviewer notes, and JSON export.
   - Current result: 20 rows are pending and 0 rows are approved, so no
     `--speaker-correction` flags are exported yet.
 

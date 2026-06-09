@@ -137,6 +137,11 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("<audio controls", html)
         self.assertIn(clip.as_uri(), html)
         self.assertIn("00:12-00:16=SPEAKER_01", html)
+        self.assertIn('id="export-json"', html)
+        self.assertIn('data-approve="1"', html)
+        self.assertIn('data-reject="1"', html)
+        embedded = html.split('<script type="application/json" id="review-sheet-data">', 1)[1].split("</script>", 1)[0]
+        self.assertEqual(json.loads(embedded)["rows"][0]["index"], 1)
 
     def test_summary_requires_all_rows_reviewed_before_human_reviewed_is_true(self):
         with tempfile.TemporaryDirectory() as tmp:
