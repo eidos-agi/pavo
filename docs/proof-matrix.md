@@ -68,6 +68,7 @@ Status values:
 21. Conan "Experience Like" Test - `fixture-backed`
    - Evidence: [Conan "Experience Like" fixture](conan-experience-like.md)
    - Evidence: [conan-experience-like-fixture.json](conan-experience-like-fixture.json)
+   - Evidence: [conan-experience-comparison-report.json](conan-experience-comparison-report.json)
 22. Conan "That Old Sitcom" Test - `fixture-backed`
    - Evidence: local Conan overlap reports exist, current reports are rejected, and rejected stems have diagnostic ASR evidence.
    - Evidence: `docs/conan-diagnostic-stems.md`

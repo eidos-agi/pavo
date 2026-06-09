@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "case_label": "Opening prompt",
+  "youtube_has_speaker_names": false,
+  "youtube_has_phrase": true,
+  "pavo_named_speaker_count": 5,
+  "phrase_found": true,
+  "phrase_speaker": "Kaitlin Olson",
+  "pavo_has_named_speaker": true,
+  "rolling_status": "mixed",
+  "rolling_run_count": 2,
+  "pavo_preserves_speaker_evidence": true,
+  "source_comparison": "/Users/dshanklinbv/Eidos/Pavo/demos/conan-pavo-demo/comparison.json"
+}

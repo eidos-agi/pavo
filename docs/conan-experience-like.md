@@ -12,6 +12,7 @@ phrase and preserve a speaker-change candidate.
 - Pavo source ID: `youtube_KxJWK8R7uVQ_named_v1`
 - Transcript artifact: `/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/speaker-pipeline/resemblyzer-agglomerative.immune.attributed.json`
 - Fixture JSON: [conan-experience-like-fixture.json](conan-experience-like-fixture.json)
+- YouTube comparison report: [conan-experience-comparison-report.json](conan-experience-comparison-report.json)
 
 ## Result
 
@@ -20,13 +21,19 @@ phrase and preserve a speaker-change candidate.
 - Final attributed speaker: `Kaitlin Olson`
 - Opposing label found: `SPEAKER_00`
 - Rolling run slugs: `conan-obrien`, then `kaitlin-olson`
+- YouTube phrase present: `true`
+- YouTube speaker names present: `false`
+- Pavo named speaker count: `5`
 
 ## Interpretation
 
 This is the behavior Pavo needs: the final phrase attribution can be Kaitlin
 while the rolling fingerprint still records the nearby Conan voice evidence.
 That means the system can preserve a speaker-change candidate instead of
-collapsing the whole moment into one coarse transcript row.
+collapsing the whole moment into one coarse transcript row. The comparison
+report also proves the specific advantage over the YouTube captions for this
+case: YouTube preserves the words, but Pavo adds named speaker evidence and the
+mixed voiceprint handoff.
 
 ## Limits
 
