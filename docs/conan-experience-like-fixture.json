@@ -1,0 +1,41 @@
+{
+  "name": "conan-experience-like-speaker-change",
+  "video_id": "KxJWK8R7uVQ",
+  "source_id": "youtube_KxJWK8R7uVQ_named_v1",
+  "source_transcript_json": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/speaker-pipeline/resemblyzer-agglomerative.immune.attributed.json",
+  "expectation": {
+    "phrase": "what was that experience like",
+    "expected_speaker": "Kaitlin Olson",
+    "expected_opposing_label": "SPEAKER_00",
+    "expected_run_slugs": [
+      "conan-obrien",
+      "kaitlin-olson"
+    ],
+    "tolerance_note": "phrase-level evidence from rolling fingerprint, not frame-accurate human DER"
+  },
+  "result": {
+    "passed": true,
+    "phrase_found": true,
+    "phrase": "what was that experience like",
+    "start": 5.56,
+    "end": 6.84,
+    "speaker": "Kaitlin Olson",
+    "expected_speaker": "Kaitlin Olson",
+    "speaker_match": true,
+    "mixed": true,
+    "opposing_labels": [
+      "SPEAKER_00"
+    ],
+    "expected_opposing_label": "SPEAKER_00",
+    "opposing_label_found": true,
+    "run_slugs": [
+      "conan-obrien",
+      "kaitlin-olson"
+    ],
+    "expected_run_slugs": [
+      "conan-obrien",
+      "kaitlin-olson"
+    ],
+    "run_slugs_match": true
+  }
+}

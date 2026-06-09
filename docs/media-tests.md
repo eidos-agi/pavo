@@ -13,6 +13,7 @@ public repo. They live under `~/Eidos/Pavo/demos/` on the test machine.
 - Comparison: `/Users/dshanklinbv/Eidos/Pavo/demos/conan-pavo-demo/comparison.json`
 - Overlap report: `/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom/region-01-00m18s-00m18s/analysis.md`
 - Diagnostic stem ASR report: [Conan diagnostic stems](conan-diagnostic-stems.md)
+- Speaker-change fixture: [Conan "Experience Like" fixture](conan-experience-like.md)
 
 Useful cases:
 
