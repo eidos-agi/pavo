@@ -8,6 +8,10 @@ Pavo is the Eidos capture CLI for Plaud recordings. Its first job is to prove
 that Daniel's Plaud account can be reached, list recordings, obtain temporary
 audio URLs, and download the real audio files for later upload to Google Drive.
 
+Read the [backstory](docs/backstory.md) for why Pavo exists, what Plaud alone
+could not solve, and how Pavo uses `eidos-transcribe` as its installable audio
+intelligence package.
+
 The original parrot scribe mascot is preserved at
 [`assets/mascot.png`](assets/mascot.png).
 
