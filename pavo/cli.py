@@ -9,6 +9,7 @@ from pathlib import Path
 from .audio import run_audio_doctor
 from .config import DEFAULT_HOME, home_from_arg, init_home
 from .download import save_audio
+from .overlap import SeparateOverlapsRequest, separate_overlaps
 from .plaud import PlaudCli, PlaudCliError
 from .render import RenderVideoRequest, render_video
 from .transcribe import ProcessAudioRequest, TranscribeRequest, process_audio, transcribe_recording
@@ -45,6 +46,14 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         help="Reviewed override as start-end=SPEAKER_00; repeatable",
     )
+    audio_separate = audio_sub.add_parser("separate-overlaps", help="Separate and fingerprint mixed speaker regions")
+    audio_separate.add_argument("source_id")
+    audio_separate.add_argument("--out-dir", type=Path, help="Override overlap output directory")
+    audio_separate.add_argument("--max-regions", type=int, default=3, help="Maximum mixed regions to analyze")
+    audio_separate.add_argument("--padding", type=float, default=1.0, help="Seconds of context around each region")
+    audio_separate.add_argument("--min-duration", type=float, default=1.0, help="Minimum mixed-region duration in seconds")
+    audio_separate.add_argument("--start", type=float, help="Only consider regions after this timestamp in seconds")
+    audio_separate.add_argument("--end", type=float, help="Only consider regions before this timestamp in seconds")
 
     transcribe = subparsers.add_parser("transcribe", help="Transcribe a Plaud recording with eidos-transcribe")
     transcribe.add_argument("recording_id")
@@ -153,6 +162,30 @@ def main(argv: list[str] | None = None) -> int:
             print(f"audio_path: {result.audio_path}")
             print(f"audio_sha256: {result.audio_sha256}")
             print(f"process_output_dir: {result.output_dir}")
+            print(f"manifest: {result.manifest_path}")
+            return 0
+        if args.audio_command == "separate-overlaps":
+            try:
+                result = separate_overlaps(
+                    SeparateOverlapsRequest(
+                        source_id=args.source_id,
+                        home=home,
+                        out_dir=args.out_dir,
+                        max_regions=args.max_regions,
+                        padding=args.padding,
+                        min_duration=args.min_duration,
+                        start=args.start,
+                        end=args.end,
+                    )
+                )
+            except (FileNotFoundError, subprocess.CalledProcessError, RuntimeError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            print(f"source_id: {result.source_id}")
+            print(f"audio_wav: {result.audio_wav}")
+            print(f"transcript_json: {result.transcript_json}")
+            print(f"signatures_manifest: {result.signatures_manifest}")
+            print(f"out_dir: {result.out_dir}")
             print(f"manifest: {result.manifest_path}")
             return 0
 

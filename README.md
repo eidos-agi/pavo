@@ -168,6 +168,7 @@ pavo audio doctor
 pavo audio process ./clip.mp4 --source-id youtube_<id> --num-speakers 6 \
   --speaker "SPEAKER_00=Conan O'Brien=conan-obrien" \
   --speaker-correction "00:00-00:06=SPEAKER_00"
+pavo audio separate-overlaps youtube_<id> --start 17 --end 21 --min-duration 0.25
 pavo video render youtube_<id> --title "Reviewed call" --duration 30
 pavo transcribe <recording-id> --context-term Plaud
 ```
@@ -193,6 +194,11 @@ confirmed the speaker.
 from a processed source. It prefers rolling/immune or verified named artifacts
 when available, falls back to labeled speaker output, and writes
 `pavo-render-manifest.json` next to the processed source.
+
+`pavo audio separate-overlaps` runs the source-separation review path for mixed
+speaker regions that the rolling fingerprint marks as suspect. It writes
+separated stems, a score report for each stem, and `pavo-overlap-manifest.json`
+so caption rendering can avoid pretending uncertainty is certainty.
 
 ## Tests
 
