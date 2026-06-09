@@ -31,6 +31,9 @@ implementation is better described as **bio-inspired audio decomposition**:
 immune-style speaker detectors, rolling acoustic fingerprints, source
 separation for overlap regions, and proof manifests that show what happened.
 
+See [proof](docs/proof.md) for current test results and a real Plaud audio
+transcription run.
+
 ## Why Pavo Exists
 
 Pavo exists because Plaud is excellent at capture, but the stock Plaud workflow
