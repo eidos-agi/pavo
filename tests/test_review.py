@@ -5,6 +5,7 @@ from pathlib import Path
 
 from pavo.review import (
     build_anchor_review_rerun_command,
+    build_anchor_review_serve_command,
     create_anchor_review_bundle,
     create_anchor_review_page,
     compile_anchor_review_corrections,
@@ -258,6 +259,24 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(bundled_sheet["rows"][0]["clip_path"], "clips/candidate-01.wav")
         self.assertIn('src="clips/candidate-01.wav"', html)
         self.assertTrue(verification.passed)
+
+    def test_build_anchor_review_serve_command_points_at_bundle_index(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bundle = root / "bundle"
+            bundle.mkdir()
+            (bundle / "index.html").write_text("<html></html>")
+
+            result = build_anchor_review_serve_command(bundle, host="127.0.0.1", port=9999, python="python3")
+
+        self.assertEqual(result.url, "http://127.0.0.1:9999/index.html")
+        self.assertEqual(result.command, ["python3", "-m", "http.server", "9999", "--bind", "127.0.0.1", "--directory", str(bundle)])
+        self.assertIn("http.server 9999", result.shell_command)
+
+    def test_build_anchor_review_serve_command_requires_index(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(FileNotFoundError, "Review bundle index not found"):
+                build_anchor_review_serve_command(Path(tmp) / "missing")
 
     def test_verify_anchor_review_page_fails_when_controls_are_missing(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -940,6 +940,10 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
         "plaud_anchor_review_bundle_ready": bool(reports["plaud_anchor_review_bundle"].get("passed")),
         "plaud_anchor_review_bundle_clip_count": reports["plaud_anchor_review_bundle"].get("clip_count", 0),
         "plaud_anchor_review_bundle_url": reports["plaud_anchor_review_bundle"].get("review_url"),
+        "plaud_anchor_review_bundle_serve_command": reports["plaud_anchor_review_bundle"].get("serve_command"),
+        "plaud_anchor_review_bundle_serve_command_verified": bool(
+            reports["plaud_anchor_review_bundle"].get("serve_command_verified")
+        ),
         "plaud_anchor_review_browser_verified": bool(reports["plaud_anchor_review_browser"].get("passed")),
         "plaud_anchor_review_browser_audio_count": reports["plaud_anchor_review_browser"].get("audio_count", 0),
         "plaud_anchor_review_browser_approve_count": reports["plaud_anchor_review_browser"].get("approve_count", 0),

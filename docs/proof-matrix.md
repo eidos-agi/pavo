@@ -110,6 +110,8 @@ The strongest remaining proof gaps are:
     [plaud-c37-anchor-review-page-report.json](plaud-c37-anchor-review-page-report.json)
   - Browser-safe review bundle:
     [plaud-c37-anchor-review-bundle-manifest.json](plaud-c37-anchor-review-bundle-manifest.json)
+  - Serve command:
+    `pavo review anchors serve docs/plaud-c37-anchor-review-bundle --port 9876`
   - Browser verification:
     [plaud-c37-anchor-review-browser-report.json](plaud-c37-anchor-review-browser-report.json)
   - Review gate:

@@ -13,6 +13,7 @@ from .overlap import SeparateOverlapsRequest, separate_overlaps
 from .plaud import PlaudCli, PlaudCliError
 from .review import (
     build_anchor_review_rerun_command,
+    build_anchor_review_serve_command,
     create_anchor_review_bundle,
     create_anchor_review_page,
     create_anchor_review_sheet,
@@ -127,6 +128,10 @@ def build_parser() -> argparse.ArgumentParser:
     review_anchors_bundle = review_anchors_sub.add_parser("bundle", help="Create a browser-safe review bundle with copied clips")
     review_anchors_bundle.add_argument("review_sheet", type=Path)
     review_anchors_bundle.add_argument("--out-dir", type=Path, required=True, help="Bundle directory")
+    review_anchors_serve = review_anchors_sub.add_parser("serve", help="Serve a browser-safe review bundle over localhost")
+    review_anchors_serve.add_argument("bundle_dir", type=Path)
+    review_anchors_serve.add_argument("--host", default="127.0.0.1")
+    review_anchors_serve.add_argument("--port", type=int, default=9876)
     review_anchors_verify_page = review_anchors_sub.add_parser("verify-page", help="Verify a generated anchor review HTML page")
     review_anchors_verify_page.add_argument("review_sheet", type=Path)
     review_anchors_verify_page.add_argument("review_page", type=Path)
@@ -371,6 +376,27 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"copied_clip_count: {result.copied_clip_count}")
                 print(f"missing_clip_count: {result.missing_clip_count}")
                 return 0 if result.missing_clip_count == 0 else 2
+            if args.review_anchors_command == "serve":
+                try:
+                    result = build_anchor_review_serve_command(
+                        args.bundle_dir,
+                        host=args.host,
+                        port=args.port,
+                        python=sys.executable,
+                    )
+                except FileNotFoundError as exc:
+                    print(str(exc), file=sys.stderr)
+                    return 2
+                print(f"review_url: {result.url}")
+                print(f"bundle_dir: {result.bundle_dir}")
+                print("Press Ctrl-C to stop the review server.")
+                try:
+                    subprocess.run(result.command, check=True)
+                except KeyboardInterrupt:
+                    return 0
+                except subprocess.CalledProcessError as exc:
+                    return exc.returncode
+                return 0
             if args.review_anchors_command == "verify-page":
                 result = verify_anchor_review_page(args.review_sheet, args.review_page)
                 if args.report:

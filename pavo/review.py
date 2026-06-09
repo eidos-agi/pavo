@@ -134,6 +134,16 @@ class AnchorReviewGateResult:
         }
 
 
+@dataclass(frozen=True)
+class AnchorReviewServeResult:
+    bundle_dir: Path
+    host: str
+    port: int
+    url: str
+    command: list[str]
+    shell_command: str
+
+
 def create_anchor_review_sheet(
     clip_packet_path: Path | str,
     *,
@@ -539,6 +549,37 @@ def create_anchor_review_bundle(
         review_page_path=page_result.review_page_path,
         copied_clip_count=copied,
         missing_clip_count=missing,
+    )
+
+
+def build_anchor_review_serve_command(
+    bundle_dir: Path | str,
+    *,
+    host: str = "127.0.0.1",
+    port: int = 9876,
+    python: str = "python3",
+) -> AnchorReviewServeResult:
+    root = Path(bundle_dir)
+    index = root / "index.html"
+    if not index.exists():
+        raise FileNotFoundError(f"Review bundle index not found: {index}")
+    command = [
+        python,
+        "-m",
+        "http.server",
+        str(port),
+        "--bind",
+        host,
+        "--directory",
+        str(root),
+    ]
+    return AnchorReviewServeResult(
+        bundle_dir=root,
+        host=host,
+        port=port,
+        url=f"http://{host}:{port}/index.html",
+        command=command,
+        shell_command=shlex.join(command),
     )
 
 

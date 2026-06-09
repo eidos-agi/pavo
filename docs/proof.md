@@ -187,8 +187,8 @@ Transcript output:
   [plaud-c37-anchor-review-page-report.json](plaud-c37-anchor-review-page-report.json).
 - Pavo now also creates a browser-safe review bundle with all 20 WAV clips
   copied beside `index.html` using relative audio URLs. The bundle can be
-  served locally with
-  `cd docs/plaud-c37-anchor-review-bundle && python3 -m http.server 9876 --bind 127.0.0.1`.
+  served locally with `pavo review anchors serve
+  docs/plaud-c37-anchor-review-bundle --port 9876`.
   Browser DOM verification over `http://127.0.0.1:9876/index.html` confirms the
   same 20 audio controls and review controls render over HTTP:
   [plaud-c37-anchor-review-bundle-manifest.json](plaud-c37-anchor-review-bundle-manifest.json),

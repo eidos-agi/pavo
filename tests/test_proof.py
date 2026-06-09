@@ -206,6 +206,11 @@ class ProofTests(unittest.TestCase):
         self.assertTrue(report["plaud_anchor_review_bundle_ready"])
         self.assertEqual(report["plaud_anchor_review_bundle_clip_count"], 20)
         self.assertEqual(report["plaud_anchor_review_bundle_url"], "http://127.0.0.1:9876/index.html")
+        self.assertEqual(
+            report["plaud_anchor_review_bundle_serve_command"],
+            "pavo review anchors serve docs/plaud-c37-anchor-review-bundle --port 9876",
+        )
+        self.assertTrue(report["plaud_anchor_review_bundle_serve_command_verified"])
         self.assertTrue(report["plaud_anchor_review_browser_verified"])
         self.assertEqual(report["plaud_anchor_review_browser_audio_count"], 20)
         self.assertEqual(report["plaud_anchor_review_browser_approve_count"], 20)
