@@ -258,7 +258,8 @@ def create_anchor_review_page(
     rows = sheet.get("rows", [])
     pending = [row for row in rows if row.get("status") == "pending"]
     labels = _review_labels(sheet)
-    cards = "\n".join(_review_card(row, labels=labels) for row in rows)
+    display_mode = sheet.get("display_mode") or "anchor_review"
+    cards = "\n".join(_review_card(row, labels=labels, display_mode=display_mode) for row in rows)
     sheet_json = json.dumps(sheet).replace("</", "<\\/")
     download_name_json = json.dumps(sheet_path.name)
     title = sheet.get("review_title") or f"Pavo Anchor Review - {sheet.get('target_speaker_name') or sheet.get('target_speaker_label') or 'Speaker'}"
@@ -399,6 +400,23 @@ def create_anchor_review_page(
     }}
     article.review-pending {{
       box-shadow: inset 4px 0 0 #d2b35f;
+    }}
+    .review-prompt {{
+      margin: 8px 0 10px;
+      font-size: 17px;
+      line-height: 1.45;
+    }}
+    .clip-subtitle {{
+      margin: 4px 0 0;
+      color: #4f665b;
+    }}
+    details {{
+      margin-top: 12px;
+    }}
+    summary {{
+      cursor: pointer;
+      color: #315044;
+      font-weight: 700;
     }}
     textarea {{
       width: 100%;
@@ -945,7 +963,13 @@ def _imported_review_row(original: dict[str, Any], reviewed: dict[str, Any]) -> 
     return row
 
 
-def _review_card(row: dict[str, Any], *, labels: dict[str, Any]) -> str:
+def _review_card(row: dict[str, Any], *, labels: dict[str, Any], display_mode: str = "anchor_review") -> str:
+    if display_mode == "human_review":
+        return _human_review_card(row, labels=labels)
+    return _anchor_review_card(row, labels=labels)
+
+
+def _anchor_review_card(row: dict[str, Any], *, labels: dict[str, Any]) -> str:
     clip_path = row.get("clip_path")
     audio_src = _audio_src(clip_path)
     correction = row.get("suggested_speaker_correction") or _speaker_correction(
@@ -983,6 +1007,56 @@ def _review_card(row: dict[str, Any], *, labels: dict[str, Any]) -> str:
 {correction_rows}
     <dt>Clip path</dt><dd>{escape(str(clip_path or ''))}</dd>
   </dl>
+</article>"""
+
+
+def _human_review_card(row: dict[str, Any], *, labels: dict[str, Any]) -> str:
+    clip_path = row.get("clip_path")
+    audio_src = _audio_src(clip_path)
+    index = escape(str(row.get("index")))
+    note = escape(str(row.get("reviewer_note") or ""))
+    status = str(row.get("status") or "pending")
+    status_label = labels["status"].get(status, status)
+    approve_label = labels["buttons"]["approved"]
+    reject_label = labels["buttons"]["rejected"]
+    pending_label = labels["buttons"]["pending"]
+    title = row.get("review_heading") or f"Clip {row.get('index')}"
+    prompt = row.get("review_prompt") or row.get("expected_behavior") or row.get("text") or "Listen to this clip and decide whether it matches the expected behavior."
+    subtitle = row.get("review_subtitle") or row.get("case") or ""
+    technical_rows = [
+        ("Time", f"{row.get('start')} - {row.get('end')} seconds"),
+        ("Transcript hint", row.get("text") or ""),
+        ("System label", f"{row.get('target_speaker_label') or ''} / {row.get('target_speaker_name') or ''}"),
+        ("Expected behavior", row.get("expected_behavior") or ""),
+        ("Clip path", clip_path or ""),
+    ]
+    technical = "\n".join(
+        f"      <dt>{escape(str(label))}</dt><dd>{escape(str(value))}</dd>"
+        for label, value in technical_rows
+        if value
+    )
+    return f"""<article data-review-index="{index}" class="review-{escape(status)}">
+  <div class="row-head">
+    <div>
+      <h2>{escape(str(title))}</h2>
+      <p class="clip-subtitle">{escape(str(subtitle))}</p>
+    </div>
+    <span class="status" data-status>{escape(str(status_label))}</span>
+  </div>
+  <p class="review-prompt">{escape(str(prompt))}</p>
+  <audio controls preload="metadata" src="{escape(audio_src)}"></audio>
+  <div class="review-controls" aria-label="Review decision">
+    <button type="button" data-decision="approved" data-approve="{index}">{escape(str(approve_label))}</button>
+    <button type="button" data-decision="rejected" class="secondary" data-reject="{index}">{escape(str(reject_label))}</button>
+    <button type="button" data-decision="pending" class="secondary" data-pending="{index}">{escape(str(pending_label))}</button>
+  </div>
+  <textarea data-note="{index}" placeholder="Optional note">{note}</textarea>
+  <details>
+    <summary>Technical details</summary>
+    <dl>
+{technical}
+    </dl>
+  </details>
 </article>"""
 
 

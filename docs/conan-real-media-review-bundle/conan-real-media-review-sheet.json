@@ -27,8 +27,11 @@
       "method": "conan_real_media_review",
       "clip_path": "clips/candidate-01.wav",
       "suggested_speaker_correction": "",
-      "reviewer_note": "Confirm this is a mixed handoff around \"what was that experience like?\"",
+      "reviewer_note": "",
       "expected_behavior": "Mixed handoff: Conan asks the setup and Kaitlin begins the phrase \"what was that experience like?\" with overlap evidence preserved.",
+      "review_heading": "Opening handoff: mixed audio",
+      "review_prompt": "First listen for the overlap: Conan asks the setup, then Kaitlin starts \u201cwhat was that experience like?\u201d",
+      "review_subtitle": "Diagnostic handoff review",
       "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-experience-like-pad-0p1/region-01-00m05s-00m06s/mixed.wav"
     },
     {
@@ -47,8 +50,11 @@
       "method": "conan_real_media_review",
       "clip_path": "clips/candidate-02.wav",
       "suggested_speaker_correction": "",
-      "reviewer_note": "System trusted=True best=Conan O'Brien wrong_rate=0.0",
+      "reviewer_note": "",
       "expected_behavior": "Diagnostic Conan stem should contain Conan voice evidence from the handoff; the region as a whole is not accepted because the Kaitlin stem is weak.",
+      "review_heading": "Opening handoff: Conan stem",
+      "review_prompt": "This should contain Conan voice evidence from the handoff. It is diagnostic, not a final accepted split.",
+      "review_subtitle": "Diagnostic handoff review",
       "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-experience-like-pad-0p1/region-01-00m05s-00m06s/conan-obrien.wav"
     },
     {
@@ -67,8 +73,11 @@
       "method": "conan_real_media_review",
       "clip_path": "clips/candidate-03.wav",
       "suggested_speaker_correction": "",
-      "reviewer_note": "System trusted=False best=Danny DeVito wrong_rate=1.0",
+      "reviewer_note": "",
       "expected_behavior": "Diagnostic Kaitlin stem is intentionally weak/rejected; this clip should help explain why the opening split is not accepted.",
+      "review_heading": "Opening handoff: Kaitlin stem",
+      "review_prompt": "This is intentionally weak. Use it to judge why Pavo rejected the Kaitlin stem for this opening handoff.",
+      "review_subtitle": "Diagnostic handoff review",
       "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-experience-like-pad-0p1/region-01-00m05s-00m06s/kaitlin-olson.wav"
     },
     {
@@ -87,8 +96,11 @@
       "method": "conan_real_media_review",
       "clip_path": "clips/candidate-04.wav",
       "suggested_speaker_correction": "",
-      "reviewer_note": "Confirm overlap and compare to individual stems.",
+      "reviewer_note": "",
       "expected_behavior": "Mixed overlap around \"That old sitcom\" before stem separation.",
+      "review_heading": "Old sitcom: mixed audio",
+      "review_prompt": "First listen to the mixed overlap around \u201cThat old sitcom.\u201d",
+      "review_subtitle": "Accepted stem split review",
       "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/mixed.wav"
     },
     {
@@ -107,8 +119,11 @@
       "method": "conan_real_media_review",
       "clip_path": "clips/candidate-05.wav",
       "suggested_speaker_correction": "",
-      "reviewer_note": "Accepted trusted stem. best=Conan O'Brien wrong_rate=0.0 rolling_windows=1",
+      "reviewer_note": "",
       "expected_behavior": "Accepted trusted Conan stem for the \"that old sitcom\" overlap.",
+      "review_heading": "Old sitcom: Conan stem",
+      "review_prompt": "This should isolate Conan in the accepted \u201cthat old sitcom\u201d split.",
+      "review_subtitle": "Accepted stem split review",
       "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/conan-obrien.wav"
     },
     {
@@ -127,8 +142,11 @@
       "method": "conan_real_media_review",
       "clip_path": "clips/candidate-06.wav",
       "suggested_speaker_correction": "",
-      "reviewer_note": "Accepted trusted stem. best=Kaitlin Olson wrong_rate=0.0 rolling_windows=1",
+      "reviewer_note": "",
       "expected_behavior": "Accepted trusted Kaitlin stem for the same overlap, separated from Conan.",
+      "review_heading": "Old sitcom: Kaitlin stem",
+      "review_prompt": "This should isolate Kaitlin in the same accepted split.",
+      "review_subtitle": "Accepted stem split review",
       "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/kaitlin-olson.wav"
     }
   ],
@@ -145,29 +163,29 @@
     "conan_experience_report": "docs/conan-experience-comparison-report.json",
     "conan_old_sitcom_report": "docs/conan-old-sitcom-report.json"
   },
-  "review_title": "Conan Real-Media Review",
-  "export_label": "Export reviewed Conan JSON",
-  "reset_label": "Reset Conan decisions",
+  "review_title": "Conan Listening Review",
+  "export_label": "Export review notes",
+  "reset_label": "Reset decisions",
   "review_labels": {
     "buttons": {
-      "approved": "Matches expected",
-      "rejected": "Does not match",
-      "pending": "Needs review"
+      "approved": "Works",
+      "rejected": "Problem",
+      "pending": "Unsure"
     },
     "status": {
-      "approved": "Matches expected",
-      "rejected": "Does not match",
-      "pending": "Needs review"
+      "approved": "Works",
+      "rejected": "Problem",
+      "pending": "Unreviewed"
     }
   },
   "page_instructions": [
-    "This is a Conan behavior review, not a Plaud speaker-correction workflow.",
-    "For each case, listen to the mixed clip first, then the Conan and Kaitlin stems.",
-    "Click Matches expected only when the clip demonstrates the expected mixed/stem behavior described on the card.",
-    "Use Does not match for confusing, noisy, wrong-speaker, or unhelpful clips."
+    "Listen to each short Conan clip and decide whether it demonstrates the stated behavior.",
+    "Use Works when the clip clearly shows the behavior, Problem when it does not, and Unsure when the audio is ambiguous.",
+    "Technical file paths and model details are tucked inside each card for traceability, not as the main task."
   ],
   "requires_import_instruction": false,
   "requires_rerun_instruction": false,
+  "display_mode": "human_review",
   "source_review_sheet": "/Users/dshanklinbv/repos-eidos-agi/pavo/docs/conan-real-media-review-sheet.json",
   "bundle_dir": "/Users/dshanklinbv/repos-eidos-agi/pavo/docs/conan-real-media-review-bundle",
   "copied_clip_count": 6,
