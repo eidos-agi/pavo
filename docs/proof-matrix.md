@@ -50,12 +50,14 @@ Status values:
 
 ## Source Separation
 
-16. Two-Speaker Synthetic Mix Test - `planned`
+16. Two-Speaker Synthetic Mix Test - `automated`
+   - Evidence: `eidos-transcribe/tests/test_synthetic_proof.py::test_two_speaker_synthetic_mix_confirms_stems_match_expected_fingerprints`
 17. Stem Purity Test - `automated`
    - Evidence: `test_separation_passes_requires_matching_low_leakage_stems`.
 18. Stem Leakage Test - `automated`
    - Evidence: `test_separation_passes_requires_matching_low_leakage_stems`.
-19. Overlap Stem ASR Improvement Test - `planned`
+19. Overlap Stem ASR Improvement Test - `automated`
+   - Evidence: `eidos-transcribe/tests/test_synthetic_proof.py::test_overlap_stem_asr_improvement_reports_recovered_words`
 20. Stem Audio Review Artifact Test - `fixture-backed`
    - Evidence: local Conan separation artifacts under `~/Eidos/Pavo/cache/imports/`.
 
@@ -76,8 +78,8 @@ Status values:
 The strongest remaining proof gaps are:
 
 - real accepted stems on a real overlap clip
-- synthetic two-speaker mix with measurable separation accuracy
-- automatic comparison showing stem ASR recovers words missed by mixed-audio ASR
+- real-media two-speaker separation with accepted stems
+- real-media comparison showing stem ASR recovers words missed by mixed-audio ASR
 - real Plaud multi-speaker overlap recording
 - reviewed merge policy for when stem ASR can augment or override the canonical
   transcript
