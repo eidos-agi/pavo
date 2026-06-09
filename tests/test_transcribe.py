@@ -184,3 +184,32 @@ class TranscribeTests(unittest.TestCase):
             self.assertEqual(manifest["source_id"], "youtube_KxJWK8R7uVQ")
             self.assertEqual(manifest["strategy"], "voiceprint-first, separation-on-demand")
             self.assertEqual(manifest["speakers"], ["SPEAKER_00=Conan O'Brien=conan-obrien"])
+
+    def test_decompose_audio_can_include_rejected_stems_for_diagnostics(self):
+        calls = []
+
+        def runner(args):
+            calls.append(args)
+            out_dir = Path(args[args.index("--out-dir") + 1])
+            out_dir.mkdir(parents=True, exist_ok=True)
+            (out_dir / "decompose-transcribe.manifest.json").write_text("{}\n")
+            return "ok\n"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "Pavo"
+            audio_path = Path(tmp) / "clip.mp4"
+            audio_path.write_bytes(b"video bytes")
+
+            result = decompose_audio(
+                DecomposeAudioRequest(
+                    audio_path=audio_path,
+                    source_id="youtube_KxJWK8R7uVQ",
+                    home=home,
+                    include_rejected_stems=True,
+                ),
+                runner=runner,
+            )
+
+            self.assertIn("--include-rejected-stems", calls[0])
+            manifest = json.loads(result.manifest_path.read_text())
+            self.assertTrue(manifest["include_rejected_stems"])

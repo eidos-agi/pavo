@@ -75,6 +75,7 @@ class DecomposeAudioRequest:
     max_regions: int = 3
     padding: float = 1.0
     min_duration: float = 1.0
+    include_rejected_stems: bool = False
 
 
 @dataclass(frozen=True)
@@ -269,6 +270,8 @@ def decompose_audio(
     command.extend(["--max-regions", str(request.max_regions)])
     command.extend(["--padding", str(request.padding)])
     command.extend(["--min-duration", str(request.min_duration)])
+    if request.include_rejected_stems:
+        command.append("--include-rejected-stems")
 
     runner(command)
     manifest_path = source_dir / "pavo-decompose-manifest.json"
@@ -290,6 +293,7 @@ def decompose_audio(
         "max_regions": request.max_regions,
         "padding": request.padding,
         "min_duration": request.min_duration,
+        "include_rejected_stems": request.include_rejected_stems,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")

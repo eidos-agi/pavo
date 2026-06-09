@@ -74,6 +74,11 @@ def build_parser() -> argparse.ArgumentParser:
     audio_decompose.add_argument("--max-regions", type=int, default=3, help="Maximum disputed regions to separate")
     audio_decompose.add_argument("--padding", type=float, default=1.0, help="Seconds of context around each disputed region")
     audio_decompose.add_argument("--min-duration", type=float, default=1.0, help="Minimum disputed-region duration in seconds")
+    audio_decompose.add_argument(
+        "--include-rejected-stems",
+        action="store_true",
+        help="Transcribe rejected separated stems as untrusted diagnostic evidence",
+    )
 
     transcribe = subparsers.add_parser("transcribe", help="Transcribe a Plaud recording with eidos-transcribe")
     transcribe.add_argument("recording_id")
@@ -225,6 +230,7 @@ def main(argv: list[str] | None = None) -> int:
                         max_regions=args.max_regions,
                         padding=args.padding,
                         min_duration=args.min_duration,
+                        include_rejected_stems=args.include_rejected_stems,
                     )
                 )
             except (FileNotFoundError, subprocess.CalledProcessError, RuntimeError) as exc:

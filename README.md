@@ -179,6 +179,7 @@ pavo audio process ./clip.mp4 --source-id youtube_<id> --num-speakers 6 \
   --speaker-correction "00:00-00:06=SPEAKER_00"
 pavo audio decompose ./clip.mp4 --source-id youtube_<id> --num-speakers 6 \
   --speaker "SPEAKER_00=Conan O'Brien=conan-obrien"
+pavo audio decompose ./clip.mp4 --source-id youtube_<id> --include-rejected-stems
 pavo audio separate-overlaps youtube_<id> --start 17 --end 21 --min-duration 0.25
 pavo video render youtube_<id> --title "Reviewed call" --duration 30
 pavo transcribe <recording-id> --context-term Plaud

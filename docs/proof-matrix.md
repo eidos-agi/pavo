@@ -26,7 +26,8 @@ Status values:
 
 6. Clean Anchor Enrollment Test - `automated`
    - Evidence: speaker signature creation tests and `select_signature_spans` coverage.
-7. Anchor Quality Rejection Test - `planned`
+7. Anchor Quality Rejection Test - `automated`
+   - Evidence: `eidos-transcribe/tests/test_speaker_pipeline.py::test_signature_spans_reject_low_quality_anchors`
 8. Speaker Fingerprint Match Test - `automated`
    - Evidence: immune detector vote and signature verification tests.
 9. Speaker Fingerprint Conflict Test - `automated`
@@ -38,12 +39,14 @@ Status values:
 
 11. High-Recall Boundary Test - `automated`
    - Evidence: `eidos-transcribe/tests/test_proof_metrics.py`.
-12. False Boundary Merge Test - `planned`
+12. False Boundary Merge Test - `automated`
+   - Evidence: `eidos-transcribe/tests/test_speaker_pipeline.py::test_same_speaker_rolling_runs_merge_before_boundary_split`
 13. Transcript-Row Independence Test - `automated`
    - Evidence: `test_rolling_fingerprint_split_preserves_handoff_phrase`.
 14. Overlap Boundary Test - `automated`
    - Evidence: rolling mixed segment and overlap candidate tests.
-15. Silence Boundary Test - `planned`
+15. Silence Boundary Test - `automated`
+   - Evidence: `eidos-transcribe/tests/test_proof_metrics.py::test_speaker_change_recall_counts_silence_separated_turns`
 
 ## Source Separation
 
