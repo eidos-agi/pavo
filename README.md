@@ -203,8 +203,8 @@ confirmed the speaker.
 `~/Eidos/Pavo/cache/imports/<source-id>/decompose-transcribe/` and records a
 `pavo-decompose-manifest.json`. The current flow builds clean speaker anchors,
 voiceprints, rolling disputed-region evidence, and separation-on-demand reports.
-Accepted separated stems are not yet automatically transcribed back into the
-canonical transcript; the manifest marks that as the next implementation step.
+Accepted separated stems are transcribed into evidence, but they do not
+automatically replace the canonical transcript without a reviewed merge policy.
 
 `pavo video render` burns captions into a video using the best transcript JSON
 from a processed source. It prefers rolling/immune or verified named artifacts
