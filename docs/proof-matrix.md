@@ -60,12 +60,14 @@ Status values:
    - Evidence: `eidos-transcribe/tests/test_synthetic_proof.py::test_overlap_stem_asr_improvement_reports_recovered_words`
 20. Stem Audio Review Artifact Test - `fixture-backed`
    - Evidence: local Conan separation artifacts under `~/Eidos/Pavo/cache/imports/`.
+   - Evidence: `docs/conan-diagnostic-stems.md`
 
 ## Real Media Proof
 
 21. Conan "Experience Like" Test - `planned`
 22. Conan "That Old Sitcom" Test - `fixture-backed`
-   - Evidence: local Conan overlap reports exist, but current reports are rejected.
+   - Evidence: local Conan overlap reports exist, current reports are rejected, and rejected stems have diagnostic ASR evidence.
+   - Evidence: `docs/conan-diagnostic-stems.md`
 23. New Zealand Accent Slang Test - `fixture-backed`
    - Evidence: `~/Eidos/Pavo/demos/nz-accent-test/`.
 24. Plaud Real Recording Test - `fixture-backed`
