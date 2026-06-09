@@ -105,6 +105,10 @@ The strongest remaining proof gaps are:
   - Current blocker: 0 Plaud attempts have human-reviewed speaker anchors.
   - Review packet:
     [plaud-c37-speaker1-anchor-review-packet.json](plaud-c37-speaker1-anchor-review-packet.json)
+  - Review clips:
+    [plaud-c37-speaker1-anchor-review-clips.json](plaud-c37-speaker1-anchor-review-clips.json)
+  - Current result: 20 c37 Speaker 1 candidate clips exist and are ready for
+    human review before corrected Plaud decomposition is rerun.
 
 Resolved gap:
 

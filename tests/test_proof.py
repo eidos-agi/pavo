@@ -9,6 +9,7 @@ from pavo.proof import (
     conan_old_sitcom_report,
     nz_slang_comparison_report,
     plaud_anchor_quality_report,
+    plaud_anchor_review_clip_packet,
     plaud_anchor_review_packet,
     plaud_decompose_recording_report,
     plaud_real_recording_report,
@@ -104,6 +105,19 @@ class ProofTests(unittest.TestCase):
         self.assertGreater(report["review_candidate_count"], 0)
         self.assertGreater(len(report["suggested_speaker_corrections"]), 0)
 
+    def test_committed_plaud_c37_anchor_review_clip_packet_is_ready_for_human_review(self):
+        report_path = Path(__file__).resolve().parents[1] / "docs" / "plaud-c37-speaker1-anchor-review-clips.json"
+        report = json.loads(report_path.read_text())
+
+        self.assertTrue(report["passed"])
+        self.assertFalse(report["human_reviewed"])
+        self.assertEqual(report["target_speaker_label"], "SPEAKER_01")
+        self.assertTrue(report["source_audio_present"])
+        self.assertGreaterEqual(report["candidate_count"], 20)
+        self.assertGreaterEqual(report["clip_count"], 20)
+        self.assertEqual(report["missing_clips"], [])
+        self.assertTrue(all(clip["present"] for clip in report["clips"]))
+
     def test_committed_conan_old_sitcom_report_has_accepted_stem_asr_proof(self):
         report_path = Path(__file__).resolve().parents[1] / "docs" / "conan-old-sitcom-report.json"
         report = json.loads(report_path.read_text())
@@ -156,6 +170,8 @@ class ProofTests(unittest.TestCase):
         self.assertFalse(report["real_media_stem_asr_improvement"])
         self.assertEqual(report["plaud_decompose_attempt_count"], 2)
         self.assertEqual(report["plaud_accepted_stem_attempt_count"], 0)
+        self.assertTrue(report["plaud_anchor_review_clip_packet_ready"])
+        self.assertGreaterEqual(report["plaud_anchor_review_clip_count"], 20)
         self.assertTrue(report["merge_policy_reviewed"])
         self.assertGreater(report["reviewable_real_media_stem_count"], 0)
         self.assertNotIn("real accepted stems on a real overlap clip", report["remaining_gaps"])
@@ -605,6 +621,67 @@ class ProofTests(unittest.TestCase):
         self.assertEqual(report["existing_sample_count"], 1)
         self.assertEqual(report["review_candidate_count"], 1)
         self.assertEqual(report["suggested_speaker_corrections"], ["00:20-00:24=SPEAKER_01"])
+
+    def test_plaud_anchor_review_clip_packet_requires_all_candidate_clips(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            audio = root / "audio.wav"
+            clips = root / "clips"
+            clips.mkdir()
+            audio.write_bytes(b"audio")
+            packet = root / "review.json"
+            packet.write_text(
+                json.dumps(
+                    {
+                        "target_speaker_label": "SPEAKER_01",
+                        "target_speaker_name": "Speaker 1",
+                        "source_audio_wav": str(audio),
+                        "review_candidates": [
+                            {"start": 12.06, "end": 16.06, "text": "candidate one"},
+                            {"start": 144.6, "end": 148.6, "text": "candidate two"},
+                        ],
+                    }
+                )
+            )
+            (clips / "candidate-01-001206-001606.wav").write_bytes(b"clip")
+
+            report = plaud_anchor_review_clip_packet(review_packet=packet, clips_dir=clips)
+
+        self.assertFalse(report["passed"])
+        self.assertEqual(report["candidate_count"], 2)
+        self.assertEqual(report["clip_count"], 1)
+        self.assertEqual(len(report["missing_clips"]), 1)
+        self.assertEqual(report["clips"][0]["suggested_speaker_correction"], "00:12-00:16=SPEAKER_01")
+
+    def test_plaud_anchor_review_clip_packet_passes_when_all_candidate_clips_exist(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            audio = root / "audio.wav"
+            clips = root / "clips"
+            clips.mkdir()
+            audio.write_bytes(b"audio")
+            packet = root / "review.json"
+            packet.write_text(
+                json.dumps(
+                    {
+                        "target_speaker_label": "SPEAKER_01",
+                        "source_audio_wav": str(audio),
+                        "review_candidates": [
+                            {"start": 12.06, "end": 16.06, "text": "candidate one"},
+                            {"start": 144.6, "end": 148.6, "text": "candidate two"},
+                        ],
+                    }
+                )
+            )
+            (clips / "candidate-01-001206-001606.wav").write_bytes(b"clip")
+            (clips / "candidate-02-022460-022860.wav").write_bytes(b"clip")
+
+            report = plaud_anchor_review_clip_packet(review_packet=packet, clips_dir=clips)
+
+        self.assertTrue(report["passed"])
+        self.assertFalse(report["human_reviewed"])
+        self.assertEqual(report["clip_count"], 2)
+        self.assertEqual(report["missing_clips"], [])
 
     def test_conan_old_sitcom_report_proves_rejected_diagnostic_stem_asr(self):
         with tempfile.TemporaryDirectory() as tmp:

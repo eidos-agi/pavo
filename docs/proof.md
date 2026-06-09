@@ -159,6 +159,10 @@ Transcript output:
 - Pavo now writes a c37 Speaker 1 anchor review packet with 20 candidate spans
   and suggested `--speaker-correction` values:
   [plaud-c37-speaker1-anchor-review-packet.json](plaud-c37-speaker1-anchor-review-packet.json).
+- Pavo also cuts the 20 real c37 candidate spans into reviewable WAV clips, so
+  a human can listen to the likely Speaker 1 anchors before rerunning the
+  Plaud decompose path with corrections:
+  [plaud-c37-speaker1-anchor-review-clips.json](plaud-c37-speaker1-anchor-review-clips.json).
 - The real-media audit now finds accepted Conan/Kaitlin overlap separation:
   both stems pass the trust gate with wrong-window leakage checks. The accepted
   stem ASR manifest writes trusted global-timed evidence for that overlap.

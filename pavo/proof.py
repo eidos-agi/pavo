@@ -426,6 +426,62 @@ def plaud_anchor_review_packet(
     }
 
 
+def plaud_anchor_review_clip_packet(
+    *,
+    review_packet: Path | str,
+    clips_dir: Path | str,
+) -> dict[str, Any]:
+    packet_path = Path(review_packet)
+    packet = _load_json(packet_path)
+    clips_root = Path(clips_dir)
+    source_audio = Path(str(packet.get("source_audio_wav", "")))
+    clips = []
+    missing_clips = []
+    for index, candidate in enumerate(packet.get("review_candidates", []), start=1):
+        start = candidate.get("start")
+        end = candidate.get("end")
+        clip_name = _review_clip_name(index, start, end)
+        clip_path = clips_root / clip_name
+        present = clip_path.exists() and clip_path.stat().st_size > 0
+        if not present:
+            missing_clips.append(str(clip_path))
+        clips.append(
+            {
+                "index": index,
+                "start": start,
+                "end": end,
+                "duration": _duration(candidate),
+                "text": candidate.get("text"),
+                "confidence": candidate.get("confidence"),
+                "method": candidate.get("method"),
+                "suggested_speaker_correction": (
+                    f"{_format_seconds(start)}-{_format_seconds(end)}={packet.get('target_speaker_label')}"
+                    if start is not None and end is not None
+                    else None
+                ),
+                "clip_path": str(clip_path),
+                "clip_size_bytes": clip_path.stat().st_size if clip_path.exists() else 0,
+                "present": present,
+            }
+        )
+    source_audio_present = source_audio.exists() and source_audio.stat().st_size > 0
+    return {
+        "passed": bool(source_audio_present and clips and not missing_clips),
+        "human_reviewed": False,
+        "target_speaker_label": packet.get("target_speaker_label"),
+        "target_speaker_name": packet.get("target_speaker_name"),
+        "review_packet": str(packet_path),
+        "source_audio_wav": str(source_audio),
+        "source_audio_present": source_audio_present,
+        "clips_dir": str(clips_root),
+        "candidate_count": len(packet.get("review_candidates", [])),
+        "clip_count": sum(1 for clip in clips if clip["present"]),
+        "missing_clips": missing_clips,
+        "clips": clips,
+        "next_required_proof": "human reviewer must listen to the clips, accept clean speaker anchors, then rerun Plaud decompose with those corrections",
+    }
+
+
 def conan_old_sitcom_report(separation_manifest_path: Path | str, stem_asr_manifest_path: Path | str) -> dict[str, Any]:
     separation_manifest = json.loads(Path(separation_manifest_path).read_text())
     stem_asr_manifest = json.loads(Path(stem_asr_manifest_path).read_text())
@@ -672,6 +728,7 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
         "plaud_decompose": _load_json(docs / "plaud-d535-decompose-report.json"),
         "plaud_c37_decompose": _load_json(docs / "plaud-c37-decompose-report.json"),
         "plaud_anchor_quality": _load_json(docs / "plaud-anchor-quality-report.json"),
+        "plaud_anchor_review_clips": _load_json(docs / "plaud-c37-speaker1-anchor-review-clips.json"),
         "demo_video": _load_json(docs / "conan-demo-video-report.json"),
         "accepted_stems": _load_json(docs / "real-media-accepted-stems-audit.json"),
         "stem_asr_improvement": _load_json(docs / "stem-asr-improvement-report.json"),
@@ -754,6 +811,8 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
         "plaud_decompose_attempt_count": plaud_decompose_attempt_count,
         "plaud_accepted_stem_attempt_count": plaud_accepted_stem_attempt_count,
         "plaud_human_reviewed_attempt_count": reports["plaud_anchor_quality"].get("human_reviewed_attempt_count", 0),
+        "plaud_anchor_review_clip_packet_ready": bool(reports["plaud_anchor_review_clips"].get("passed")),
+        "plaud_anchor_review_clip_count": reports["plaud_anchor_review_clips"].get("clip_count", 0),
         "merge_policy_reviewed": merge_policy_reviewed,
         "accepted_real_media_report_count": reports["accepted_stems"].get("accepted_report_count", 0),
         "accepted_real_media_report_with_window_checks_count": reports["accepted_stems"].get(
@@ -804,6 +863,20 @@ def _format_seconds(value: Any) -> str:
     if hour:
         return f"{hour:02d}:{minute:02d}:{second:02d}"
     return f"{minute:02d}:{second:02d}"
+
+
+def _review_clip_name(index: int, start: Any, end: Any) -> str:
+    return f"candidate-{index:02d}-{_format_clip_stamp(start)}-{_format_clip_stamp(end)}.wav"
+
+
+def _format_clip_stamp(value: Any) -> str:
+    centiseconds = max(0, int(round(float(value) * 100)))
+    seconds, centisecond = divmod(centiseconds, 100)
+    minutes, second = divmod(seconds, 60)
+    hour, minute = divmod(minutes, 60)
+    if hour:
+        return f"{hour:02d}{minute:02d}{second:02d}{centisecond:02d}"
+    return f"{minute:02d}{second:02d}{centisecond:02d}"
 
 
 def _stem_report_trusted(stem: dict[str, Any]) -> bool:
