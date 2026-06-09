@@ -101,6 +101,8 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("/api/review-sheet", html)
         self.assertIn("Record note", html)
         self.assertIn("Parse note", html)
+        self.assertIn("voice-waveform", html)
+        self.assertIn("data-waveform", html)
         self.assertIn("/api/review-note", html)
         self.assertIn("/api/review-note-audio", html)
         self.assertIn("File mode: export review notes", html)
@@ -234,6 +236,7 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("/api/review-sheet", html)
         self.assertIn("Record note", html)
         self.assertIn("Parse note", html)
+        self.assertIn("data-waveform", html)
         self.assertIn('data-approve="1"', html)
         self.assertIn('data-reject="1"', html)
         embedded = html.split('<script type="application/json" id="review-sheet-data">', 1)[1].split("</script>", 1)[0]

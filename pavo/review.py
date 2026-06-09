@@ -418,6 +418,25 @@ def create_anchor_review_page(
       background: #b86b5f;
       border-color: #8d3f35;
     }}
+    .voice-waveform {{
+      display: grid;
+      align-items: center;
+      height: 54px;
+      overflow: hidden;
+      border: 1px solid #c7d9cc;
+      border-radius: 999px;
+      background: #10251b;
+      padding: 0 14px;
+    }}
+    .voice-waveform canvas {{
+      display: block;
+      width: 100%;
+      height: 38px;
+    }}
+    .voice-review.recording .voice-waveform {{
+      border-color: #8ed39a;
+      box-shadow: 0 0 0 3px rgba(142, 211, 154, 0.25);
+    }}
     .voice-status,
     .parsed-review {{
       color: #4f665b;
@@ -610,6 +629,80 @@ def create_anchor_review_page(
       if (target) target.textContent = message;
     }}
 
+    function setVoiceRecordingState(index, isRecording) {{
+      const card = document.querySelector(`[data-review-index="${{index}}"]`);
+      const panel = card ? card.querySelector(".voice-review") : null;
+      if (panel) panel.classList.toggle("recording", isRecording);
+    }}
+
+    function drawIdleWaveform(canvas) {{
+      if (!canvas) return;
+      const context = canvas.getContext("2d");
+      const width = canvas.width = canvas.offsetWidth || 600;
+      const height = canvas.height = canvas.offsetHeight || 38;
+      context.clearRect(0, 0, width, height);
+      const barCount = 42;
+      const gap = 3;
+      const barWidth = Math.max(2, (width - gap * (barCount - 1)) / barCount);
+      for (let index = 0; index < barCount; index += 1) {{
+        const phase = index / barCount;
+        const amplitude = 0.18 + Math.abs(Math.sin(phase * Math.PI * 3)) * 0.28;
+        const barHeight = Math.max(4, amplitude * height);
+        const x = index * (barWidth + gap);
+        const y = (height - barHeight) / 2;
+        context.fillStyle = "rgba(215, 245, 221, 0.58)";
+        context.fillRect(x, y, barWidth, barHeight);
+      }}
+    }}
+
+    function startWaveform(index, stream) {{
+      const card = document.querySelector(`[data-review-index="${{index}}"]`);
+      const canvas = card ? card.querySelector("[data-waveform]") : null;
+      if (!canvas || !window.AudioContext && !window.webkitAudioContext) {{
+        return {{}};
+      }}
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      const audioContext = new AudioContextClass();
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 128;
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const context = canvas.getContext("2d");
+      const draw = () => {{
+        const width = canvas.width = canvas.offsetWidth || 600;
+        const height = canvas.height = canvas.offsetHeight || 38;
+        analyser.getByteFrequencyData(data);
+        context.clearRect(0, 0, width, height);
+        const barCount = Math.min(48, data.length);
+        const gap = 3;
+        const barWidth = Math.max(2, (width - gap * (barCount - 1)) / barCount);
+        for (let index = 0; index < barCount; index += 1) {{
+          const value = data[index] / 255;
+          const eased = Math.max(0.08, value * 0.95);
+          const barHeight = Math.max(4, eased * height);
+          const x = index * (barWidth + gap);
+          const y = (height - barHeight) / 2;
+          const green = 150 + Math.round(value * 85);
+          context.fillStyle = `rgb(142, ${{green}}, 154)`;
+          context.fillRect(x, y, barWidth, barHeight);
+        }}
+        activeRecording.waveformFrame = requestAnimationFrame(draw);
+      }};
+      draw();
+      return {{ audioContext, canvas }};
+    }}
+
+    function stopWaveform(recording) {{
+      if (!recording) return;
+      if (recording.waveformFrame) cancelAnimationFrame(recording.waveformFrame);
+      if (recording.audioContext) {{
+        try {{ recording.audioContext.close(); }} catch (error) {{}}
+      }}
+      drawIdleWaveform(recording.canvas);
+      setVoiceRecordingState(recording.index, false);
+    }}
+
     function buildReviewedSheet() {{
       const rows = originalSheet.rows.map((row) => {{
         const decision = decisions.get(String(row.index)) || {{}};
@@ -722,6 +815,8 @@ def create_anchor_review_page(
       recorder.onstop = async () => {{
         button.textContent = "Record note";
         button.classList.remove("active");
+        const stoppedRecording = activeRecording;
+        stopWaveform(stoppedRecording);
         stream.getTracks().forEach((track) => track.stop());
         if (recognition) {{
           try {{ recognition.stop(); }} catch (error) {{}}
@@ -749,6 +844,8 @@ def create_anchor_review_page(
         }}
       }};
       activeRecording = {{ index: String(index), recorder, recognition }};
+      Object.assign(activeRecording, startWaveform(index, stream));
+      setVoiceRecordingState(index, true);
       recorder.start();
       button.textContent = "Stop recording";
       button.classList.add("active");
@@ -805,6 +902,7 @@ def create_anchor_review_page(
         const note = card.querySelector("[data-note]");
         if (note) note.value = decision.reviewer_note;
         renderParsedReview(card, decision.review_parse);
+        drawIdleWaveform(card.querySelector("[data-waveform]"));
       }});
       updateCount();
       markDirty();
@@ -833,6 +931,7 @@ def create_anchor_review_page(
         const note = card.querySelector("[data-note]");
         if (note && decision) note.value = decision.reviewer_note;
         if (decision) renderParsedReview(card, decision.review_parse);
+        drawIdleWaveform(card.querySelector("[data-waveform]"));
       }});
       updateCount();
     }}
@@ -1545,6 +1644,7 @@ def _spoken_review_controls(row: dict[str, Any]) -> str:
       <button type="button" class="secondary" data-parse-note="{index}">Parse note</button>
       <span class="voice-status" data-voice-status>{escape(status)}</span>
     </div>
+    <div class="voice-waveform" aria-hidden="true"><canvas data-waveform="{index}"></canvas></div>
     <div class="parsed-review" data-parsed-review>{escape(parse_text)}</div>
   </div>"""
 
