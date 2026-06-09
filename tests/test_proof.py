@@ -97,6 +97,7 @@ class ProofTests(unittest.TestCase):
         self.assertEqual(report["proved_count"], 25)
         self.assertFalse(report["accepted_real_media_stems"])
         self.assertTrue(report["merge_policy_reviewed"])
+        self.assertGreater(report["reviewable_real_media_stem_count"], 0)
         self.assertIn("real accepted stems on a real overlap clip", report["remaining_gaps"])
         self.assertNotIn("reviewed merge policy for when stem ASR can augment or override the canonical transcript", report["remaining_gaps"])
 
@@ -595,6 +596,40 @@ class ProofTests(unittest.TestCase):
         self.assertFalse(report["passed"])
         self.assertEqual(report["accepted_report_count"], 0)
         self.assertEqual(report["rejected_report_count"], 1)
+
+    def test_real_media_accepted_stems_audit_counts_reviewable_stems_without_passing_region(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            region = root / "region-01"
+            region.mkdir()
+            (region / "analysis.json").write_text(
+                json.dumps(
+                    {
+                        "accepted": False,
+                        "region": {"start": 10.0, "end": 12.0},
+                        "stem_reports": {
+                            "speaker-a": {
+                                "target": "Speaker A",
+                                "wrong_rate": 0.0,
+                                "whole_clip": {"best": "Speaker A", "margin": 0.2},
+                            },
+                            "speaker-b": {
+                                "target": "Speaker B",
+                                "wrong_rate": 1.0,
+                                "whole_clip": {"best": "Speaker A", "margin": 0.01},
+                            },
+                        },
+                    }
+                )
+            )
+
+            report = real_media_accepted_stems_audit(root)
+
+        self.assertFalse(report["passed"])
+        self.assertEqual(report["accepted_report_count"], 0)
+        self.assertEqual(report["trusted_stem_count"], 1)
+        self.assertEqual(report["trusted_stem_report_count"], 1)
+        self.assertEqual(report["trusted_stem_reports"][0]["trusted_stems"], ["speaker-a"])
 
     def test_proof_status_summary_keeps_goal_open_without_real_accepted_stems(self):
         with tempfile.TemporaryDirectory() as tmp:

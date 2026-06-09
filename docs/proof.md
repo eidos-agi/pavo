@@ -148,6 +148,10 @@ Transcript output:
   three separated regions, diagnostic stem ASR, and manifests.
 - The separated regions in that Plaud run are still rejected by the quality
   gates, so this is not accepted-stem proof.
+- The real-media audit now finds 4 reviewable individual stems that pass the
+  per-stem trust gate, but 0 whole overlap regions are accepted. That means the
+  system is identifying useful partial separated audio, but it has not yet
+  proven clean two-speaker accepted separation on real media.
 - Pavo does not currently run genetic algorithms.
 - The merge policy is now proven by
   [stem-merge-policy-report.json](stem-merge-policy-report.json); the remaining

@@ -354,6 +354,11 @@ def real_media_accepted_stems_audit(cache_root: Path | str) -> dict[str, Any]:
         if "stem_reports" not in payload:
             continue
         stem_reports = payload.get("stem_reports", {})
+        trusted_stems = {
+            slug: stem
+            for slug, stem in stem_reports.items()
+            if _stem_report_trusted(stem)
+        }
         separation_reports.append(
             {
                 "path": str(path),
@@ -361,21 +366,29 @@ def real_media_accepted_stems_audit(cache_root: Path | str) -> dict[str, Any]:
                 "region_start": payload.get("region", {}).get("start"),
                 "region_end": payload.get("region", {}).get("end"),
                 "stem_count": len(stem_reports),
+                "trusted_stem_count": len(trusted_stems),
+                "trusted_stems": sorted(trusted_stems),
                 "wrong_rates": {slug: stem.get("wrong_rate") for slug, stem in stem_reports.items()},
                 "margins": {slug: stem.get("whole_clip", {}).get("margin") for slug, stem in stem_reports.items()},
             }
         )
 
     accepted = [report for report in separation_reports if report["accepted"]]
+    trusted_stem_reports = [report for report in separation_reports if report["trusted_stem_count"] > 0]
+    trusted_stem_count = sum(report["trusted_stem_count"] for report in separation_reports)
     return {
         "passed": bool(accepted),
         "cache_root": str(root),
         "separation_report_count": len(separation_reports),
         "accepted_report_count": len(accepted),
         "rejected_report_count": len(separation_reports) - len(accepted),
+        "trusted_stem_count": trusted_stem_count,
+        "trusted_stem_report_count": len(trusted_stem_reports),
+        "trusted_stem_reports": trusted_stem_reports,
         "accepted_reports": accepted,
         "reports": separation_reports,
         "next_required_proof": "at least one real-media overlap separation report with accepted: true and trusted stem ASR evidence",
+        "note": "trusted individual stems are reviewable evidence, but rejected regions still do not produce trusted canonical stem ASR",
     }
 
 
@@ -455,6 +468,8 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
         "accepted_real_media_stems": accepted_real_media_stems,
         "merge_policy_reviewed": merge_policy_reviewed,
         "accepted_real_media_report_count": reports["accepted_stems"].get("accepted_report_count", 0),
+        "reviewable_real_media_stem_count": reports["accepted_stems"].get("trusted_stem_count", 0),
+        "reviewable_real_media_stem_report_count": reports["accepted_stems"].get("trusted_stem_report_count", 0),
         "real_media_separation_report_count": reports["accepted_stems"].get("separation_report_count", 0),
         "remaining_gaps": remaining_gaps,
     }
@@ -462,6 +477,17 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
 
 def _load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text()) if path.exists() else {}
+
+
+def _stem_report_trusted(stem: dict[str, Any]) -> bool:
+    if stem.get("trusted") is True:
+        return True
+    whole = stem.get("whole_clip", {})
+    return bool(
+        whole.get("best") == stem.get("target")
+        and (stem.get("wrong_rate") is None or stem.get("wrong_rate") <= 0.15)
+        and float(whole.get("margin") or 0.0) >= 0.05
+    )
 
 
 def _automated_tests(start: int, end: int) -> list[dict[str, Any]]:

@@ -235,6 +235,8 @@
   "accepted_real_media_stems": false,
   "merge_policy_reviewed": true,
   "accepted_real_media_report_count": 0,
+  "reviewable_real_media_stem_count": 4,
+  "reviewable_real_media_stem_report_count": 4,
   "real_media_separation_report_count": 6,
   "remaining_gaps": [
     "real accepted stems on a real overlap clip",
