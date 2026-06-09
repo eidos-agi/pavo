@@ -257,10 +257,15 @@ def create_anchor_review_page(
     page_path = Path(out_path) if out_path else sheet_path.with_suffix(".html")
     rows = sheet.get("rows", [])
     pending = [row for row in rows if row.get("status") == "pending"]
-    cards = "\n".join(_review_card(row) for row in rows)
+    labels = _review_labels(sheet)
+    cards = "\n".join(_review_card(row, labels=labels) for row in rows)
     sheet_json = json.dumps(sheet).replace("</", "<\\/")
     download_name_json = json.dumps(sheet_path.name)
-    title = f"Pavo Anchor Review - {sheet.get('target_speaker_name') or sheet.get('target_speaker_label') or 'Speaker'}"
+    title = sheet.get("review_title") or f"Pavo Anchor Review - {sheet.get('target_speaker_name') or sheet.get('target_speaker_label') or 'Speaker'}"
+    instructions = _review_instructions(sheet, sheet_path)
+    export_label = sheet.get("export_label") or "Export reviewed JSON"
+    reset_label = sheet.get("reset_label") or "Reset page decisions"
+    status_labels_json = json.dumps(labels["status"])
     html = f"""<!doctype html>
 <html lang="en">
 <head>
@@ -378,6 +383,23 @@ def create_anchor_review_page(
       flex-wrap: wrap;
       margin: 12px 0;
     }}
+    .review-controls button.active {{
+      background: #8ed39a;
+      border-color: #174835;
+      color: #10251b;
+      font-weight: 700;
+    }}
+    article.review-approved {{
+      border-color: #4c9560;
+      box-shadow: inset 4px 0 0 #4c9560;
+    }}
+    article.review-rejected {{
+      border-color: #b86b5f;
+      box-shadow: inset 4px 0 0 #b86b5f;
+    }}
+    article.review-pending {{
+      box-shadow: inset 4px 0 0 #d2b35f;
+    }}
     textarea {{
       width: 100%;
       box-sizing: border-box;
@@ -405,18 +427,10 @@ def create_anchor_review_page(
     </div>
   </header>
   <main>
-    <section class="instructions">
-      Listen for clean {escape(str(sheet.get('target_speaker_label') or 'target speaker'))} anchor clips.
-      Approve only clean target-speaker clips. Reject uncertain, overlapping, noisy, or wrong-speaker clips.
-      Export the reviewed JSON sheet, import it with
-      <code>pavo review anchors import {escape(str(sheet_path))} ~/Downloads/{escape(sheet_path.name)}</code>,
-      print the corrected decompose command with
-      <code>pavo review anchors rerun-command {escape(str(sheet_path))} /path/to/pavo-decompose-manifest.json</code>,
-      then rerun decomposition and regenerate the Plaud proof report.
-    </section>
+    {instructions}
     <section class="actions">
-      <button type="button" id="export-json">Export reviewed JSON</button>
-      <button type="button" class="secondary" id="reset-review">Reset page decisions</button>
+      <button type="button" id="export-json">{escape(str(export_label))}</button>
+      <button type="button" class="secondary" id="reset-review">{escape(str(reset_label))}</button>
       <span id="review-count">{len(pending)} pending</span>
     </section>
     {cards}
@@ -424,6 +438,7 @@ def create_anchor_review_page(
   <script type="application/json" id="review-sheet-data">{sheet_json}</script>
   <script>
     const originalSheet = JSON.parse(document.getElementById("review-sheet-data").textContent);
+    const statusLabels = {status_labels_json};
     const decisions = new Map(originalSheet.rows.map((row) => [String(row.index), {{
       status: row.status || "pending",
       approved: row.approved === true,
@@ -438,7 +453,7 @@ def create_anchor_review_page(
       decisions.set(key, current);
       const card = document.querySelector(`[data-review-index="${{key}}"]`);
       if (card) {{
-        card.querySelector("[data-status]").textContent = status;
+        applyDecisionToCard(card, status);
       }}
       updateCount();
     }}
@@ -477,7 +492,16 @@ def create_anchor_review_page(
     function updateCount() {{
       const reviewed = buildReviewedSheet();
       document.getElementById("review-count").textContent =
-        `${{reviewed.approved_count}} approved, ${{reviewed.rejected_count}} rejected, ${{reviewed.pending_count}} pending`;
+        `${{reviewed.approved_count}} ${{statusLabels.approved.toLowerCase()}}, ${{reviewed.rejected_count}} ${{statusLabels.rejected.toLowerCase()}}, ${{reviewed.pending_count}} ${{statusLabels.pending.toLowerCase()}}`;
+    }}
+
+    function applyDecisionToCard(card, status) {{
+      card.classList.remove("review-approved", "review-rejected", "review-pending");
+      card.classList.add(`review-${{status}}`);
+      card.querySelector("[data-status]").textContent = statusLabels[status] || status;
+      card.querySelectorAll("[data-decision]").forEach((button) => {{
+        button.classList.toggle("active", button.dataset.decision === status);
+      }});
     }}
 
     document.querySelectorAll("[data-approve]").forEach((button) => {{
@@ -510,11 +534,15 @@ def create_anchor_review_page(
       document.querySelectorAll("[data-review-index]").forEach((card) => {{
         const index = card.dataset.reviewIndex;
         const decision = decisions.get(index);
-        card.querySelector("[data-status]").textContent = decision.status;
+        applyDecisionToCard(card, decision.status);
         const note = card.querySelector("[data-note]");
         if (note) note.value = decision.reviewer_note;
       }});
       updateCount();
+    }});
+    document.querySelectorAll("[data-review-index]").forEach((card) => {{
+      const decision = decisions.get(card.dataset.reviewIndex);
+      applyDecisionToCard(card, decision.status || "pending");
     }});
     updateCount();
   </script>
@@ -738,12 +766,14 @@ def verify_anchor_review_page(
             embedded_sheet_present = len(embedded.get("rows", [])) == candidate_count
         except json.JSONDecodeError:
             embedded_sheet_present = False
+    requires_import = sheet.get("requires_import_instruction", True)
+    requires_rerun = sheet.get("requires_rerun_instruction", True)
     checks = {
         "export button": parser.export_button_present,
         "reset button": parser.reset_button_present,
         "embedded sheet JSON": embedded_sheet_present,
-        "import instruction": "pavo review anchors import" in html,
-        "rerun instruction": "pavo review anchors rerun-command" in html,
+        "import instruction": (not requires_import) or "pavo review anchors import" in html,
+        "rerun instruction": (not requires_rerun) or "pavo review anchors rerun-command" in html,
     }
     for label, present in checks.items():
         if not present:
@@ -915,7 +945,7 @@ def _imported_review_row(original: dict[str, Any], reviewed: dict[str, Any]) -> 
     return row
 
 
-def _review_card(row: dict[str, Any]) -> str:
+def _review_card(row: dict[str, Any], *, labels: dict[str, Any]) -> str:
     clip_path = row.get("clip_path")
     audio_src = _audio_src(clip_path)
     correction = row.get("suggested_speaker_correction") or _speaker_correction(
@@ -923,26 +953,75 @@ def _review_card(row: dict[str, Any]) -> str:
     )
     index = escape(str(row.get("index")))
     note = escape(str(row.get("reviewer_note") or ""))
-    return f"""<article data-review-index="{index}">
+    status = str(row.get("status") or "pending")
+    status_label = labels["status"].get(status, status)
+    approve_label = labels["buttons"]["approved"]
+    reject_label = labels["buttons"]["rejected"]
+    pending_label = labels["buttons"]["pending"]
+    expected = row.get("expected_behavior")
+    correction_rows = (
+        f"""    <dt>Expected behavior</dt><dd>{escape(str(expected))}</dd>"""
+        if expected
+        else f"""    <dt>Correction</dt><dd><code>{escape(str(correction or ''))}</code></dd>"""
+    )
+    return f"""<article data-review-index="{index}" class="review-{escape(status)}">
   <div class="row-head">
     <h2>Clip {index}</h2>
-    <span class="status" data-status>{escape(str(row.get('status') or 'pending'))}</span>
+    <span class="status" data-status>{escape(str(status_label))}</span>
   </div>
   <audio controls preload="metadata" src="{escape(audio_src)}"></audio>
   <div class="review-controls">
-    <button type="button" data-approve="{index}">Approve</button>
-    <button type="button" class="secondary" data-reject="{index}">Reject</button>
-    <button type="button" class="secondary" data-pending="{index}">Pending</button>
+    <button type="button" data-decision="approved" data-approve="{index}">{escape(str(approve_label))}</button>
+    <button type="button" data-decision="rejected" class="secondary" data-reject="{index}">{escape(str(reject_label))}</button>
+    <button type="button" data-decision="pending" class="secondary" data-pending="{index}">{escape(str(pending_label))}</button>
   </div>
   <textarea data-note="{index}" placeholder="Reviewer note">{note}</textarea>
   <dl>
     <dt>Time</dt><dd>{escape(str(row.get('start')))} - {escape(str(row.get('end')))} seconds</dd>
     <dt>Text</dt><dd>{escape(str(row.get('text') or ''))}</dd>
     <dt>Target</dt><dd>{escape(str(row.get('target_speaker_label') or ''))} / {escape(str(row.get('target_speaker_name') or ''))}</dd>
-    <dt>Correction</dt><dd><code>{escape(str(correction or ''))}</code></dd>
+{correction_rows}
     <dt>Clip path</dt><dd>{escape(str(clip_path or ''))}</dd>
   </dl>
 </article>"""
+
+
+def _review_labels(sheet: dict[str, Any]) -> dict[str, Any]:
+    labels = sheet.get("review_labels") or {}
+    button_labels = labels.get("buttons") or {}
+    status_labels = labels.get("status") or {}
+    return {
+        "buttons": {
+            "approved": button_labels.get("approved") or "Approve",
+            "rejected": button_labels.get("rejected") or "Reject",
+            "pending": button_labels.get("pending") or "Pending",
+        },
+        "status": {
+            "approved": status_labels.get("approved") or "approved",
+            "rejected": status_labels.get("rejected") or "rejected",
+            "pending": status_labels.get("pending") or "pending",
+        },
+    }
+
+
+def _review_instructions(sheet: dict[str, Any], sheet_path: Path) -> str:
+    lines = sheet.get("page_instructions")
+    if lines:
+        items = "\n".join(f"      <li>{escape(str(line))}</li>" for line in lines)
+        return f"""<section class="instructions">
+      <ul>
+{items}
+      </ul>
+    </section>"""
+    return f"""<section class="instructions">
+      Listen for clean {escape(str(sheet.get('target_speaker_label') or 'target speaker'))} anchor clips.
+      Approve only clean target-speaker clips. Reject uncertain, overlapping, noisy, or wrong-speaker clips.
+      Export the reviewed JSON sheet, import it with
+      <code>pavo review anchors import {escape(str(sheet_path))} ~/Downloads/{escape(sheet_path.name)}</code>,
+      print the corrected decompose command with
+      <code>pavo review anchors rerun-command {escape(str(sheet_path))} /path/to/pavo-decompose-manifest.json</code>,
+      then rerun decomposition and regenerate the Plaud proof report.
+    </section>"""
 
 
 def _audio_src(clip_path: Any) -> str:

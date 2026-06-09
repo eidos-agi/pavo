@@ -35,5 +35,18 @@
   },
   "review_url": "http://127.0.0.1:9877/index.html",
   "serve_command": "pavo review anchors serve docs/conan-real-media-review-bundle --port 9877",
-  "next_action": "review the cleaner Conan mixed/stem clips and export reviewed JSON if human confirmation is needed"
+  "next_action": "review the cleaner Conan mixed/stem clips and export reviewed JSON if human confirmation is needed",
+  "ux_revision": "conan-specific review labels and expected behavior cards",
+  "review_labels": {
+    "buttons": {
+      "approved": "Matches expected",
+      "rejected": "Does not match",
+      "pending": "Needs review"
+    },
+    "status": {
+      "approved": "Matches expected",
+      "rejected": "Does not match",
+      "pending": "Needs review"
+    }
+  }
 }
