@@ -77,6 +77,7 @@ Status values:
    - Evidence: [nz-slang-comparison-report.json](nz-slang-comparison-report.json)
 24. Plaud Real Recording Test - `fixture-backed`
    - Evidence: single-speaker Plaud proof exists; multi-speaker overlap proof is still missing.
+   - Evidence: [plaud-real-recording-report.json](plaud-real-recording-report.json)
 25. End-to-End Demo Video Test - `fixture-backed`
    - Evidence: `~/Eidos/Pavo/demos/conan-pavo-demo/pavo-conan-demo.mp4`.
    - Evidence: [conan-demo-video-report.json](conan-demo-video-report.json)

@@ -138,6 +138,60 @@ def conan_demo_video_report(
     }
 
 
+def plaud_real_recording_report(recording_dir: Path | str) -> dict[str, Any]:
+    root = Path(recording_dir)
+    pavo_manifest_path = root / "pavo-transcribe-manifest.json"
+    pavo_manifest = json.loads(pavo_manifest_path.read_text()) if pavo_manifest_path.exists() else {}
+    audio_path = Path(pavo_manifest.get("audio_path", root / "audio.mp3"))
+    eidos_manifest_path = Path(pavo_manifest.get("eidos_transcribe_manifest", root / "transcribe" / "manifest.json"))
+    eidos_manifest = json.loads(eidos_manifest_path.read_text()) if eidos_manifest_path.exists() else {}
+    ensemble_path = Path(eidos_manifest.get("ensemble", root / "transcribe" / "ensembled-contextual-transcript.md"))
+    raw_outputs = eidos_manifest.get("raw_outputs", {})
+    raw_output_paths = [Path(path) for path in raw_outputs.values()]
+    required_transcribe_paths = [pavo_manifest_path, audio_path, eidos_manifest_path, ensemble_path, *raw_output_paths]
+    missing_transcribe_paths = [str(path) for path in required_transcribe_paths if not path.exists()]
+
+    decompose_manifest = root / "pavo-decompose-manifest.json"
+    eidos_decompose_manifest = root / "decompose-transcribe" / "decompose-transcribe.manifest.json"
+    speaker_manifest = root / "decompose-transcribe" / "speaker-pipeline" / "speaker-pipeline.manifest.json"
+    stem_asr_manifest = root / "decompose-transcribe" / "stem-asr" / "stem-asr.manifest.json"
+    transcribe_complete = bool(
+        pavo_manifest.get("recording_id")
+        and pavo_manifest.get("audio_sha256")
+        and pavo_manifest.get("engines")
+        and eidos_manifest.get("method")
+        and not missing_transcribe_paths
+    )
+    stages = {
+        "download": audio_path.exists() and audio_path.stat().st_size > 0,
+        "transcribe": transcribe_complete,
+        "voiceprints": speaker_manifest.exists(),
+        "speaker_change_detection": speaker_manifest.exists(),
+        "decomposition": decompose_manifest.exists() and eidos_decompose_manifest.exists(),
+        "stem_asr": stem_asr_manifest.exists(),
+    }
+    missing_stages = [name for name, present in stages.items() if not present]
+    full_item_24_passed = all(stages.values())
+    return {
+        "passed": full_item_24_passed,
+        "partial": transcribe_complete and not full_item_24_passed,
+        "recording_id": pavo_manifest.get("recording_id"),
+        "audio_sha256": pavo_manifest.get("audio_sha256"),
+        "audio_path": str(audio_path),
+        "audio_size_bytes": audio_path.stat().st_size if audio_path.exists() else 0,
+        "engines": pavo_manifest.get("engines", []),
+        "context_terms": pavo_manifest.get("context_terms", []),
+        "pavo_manifest": str(pavo_manifest_path),
+        "eidos_transcribe_manifest": str(eidos_manifest_path),
+        "ensemble": str(ensemble_path),
+        "raw_output_count": len(raw_output_paths),
+        "missing_transcribe_paths": missing_transcribe_paths,
+        "stages": stages,
+        "missing_stages": missing_stages,
+        "next_required_proof": "real multi-speaker Plaud recording with voiceprints, speaker changes, decomposition, stem ASR, and manifests",
+    }
+
+
 def _find_case(comparison: dict[str, Any], label: str) -> dict[str, Any]:
     for case in comparison.get("cases", []):
         if case.get("label") == label:

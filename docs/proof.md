@@ -104,6 +104,12 @@ The `eidos-transcribe` manifest records:
 }
 ```
 
+Machine-readable proof report:
+
+- [plaud-real-recording-report.json](plaud-real-recording-report.json)
+- Current result: `partial: true`
+- Full item-24 result: `passed: false`
+
 Transcript output:
 
 ```text
@@ -127,6 +133,9 @@ Transcript output:
 - This Plaud proof recording is not a multi-speaker overlap recording.
 - The proof above does not show a full real-world separated two-speaker Plaud
   call.
+- The machine-readable report currently marks voiceprints, speaker-change
+  detection, decomposition, and stem ASR as missing for this real Plaud
+  recording.
 - Pavo does not currently run genetic algorithms.
 
 The next proof target should be a real two-speaker Plaud recording with overlap,

@@ -3,7 +3,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from pavo.proof import conan_demo_video_report, conan_experience_comparison_report, nz_slang_comparison_report
+from pavo.proof import (
+    conan_demo_video_report,
+    conan_experience_comparison_report,
+    nz_slang_comparison_report,
+    plaud_real_recording_report,
+)
 
 
 class ProofTests(unittest.TestCase):
@@ -34,6 +39,17 @@ class ProofTests(unittest.TestCase):
         self.assertTrue(report["comparison_valid"])
         self.assertTrue(report["narration_present"])
         self.assertEqual(report["missing_sections"], [])
+
+    def test_committed_plaud_real_recording_report_is_partial_not_full_item_24(self):
+        report_path = Path(__file__).resolve().parents[1] / "docs" / "plaud-real-recording-report.json"
+        report = json.loads(report_path.read_text())
+
+        self.assertFalse(report["passed"])
+        self.assertTrue(report["partial"])
+        self.assertTrue(report["stages"]["download"])
+        self.assertTrue(report["stages"]["transcribe"])
+        self.assertIn("decomposition", report["missing_stages"])
+        self.assertIn("stem_asr", report["missing_stages"])
 
     def test_conan_experience_comparison_proves_pavo_adds_named_speaker_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -192,6 +208,100 @@ class ProofTests(unittest.TestCase):
 
         self.assertFalse(report["passed"])
         self.assertEqual(report["missing_sections"], ["02-youtube.mp4"])
+
+    def test_plaud_real_recording_report_marks_transcribe_only_run_as_partial(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            audio = root / "audio.mp3"
+            audio.write_bytes(b"audio")
+            transcribe = root / "transcribe"
+            raw_dir = transcribe / "faster-whisper"
+            raw_dir.mkdir(parents=True)
+            raw_json = raw_dir / "transcript.json"
+            raw_json.write_text("{}\n")
+            ensemble = transcribe / "ensembled-contextual-transcript.md"
+            ensemble.write_text("# transcript\n")
+            eidos_manifest = transcribe / "manifest.json"
+            eidos_manifest.write_text(
+                json.dumps(
+                    {
+                        "engines": ["faster-whisper"],
+                        "raw_outputs": {"faster-whisper": str(raw_json)},
+                        "ensemble": str(ensemble),
+                        "method": "timed primary-spine ensemble",
+                    }
+                )
+            )
+            (root / "pavo-transcribe-manifest.json").write_text(
+                json.dumps(
+                    {
+                        "recording_id": "rec_123",
+                        "audio_path": str(audio),
+                        "audio_sha256": "abc123",
+                        "eidos_transcribe_manifest": str(eidos_manifest),
+                        "engines": ["faster-whisper"],
+                        "context_terms": ["Plaud", "Pavo"],
+                    }
+                )
+            )
+
+            report = plaud_real_recording_report(root)
+
+        self.assertFalse(report["passed"])
+        self.assertTrue(report["partial"])
+        self.assertTrue(report["stages"]["download"])
+        self.assertTrue(report["stages"]["transcribe"])
+        self.assertFalse(report["stages"]["decomposition"])
+        self.assertEqual(report["missing_transcribe_paths"], [])
+
+    def test_plaud_real_recording_report_passes_when_all_item_24_manifests_exist(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            audio = root / "audio.mp3"
+            audio.write_bytes(b"audio")
+            transcribe = root / "transcribe"
+            raw_dir = transcribe / "faster-whisper"
+            raw_dir.mkdir(parents=True)
+            raw_json = raw_dir / "transcript.json"
+            raw_json.write_text("{}\n")
+            ensemble = transcribe / "ensembled-contextual-transcript.md"
+            ensemble.write_text("# transcript\n")
+            eidos_manifest = transcribe / "manifest.json"
+            eidos_manifest.write_text(
+                json.dumps(
+                    {
+                        "engines": ["faster-whisper"],
+                        "raw_outputs": {"faster-whisper": str(raw_json)},
+                        "ensemble": str(ensemble),
+                        "method": "timed primary-spine ensemble",
+                    }
+                )
+            )
+            (root / "pavo-transcribe-manifest.json").write_text(
+                json.dumps(
+                    {
+                        "recording_id": "rec_123",
+                        "audio_path": str(audio),
+                        "audio_sha256": "abc123",
+                        "eidos_transcribe_manifest": str(eidos_manifest),
+                        "engines": ["faster-whisper"],
+                        "context_terms": ["Plaud", "Pavo"],
+                    }
+                )
+            )
+            decompose = root / "decompose-transcribe"
+            (decompose / "speaker-pipeline").mkdir(parents=True)
+            (decompose / "stem-asr").mkdir()
+            (root / "pavo-decompose-manifest.json").write_text("{}\n")
+            (decompose / "decompose-transcribe.manifest.json").write_text("{}\n")
+            (decompose / "speaker-pipeline" / "speaker-pipeline.manifest.json").write_text("{}\n")
+            (decompose / "stem-asr" / "stem-asr.manifest.json").write_text("{}\n")
+
+            report = plaud_real_recording_report(root)
+
+        self.assertTrue(report["passed"])
+        self.assertFalse(report["partial"])
+        self.assertEqual(report["missing_stages"], [])
 
 
 if __name__ == "__main__":
