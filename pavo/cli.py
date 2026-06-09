@@ -32,6 +32,18 @@ def build_parser() -> argparse.ArgumentParser:
     audio_process.add_argument("--context-file", type=Path, help="Context file to pass to eidos-transcribe")
     audio_process.add_argument("--engine", action="append", default=[], help="ASR engine to run; repeatable. Defaults to faster-whisper.")
     audio_process.add_argument("--num-speakers", type=int, help="Expected speaker count")
+    audio_process.add_argument(
+        "--speaker",
+        action="append",
+        default=[],
+        help="Speaker mapping as SPEAKER_01=Full Name=slug; repeatable",
+    )
+    audio_process.add_argument(
+        "--speaker-correction",
+        action="append",
+        default=[],
+        help="Reviewed override as start-end=SPEAKER_00; repeatable",
+    )
 
     transcribe = subparsers.add_parser("transcribe", help="Transcribe a Plaud recording with eidos-transcribe")
     transcribe.add_argument("recording_id")
@@ -114,6 +126,8 @@ def main(argv: list[str] | None = None) -> int:
                         context_file=args.context_file,
                         engines=args.engine or ["faster-whisper"],
                         num_speakers=args.num_speakers,
+                        speakers=args.speaker,
+                        speaker_corrections=args.speaker_correction,
                     )
                 )
             except (FileNotFoundError, subprocess.CalledProcessError, RuntimeError) as exc:

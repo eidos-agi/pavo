@@ -165,7 +165,9 @@ pavo plaud files
 pavo plaud audio-url <recording-id>
 pavo plaud download <recording-id>
 pavo audio doctor
-pavo audio process ./clip.mp4 --source-id youtube_<id> --num-speakers 6
+pavo audio process ./clip.mp4 --source-id youtube_<id> --num-speakers 6 \
+  --speaker "SPEAKER_00=Conan O'Brien=conan-obrien" \
+  --speaker-correction "00:00-00:06=SPEAKER_00"
 pavo transcribe <recording-id> --context-term Plaud
 ```
 
@@ -182,6 +184,9 @@ its own run manifest next to the audio as `pavo-transcribe-manifest.json`.
 `eidos-transcribe process-call`, including speaker analysis. It writes output to
 `~/Eidos/Pavo/cache/imports/<source-id>/process-call/` and records a
 `pavo-process-manifest.json` with the source file hash and command.
+Pass `--speaker` only for labels you have reviewed, and use
+`--speaker-correction` for trusted time ranges where a human or video frame has
+confirmed the speaker.
 
 ## Tests
 

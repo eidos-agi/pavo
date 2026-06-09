@@ -102,6 +102,11 @@ class TranscribeTests(unittest.TestCase):
                     context_terms=["Danny DeVito", "Conan"],
                     engines=["faster-whisper"],
                     num_speakers=4,
+                    speakers=[
+                        "SPEAKER_00=Conan O'Brien=conan-obrien",
+                        "SPEAKER_01=Kaitlin Olson=kaitlin-olson",
+                    ],
+                    speaker_corrections=["00:00-00:06=SPEAKER_00"],
                 ),
                 runner=runner,
             )
@@ -111,8 +116,20 @@ class TranscribeTests(unittest.TestCase):
             self.assertEqual(calls[0][0:2], ["eidos-transcribe", "process-call"])
             self.assertIn("--num-speakers", calls[0])
             self.assertIn("4", calls[0])
+            self.assertIn("--speaker", calls[0])
+            self.assertIn("SPEAKER_00=Conan O'Brien=conan-obrien", calls[0])
+            self.assertIn("--speaker-correction", calls[0])
+            self.assertIn("00:00-00:06=SPEAKER_00", calls[0])
             self.assertTrue(result.manifest_path.exists())
             manifest = json.loads(result.manifest_path.read_text())
             self.assertEqual(manifest["source_id"], "youtube_KxJWK8R7uVQ")
             self.assertEqual(manifest["title"], "When The Always Sunny Cast Met Danny DeVito")
             self.assertEqual(manifest["context_terms"], ["Danny DeVito", "Conan"])
+            self.assertEqual(
+                manifest["speakers"],
+                [
+                    "SPEAKER_00=Conan O'Brien=conan-obrien",
+                    "SPEAKER_01=Kaitlin Olson=kaitlin-olson",
+                ],
+            )
+            self.assertEqual(manifest["speaker_corrections"], ["00:00-00:06=SPEAKER_00"])

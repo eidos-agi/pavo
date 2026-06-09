@@ -46,6 +46,8 @@ class ProcessAudioRequest:
     context_file: Path | None = None
     engines: list[str] | None = None
     num_speakers: int | None = None
+    speakers: list[str] | None = None
+    speaker_corrections: list[str] | None = None
 
 
 @dataclass(frozen=True)
@@ -166,6 +168,10 @@ def process_audio(
         command.extend(["--context-file", str(request.context_file.expanduser())])
     if request.num_speakers:
         command.extend(["--num-speakers", str(request.num_speakers)])
+    for speaker in request.speakers or []:
+        command.extend(["--speaker", speaker])
+    for correction in request.speaker_corrections or []:
+        command.extend(["--speaker-correction", correction])
 
     runner(command)
     manifest_path = source_dir / "pavo-process-manifest.json"
@@ -181,6 +187,8 @@ def process_audio(
         "context_terms": request.context_terms or [],
         "context_file": str(request.context_file.expanduser()) if request.context_file else None,
         "num_speakers": request.num_speakers,
+        "speakers": request.speakers or [],
+        "speaker_corrections": request.speaker_corrections or [],
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
