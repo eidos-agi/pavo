@@ -12,7 +12,14 @@ from .download import save_audio
 from .overlap import SeparateOverlapsRequest, separate_overlaps
 from .plaud import PlaudCli, PlaudCliError
 from .render import RenderVideoRequest, render_video
-from .transcribe import ProcessAudioRequest, TranscribeRequest, process_audio, transcribe_recording
+from .transcribe import (
+    DecomposeAudioRequest,
+    ProcessAudioRequest,
+    TranscribeRequest,
+    decompose_audio,
+    process_audio,
+    transcribe_recording,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -54,6 +61,19 @@ def build_parser() -> argparse.ArgumentParser:
     audio_separate.add_argument("--min-duration", type=float, default=1.0, help="Minimum mixed-region duration in seconds")
     audio_separate.add_argument("--start", type=float, help="Only consider regions after this timestamp in seconds")
     audio_separate.add_argument("--end", type=float, help="Only consider regions before this timestamp in seconds")
+    audio_decompose = audio_sub.add_parser("decompose", help="Run voiceprint-first decomposition and separation-on-demand")
+    audio_decompose.add_argument("audio_path", type=Path)
+    audio_decompose.add_argument("--source-id", required=True, help="Stable source identifier for the imported audio")
+    audio_decompose.add_argument("--title", help="Human-readable source title")
+    audio_decompose.add_argument("--context-term", action="append", default=[], help="Known-good term to pass to eidos-transcribe")
+    audio_decompose.add_argument("--context-file", type=Path, help="Context file to pass to eidos-transcribe")
+    audio_decompose.add_argument("--engine", action="append", default=[], help="ASR engine to run; repeatable. Defaults to faster-whisper.")
+    audio_decompose.add_argument("--num-speakers", type=int, help="Expected speaker count")
+    audio_decompose.add_argument("--speaker", action="append", default=[], help="Speaker mapping as SPEAKER_01=Full Name=slug; repeatable")
+    audio_decompose.add_argument("--speaker-correction", action="append", default=[], help="Reviewed override as start-end=SPEAKER_00; repeatable")
+    audio_decompose.add_argument("--max-regions", type=int, default=3, help="Maximum disputed regions to separate")
+    audio_decompose.add_argument("--padding", type=float, default=1.0, help="Seconds of context around each disputed region")
+    audio_decompose.add_argument("--min-duration", type=float, default=1.0, help="Minimum disputed-region duration in seconds")
 
     transcribe = subparsers.add_parser("transcribe", help="Transcribe a Plaud recording with eidos-transcribe")
     transcribe.add_argument("recording_id")
@@ -186,6 +206,34 @@ def main(argv: list[str] | None = None) -> int:
             print(f"transcript_json: {result.transcript_json}")
             print(f"signatures_manifest: {result.signatures_manifest}")
             print(f"out_dir: {result.out_dir}")
+            print(f"manifest: {result.manifest_path}")
+            return 0
+        if args.audio_command == "decompose":
+            try:
+                result = decompose_audio(
+                    DecomposeAudioRequest(
+                        audio_path=args.audio_path,
+                        source_id=args.source_id,
+                        home=home,
+                        title=args.title,
+                        context_terms=args.context_term,
+                        context_file=args.context_file,
+                        engines=args.engine or ["faster-whisper"],
+                        num_speakers=args.num_speakers,
+                        speakers=args.speaker,
+                        speaker_corrections=args.speaker_correction,
+                        max_regions=args.max_regions,
+                        padding=args.padding,
+                        min_duration=args.min_duration,
+                    )
+                )
+            except (FileNotFoundError, subprocess.CalledProcessError, RuntimeError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            print(f"source_id: {result.source_id}")
+            print(f"audio_path: {result.audio_path}")
+            print(f"audio_sha256: {result.audio_sha256}")
+            print(f"decompose_output_dir: {result.output_dir}")
             print(f"manifest: {result.manifest_path}")
             return 0
 

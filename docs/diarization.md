@@ -14,6 +14,8 @@ audio
 -> speaker-change candidates
 -> short acoustic segments
 -> speaker fingerprint scoring
+-> separation-on-demand for overlap or disputed regions
+-> ASR on clean regions and accepted stems
 -> transcript alignment
 -> reviewed speaker turns
 ```

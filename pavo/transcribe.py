@@ -60,6 +60,33 @@ class ProcessAudioResult:
     command: list[str]
 
 
+@dataclass(frozen=True)
+class DecomposeAudioRequest:
+    audio_path: Path
+    source_id: str
+    home: Path = DEFAULT_HOME
+    title: str | None = None
+    context_terms: list[str] | None = None
+    context_file: Path | None = None
+    engines: list[str] | None = None
+    num_speakers: int | None = None
+    speakers: list[str] | None = None
+    speaker_corrections: list[str] | None = None
+    max_regions: int = 3
+    padding: float = 1.0
+    min_duration: float = 1.0
+
+
+@dataclass(frozen=True)
+class DecomposeAudioResult:
+    source_id: str
+    audio_path: Path
+    audio_sha256: str
+    output_dir: Path
+    manifest_path: Path
+    command: list[str]
+
+
 def default_runner(args: list[str]) -> str:
     completed = subprocess.run(
         args,
@@ -193,6 +220,80 @@ def process_audio(
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
     return ProcessAudioResult(
+        source_id=request.source_id,
+        audio_path=audio_path,
+        audio_sha256=audio_hash,
+        output_dir=output_dir,
+        manifest_path=manifest_path,
+        command=command,
+    )
+
+
+def decompose_audio(
+    request: DecomposeAudioRequest,
+    *,
+    runner: Runner = default_runner,
+) -> DecomposeAudioResult:
+    pavo_home = init_home(request.home)
+    audio_path = request.audio_path.expanduser().resolve()
+    if not audio_path.exists():
+        raise FileNotFoundError(f"Audio file not found: {audio_path}")
+
+    audio_bytes = audio_path.read_bytes()
+    audio_hash = __import__("hashlib").sha256(audio_bytes).hexdigest()
+    source_dir = pavo_home.cache_dir / "imports" / request.source_id
+    output_dir = source_dir / "decompose-transcribe"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    command = [
+        "eidos-transcribe",
+        "decompose-transcribe",
+        str(audio_path),
+        "--out-dir",
+        str(output_dir),
+    ]
+    for engine in request.engines or ["faster-whisper"]:
+        command.extend(["--engine", engine])
+    if request.title:
+        command.extend(["--title", request.title])
+    for term in request.context_terms or []:
+        command.extend(["--context-term", term])
+    if request.context_file:
+        command.extend(["--context-file", str(request.context_file.expanduser())])
+    if request.num_speakers:
+        command.extend(["--num-speakers", str(request.num_speakers)])
+    for speaker in request.speakers or []:
+        command.extend(["--speaker", speaker])
+    for correction in request.speaker_corrections or []:
+        command.extend(["--speaker-correction", correction])
+    command.extend(["--max-regions", str(request.max_regions)])
+    command.extend(["--padding", str(request.padding)])
+    command.extend(["--min-duration", str(request.min_duration)])
+
+    runner(command)
+    manifest_path = source_dir / "pavo-decompose-manifest.json"
+    manifest = {
+        "source_id": request.source_id,
+        "audio_path": str(audio_path),
+        "audio_sha256": audio_hash,
+        "decompose_output_dir": str(output_dir),
+        "eidos_transcribe_manifest": str(output_dir / "decompose-transcribe.manifest.json"),
+        "command": command,
+        "strategy": "voiceprint-first, separation-on-demand",
+        "engines": request.engines or ["faster-whisper"],
+        "title": request.title,
+        "context_terms": request.context_terms or [],
+        "context_file": str(request.context_file.expanduser()) if request.context_file else None,
+        "num_speakers": request.num_speakers,
+        "speakers": request.speakers or [],
+        "speaker_corrections": request.speaker_corrections or [],
+        "max_regions": request.max_regions,
+        "padding": request.padding,
+        "min_duration": request.min_duration,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+    return DecomposeAudioResult(
         source_id=request.source_id,
         audio_path=audio_path,
         audio_sha256=audio_hash,

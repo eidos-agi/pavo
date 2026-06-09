@@ -3,7 +3,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from pavo.transcribe import ProcessAudioRequest, TranscribeRequest, process_audio, transcribe_recording
+from pavo.transcribe import (
+    DecomposeAudioRequest,
+    ProcessAudioRequest,
+    TranscribeRequest,
+    decompose_audio,
+    process_audio,
+    transcribe_recording,
+)
 
 
 class TranscribeTests(unittest.TestCase):
@@ -133,3 +140,47 @@ class TranscribeTests(unittest.TestCase):
                 ],
             )
             self.assertEqual(manifest["speaker_corrections"], ["00:00-00:06=SPEAKER_00"])
+
+    def test_decompose_audio_invokes_voiceprint_first_pipeline(self):
+        calls = []
+
+        def runner(args):
+            calls.append(args)
+            out_dir = Path(args[args.index("--out-dir") + 1])
+            out_dir.mkdir(parents=True, exist_ok=True)
+            (out_dir / "decompose-transcribe.manifest.json").write_text("{}\n")
+            return "ok\n"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "Pavo"
+            audio_path = Path(tmp) / "clip.mp4"
+            audio_path.write_bytes(b"video bytes")
+
+            result = decompose_audio(
+                DecomposeAudioRequest(
+                    audio_path=audio_path,
+                    source_id="youtube_KxJWK8R7uVQ",
+                    home=home,
+                    title="Conan overlap test",
+                    context_terms=["Conan", "Kaitlin"],
+                    engines=["faster-whisper"],
+                    num_speakers=4,
+                    speakers=["SPEAKER_00=Conan O'Brien=conan-obrien"],
+                    speaker_corrections=["00:00-00:06=SPEAKER_00"],
+                    max_regions=5,
+                    min_duration=0.25,
+                ),
+                runner=runner,
+            )
+
+            self.assertEqual(result.source_id, "youtube_KxJWK8R7uVQ")
+            self.assertEqual(calls[0][0:2], ["eidos-transcribe", "decompose-transcribe"])
+            self.assertIn("--max-regions", calls[0])
+            self.assertIn("5", calls[0])
+            self.assertIn("--min-duration", calls[0])
+            self.assertIn("0.25", calls[0])
+            self.assertTrue(result.manifest_path.exists())
+            manifest = json.loads(result.manifest_path.read_text())
+            self.assertEqual(manifest["source_id"], "youtube_KxJWK8R7uVQ")
+            self.assertEqual(manifest["strategy"], "voiceprint-first, separation-on-demand")
+            self.assertEqual(manifest["speakers"], ["SPEAKER_00=Conan O'Brien=conan-obrien"])

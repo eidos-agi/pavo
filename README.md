@@ -174,6 +174,8 @@ pavo audio doctor
 pavo audio process ./clip.mp4 --source-id youtube_<id> --num-speakers 6 \
   --speaker "SPEAKER_00=Conan O'Brien=conan-obrien" \
   --speaker-correction "00:00-00:06=SPEAKER_00"
+pavo audio decompose ./clip.mp4 --source-id youtube_<id> --num-speakers 6 \
+  --speaker "SPEAKER_00=Conan O'Brien=conan-obrien"
 pavo audio separate-overlaps youtube_<id> --start 17 --end 21 --min-duration 0.25
 pavo video render youtube_<id> --title "Reviewed call" --duration 30
 pavo transcribe <recording-id> --context-term Plaud
@@ -195,6 +197,14 @@ its own run manifest next to the audio as `pavo-transcribe-manifest.json`.
 Pass `--speaker` only for labels you have reviewed, and use
 `--speaker-correction` for trusted time ranges where a human or video frame has
 confirmed the speaker.
+
+`pavo audio decompose` runs the stronger voiceprint-first orchestration path via
+`eidos-transcribe decompose-transcribe`. It writes output to
+`~/Eidos/Pavo/cache/imports/<source-id>/decompose-transcribe/` and records a
+`pavo-decompose-manifest.json`. The current flow builds clean speaker anchors,
+voiceprints, rolling disputed-region evidence, and separation-on-demand reports.
+Accepted separated stems are not yet automatically transcribed back into the
+canonical transcript; the manifest marks that as the next implementation step.
 
 `pavo video render` burns captions into a video using the best transcript JSON
 from a processed source. It prefers rolling/immune or verified named artifacts
