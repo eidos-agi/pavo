@@ -20,6 +20,7 @@ from .review import (
     compile_anchor_review_corrections,
     gate_anchor_review,
     import_anchor_review_sheet,
+    serve_anchor_review_bundle,
     status_anchor_review,
     summarize_anchor_review_sheet,
     verify_anchor_review_page,
@@ -397,11 +398,9 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"bundle_dir: {result.bundle_dir}")
                 print("Press Ctrl-C to stop the review server.")
                 try:
-                    subprocess.run(result.command, check=True)
+                    serve_anchor_review_bundle(args.bundle_dir, host=args.host, port=args.port)
                 except KeyboardInterrupt:
                     return 0
-                except subprocess.CalledProcessError as exc:
-                    return exc.returncode
                 return 0
             if args.review_anchors_command == "verify-page":
                 result = verify_anchor_review_page(args.review_sheet, args.review_page)

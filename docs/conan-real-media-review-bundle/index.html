@@ -45,6 +45,10 @@
       align-items: center;
       margin: 18px 0;
     }
+    .save-status {
+      color: #315044;
+      font-weight: 700;
+    }
     button {
       border: 1px solid #174835;
       border-radius: 6px;
@@ -172,7 +176,7 @@
     <div class="meta">
       <span>6 candidate clips</span>
       <span>6 pending</span>
-      <span>sheet: /Users/dshanklinbv/repos-eidos-agi/pavo/docs/conan-real-media-review-bundle/conan-real-media-review-sheet.json</span>
+      <span>sheet: docs/conan-real-media-review-bundle/conan-real-media-review-sheet.json</span>
     </div>
   </header>
   <main>
@@ -184,9 +188,11 @@
       </ul>
     </section>
     <section class="actions">
+      <button type="button" id="save-review">Save review</button>
       <button type="button" id="export-json">Export review notes</button>
       <button type="button" class="secondary" id="reset-review">Reset decisions</button>
       <span id="review-count">6 pending</span>
+      <span class="save-status" id="save-status">Checking save backend...</span>
     </section>
     <article data-review-index="1" class="review-pending">
   <div class="row-head">
@@ -351,15 +357,24 @@
   </details>
 </article>
   </main>
-  <script type="application/json" id="review-sheet-data">{"passed": false, "human_reviewed": false, "review_type": "conan_real_media_overlap_review", "source_video_id": "KxJWK8R7uVQ", "source_id": "youtube_KxJWK8R7uVQ_named_v1", "target_speaker_label": "CONAN_REVIEW", "target_speaker_name": "Conan real-media review clips", "candidate_count": 6, "pending_count": 6, "approved_count": 0, "rejected_count": 0, "rows": [{"index": 1, "status": "pending", "approved": false, "case": "conan-experience-like", "clip_kind": "mixed", "target_speaker_label": "MIXED", "target_speaker_name": "Mixed Conan/Kaitlin audio", "start": 5.46, "end": 6.94, "duration": 1.48, "text": "what was that experience like?", "confidence": 1.0, "method": "conan_real_media_review", "clip_path": "clips/candidate-01.wav", "suggested_speaker_correction": "", "reviewer_note": "", "expected_behavior": "Mixed handoff: Conan asks the setup and Kaitlin begins the phrase \"what was that experience like?\" with overlap evidence preserved.", "review_heading": "Opening handoff: mixed audio", "review_prompt": "First listen for the overlap: Conan asks the setup, then Kaitlin starts \u201cwhat was that experience like?\u201d", "review_subtitle": "Diagnostic handoff review", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-experience-like-pad-0p1/region-01-00m05s-00m06s/mixed.wav"}, {"index": 2, "status": "pending", "approved": false, "case": "conan-experience-like", "clip_kind": "stem", "target_speaker_label": "conan-obrien", "target_speaker_name": "Conan O'Brien", "start": 5.46, "end": 6.94, "duration": 1.48, "text": "what was that experience like?", "confidence": 0.1152, "method": "conan_real_media_review", "clip_path": "clips/candidate-02.wav", "suggested_speaker_correction": "", "reviewer_note": "", "expected_behavior": "Diagnostic Conan stem should contain Conan voice evidence from the handoff; the region as a whole is not accepted because the Kaitlin stem is weak.", "review_heading": "Opening handoff: Conan stem", "review_prompt": "This should contain Conan voice evidence from the handoff. It is diagnostic, not a final accepted split.", "review_subtitle": "Diagnostic handoff review", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-experience-like-pad-0p1/region-01-00m05s-00m06s/conan-obrien.wav"}, {"index": 3, "status": "pending", "approved": false, "case": "conan-experience-like", "clip_kind": "stem", "target_speaker_label": "kaitlin-olson", "target_speaker_name": "Kaitlin Olson", "start": 5.46, "end": 6.94, "duration": 1.48, "text": "what was that experience like?", "confidence": 0.0078, "method": "conan_real_media_review", "clip_path": "clips/candidate-03.wav", "suggested_speaker_correction": "", "reviewer_note": "", "expected_behavior": "Diagnostic Kaitlin stem is intentionally weak/rejected; this clip should help explain why the opening split is not accepted.", "review_heading": "Opening handoff: Kaitlin stem", "review_prompt": "This is intentionally weak. Use it to judge why Pavo rejected the Kaitlin stem for this opening handoff.", "review_subtitle": "Diagnostic handoff review", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-experience-like-pad-0p1/region-01-00m05s-00m06s/kaitlin-olson.wav"}, {"index": 4, "status": "pending", "approved": false, "case": "conan-that-old-sitcom", "clip_kind": "mixed", "target_speaker_label": "MIXED", "target_speaker_name": "Mixed Conan/Kaitlin audio", "start": 17.79, "end": 19.21, "duration": 1.42, "text": "That old sitcom.", "confidence": 1.0, "method": "conan_real_media_review", "clip_path": "clips/candidate-04.wav", "suggested_speaker_correction": "", "reviewer_note": "", "expected_behavior": "Mixed overlap around \"That old sitcom\" before stem separation.", "review_heading": "Old sitcom: mixed audio", "review_prompt": "First listen to the mixed overlap around \u201cThat old sitcom.\u201d", "review_subtitle": "Accepted stem split review", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/mixed.wav"}, {"index": 5, "status": "pending", "approved": false, "case": "conan-that-old-sitcom", "clip_kind": "stem", "target_speaker_label": "conan-obrien", "target_speaker_name": "Conan O'Brien", "start": 17.79, "end": 19.21, "duration": 1.42, "text": "That old sitcom.", "confidence": 0.1212, "method": "conan_real_media_review", "clip_path": "clips/candidate-05.wav", "suggested_speaker_correction": "", "reviewer_note": "", "expected_behavior": "Accepted trusted Conan stem for the \"that old sitcom\" overlap.", "review_heading": "Old sitcom: Conan stem", "review_prompt": "This should isolate Conan in the accepted \u201cthat old sitcom\u201d split.", "review_subtitle": "Accepted stem split review", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/conan-obrien.wav"}, {"index": 6, "status": "pending", "approved": false, "case": "conan-that-old-sitcom", "clip_kind": "stem", "target_speaker_label": "kaitlin-olson", "target_speaker_name": "Kaitlin Olson", "start": 17.79, "end": 19.21, "duration": 1.42, "text": "I'll stop and triple. Ha! Ha!", "confidence": 0.0645, "method": "conan_real_media_review", "clip_path": "clips/candidate-06.wav", "suggested_speaker_correction": "", "reviewer_note": "", "expected_behavior": "Accepted trusted Kaitlin stem for the same overlap, separated from Conan.", "review_heading": "Old sitcom: Kaitlin stem", "review_prompt": "This should isolate Kaitlin in the same accepted split.", "review_subtitle": "Accepted stem split review", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/kaitlin-olson.wav"}], "instructions": ["Listen to the mixed clip first, then the Conan and Kaitlin stems for the same phrase.", "Approve clips that clearly demonstrate the expected mixed/stem behavior.", "Reject noisy, confusing, or wrong-speaker clips.", "This is a review-only Conan proof bundle; it does not generate Plaud speaker-correction flags."], "evidence": {"experience_like_analysis": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-experience-like-pad-0p1/region-01-00m05s-00m06s/analysis.json", "old_sitcom_analysis": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/analysis.json", "old_sitcom_stem_asr": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/stem-asr-accepted/decomposed-transcript.json", "conan_experience_report": "docs/conan-experience-comparison-report.json", "conan_old_sitcom_report": "docs/conan-old-sitcom-report.json"}, "review_title": "Conan Listening Review", "export_label": "Export review notes", "reset_label": "Reset decisions", "review_labels": {"buttons": {"approved": "Works", "rejected": "Problem", "pending": "Unsure"}, "status": {"approved": "Works", "rejected": "Problem", "pending": "Unreviewed"}}, "page_instructions": ["Listen to each short Conan clip and decide whether it demonstrates the stated behavior.", "Use Works when the clip clearly shows the behavior, Problem when it does not, and Unsure when the audio is ambiguous.", "Technical file paths and model details are tucked inside each card for traceability, not as the main task."], "requires_import_instruction": false, "requires_rerun_instruction": false, "display_mode": "human_review", "source_review_sheet": "/Users/dshanklinbv/repos-eidos-agi/pavo/docs/conan-real-media-review-sheet.json", "bundle_dir": "/Users/dshanklinbv/repos-eidos-agi/pavo/docs/conan-real-media-review-bundle", "copied_clip_count": 6, "missing_clip_count": 0}</script>
+  <script type="application/json" id="review-sheet-data">{"passed": false, "human_reviewed": false, "review_type": "conan_real_media_overlap_review", "source_video_id": "KxJWK8R7uVQ", "source_id": "youtube_KxJWK8R7uVQ_named_v1", "target_speaker_label": "CONAN_REVIEW", "target_speaker_name": "Conan real-media review clips", "candidate_count": 6, "pending_count": 6, "approved_count": 0, "rejected_count": 0, "rows": [{"index": 1, "status": "pending", "approved": false, "case": "conan-experience-like", "clip_kind": "mixed", "target_speaker_label": "MIXED", "target_speaker_name": "Mixed Conan/Kaitlin audio", "start": 5.46, "end": 6.94, "duration": 1.48, "text": "what was that experience like?", "confidence": 1.0, "method": "conan_real_media_review", "clip_path": "clips/candidate-01.wav", "suggested_speaker_correction": "", "reviewer_note": "", "expected_behavior": "Mixed handoff: Conan asks the setup and Kaitlin begins the phrase \"what was that experience like?\" with overlap evidence preserved.", "review_heading": "Opening handoff: mixed audio", "review_prompt": "First listen for the overlap: Conan asks the setup, then Kaitlin starts \u201cwhat was that experience like?\u201d", "review_subtitle": "Diagnostic handoff review", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-experience-like-pad-0p1/region-01-00m05s-00m06s/mixed.wav"}, {"index": 2, "status": "pending", "approved": false, "case": "conan-experience-like", "clip_kind": "stem", "target_speaker_label": "conan-obrien", "target_speaker_name": "Conan O'Brien", "start": 5.46, "end": 6.94, "duration": 1.48, "text": "what was that experience like?", "confidence": 0.1152, "method": "conan_real_media_review", "clip_path": "clips/candidate-02.wav", "suggested_speaker_correction": "", "reviewer_note": "", "expected_behavior": "Diagnostic Conan stem should contain Conan voice evidence from the handoff; the region as a whole is not accepted because the Kaitlin stem is weak.", "review_heading": "Opening handoff: Conan stem", "review_prompt": "This should contain Conan voice evidence from the handoff. It is diagnostic, not a final accepted split.", "review_subtitle": "Diagnostic handoff review", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-experience-like-pad-0p1/region-01-00m05s-00m06s/conan-obrien.wav"}, {"index": 3, "status": "pending", "approved": false, "case": "conan-experience-like", "clip_kind": "stem", "target_speaker_label": "kaitlin-olson", "target_speaker_name": "Kaitlin Olson", "start": 5.46, "end": 6.94, "duration": 1.48, "text": "what was that experience like?", "confidence": 0.0078, "method": "conan_real_media_review", "clip_path": "clips/candidate-03.wav", "suggested_speaker_correction": "", "reviewer_note": "", "expected_behavior": "Diagnostic Kaitlin stem is intentionally weak/rejected; this clip should help explain why the opening split is not accepted.", "review_heading": "Opening handoff: Kaitlin stem", "review_prompt": "This is intentionally weak. Use it to judge why Pavo rejected the Kaitlin stem for this opening handoff.", "review_subtitle": "Diagnostic handoff review", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-experience-like-pad-0p1/region-01-00m05s-00m06s/kaitlin-olson.wav"}, {"index": 4, "status": "pending", "approved": false, "case": "conan-that-old-sitcom", "clip_kind": "mixed", "target_speaker_label": "MIXED", "target_speaker_name": "Mixed Conan/Kaitlin audio", "start": 17.79, "end": 19.21, "duration": 1.42, "text": "That old sitcom.", "confidence": 1.0, "method": "conan_real_media_review", "clip_path": "clips/candidate-04.wav", "suggested_speaker_correction": "", "reviewer_note": "", "expected_behavior": "Mixed overlap around \"That old sitcom\" before stem separation.", "review_heading": "Old sitcom: mixed audio", "review_prompt": "First listen to the mixed overlap around \u201cThat old sitcom.\u201d", "review_subtitle": "Accepted stem split review", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/mixed.wav"}, {"index": 5, "status": "pending", "approved": false, "case": "conan-that-old-sitcom", "clip_kind": "stem", "target_speaker_label": "conan-obrien", "target_speaker_name": "Conan O'Brien", "start": 17.79, "end": 19.21, "duration": 1.42, "text": "That old sitcom.", "confidence": 0.1212, "method": "conan_real_media_review", "clip_path": "clips/candidate-05.wav", "suggested_speaker_correction": "", "reviewer_note": "", "expected_behavior": "Accepted trusted Conan stem for the \"that old sitcom\" overlap.", "review_heading": "Old sitcom: Conan stem", "review_prompt": "This should isolate Conan in the accepted \u201cthat old sitcom\u201d split.", "review_subtitle": "Accepted stem split review", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/conan-obrien.wav"}, {"index": 6, "status": "pending", "approved": false, "case": "conan-that-old-sitcom", "clip_kind": "stem", "target_speaker_label": "kaitlin-olson", "target_speaker_name": "Kaitlin Olson", "start": 17.79, "end": 19.21, "duration": 1.42, "text": "I'll stop and triple. Ha! Ha!", "confidence": 0.0645, "method": "conan_real_media_review", "clip_path": "clips/candidate-06.wav", "suggested_speaker_correction": "", "reviewer_note": "", "expected_behavior": "Accepted trusted Kaitlin stem for the same overlap, separated from Conan.", "review_heading": "Old sitcom: Kaitlin stem", "review_prompt": "This should isolate Kaitlin in the same accepted split.", "review_subtitle": "Accepted stem split review", "source_clip_path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/kaitlin-olson.wav"}], "instructions": ["Listen to the mixed clip first, then the Conan and Kaitlin stems for the same phrase.", "Approve clips that clearly demonstrate the expected mixed/stem behavior.", "Reject noisy, confusing, or wrong-speaker clips.", "This is a review-only Conan proof bundle; it does not generate Plaud speaker-correction flags."], "evidence": {"experience_like_analysis": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-experience-like-pad-0p1/region-01-00m05s-00m06s/analysis.json", "old_sitcom_analysis": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/analysis.json", "old_sitcom_stem_asr": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/stem-asr-accepted/decomposed-transcript.json", "conan_experience_report": "docs/conan-experience-comparison-report.json", "conan_old_sitcom_report": "docs/conan-old-sitcom-report.json"}, "review_title": "Conan Listening Review", "export_label": "Export review notes", "reset_label": "Reset decisions", "review_labels": {"buttons": {"approved": "Works", "rejected": "Problem", "pending": "Unsure"}, "status": {"approved": "Works", "rejected": "Problem", "pending": "Unreviewed"}}, "page_instructions": ["Listen to each short Conan clip and decide whether it demonstrates the stated behavior.", "Use Works when the clip clearly shows the behavior, Problem when it does not, and Unsure when the audio is ambiguous.", "Technical file paths and model details are tucked inside each card for traceability, not as the main task."], "requires_import_instruction": false, "requires_rerun_instruction": false, "display_mode": "human_review", "source_review_sheet": "docs/conan-real-media-review-sheet.json", "bundle_dir": "docs/conan-real-media-review-bundle", "copied_clip_count": 6, "missing_clip_count": 0}</script>
   <script>
-    const originalSheet = JSON.parse(document.getElementById("review-sheet-data").textContent);
+    let originalSheet = JSON.parse(document.getElementById("review-sheet-data").textContent);
     const statusLabels = {"approved": "Works", "rejected": "Problem", "pending": "Unreviewed"};
-    const decisions = new Map(originalSheet.rows.map((row) => [String(row.index), {
-      status: row.status || "pending",
-      approved: row.approved === true,
-      reviewer_note: row.reviewer_note || ""
-    }]));
+    const decisions = new Map();
+    let backendAvailable = false;
+    let dirty = false;
+    let saveTimer = null;
+
+    function initializeDecisionsFromSheet(sheet) {
+      originalSheet = sheet;
+      decisions.clear();
+      originalSheet.rows.forEach((row) => decisions.set(String(row.index), {
+        status: row.status || "pending",
+        approved: row.approved === true,
+        reviewer_note: row.reviewer_note || ""
+      }));
+    }
 
     function setDecision(index, status) {
       const key = String(index);
@@ -372,6 +387,7 @@
         applyDecisionToCard(card, status);
       }
       updateCount();
+      markDirty();
     }
 
     function setNote(index, note) {
@@ -379,6 +395,7 @@
       const current = decisions.get(key) || {};
       current.reviewer_note = note;
       decisions.set(key, current);
+      markDirty();
     }
 
     function buildReviewedSheet() {
@@ -403,6 +420,47 @@
         pending_count: pendingCount,
         rows
       };
+    }
+
+    function setSaveStatus(message) {
+      document.getElementById("save-status").textContent = message;
+    }
+
+    function markDirty() {
+      dirty = true;
+      setSaveStatus(backendAvailable ? "Unsaved changes" : "File mode: export review notes");
+      if (backendAvailable) {
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => saveReview(), 450);
+      }
+    }
+
+    async function saveReview() {
+      if (!backendAvailable) {
+        exportReviewedSheet();
+        return;
+      }
+      setSaveStatus("Saving...");
+      const response = await fetch("/api/review-sheet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildReviewedSheet())
+      });
+      const payload = await response.json();
+      if (!response.ok || payload.saved !== true) {
+        throw new Error(payload.error || `Save failed with HTTP ${response.status}`);
+      }
+      dirty = false;
+      setSaveStatus(`Saved: ${payload.approved_count} works, ${payload.rejected_count} problems, ${payload.pending_count} unsure`);
+    }
+
+    function exportReviewedSheet() {
+      const blob = new Blob([JSON.stringify(buildReviewedSheet(), null, 2) + "\n"], { type: "application/json" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "conan-real-media-review-sheet.json";
+      link.click();
+      URL.revokeObjectURL(link.href);
     }
 
     function updateCount() {
@@ -432,21 +490,12 @@
     document.querySelectorAll("[data-note]").forEach((note) => {
       note.addEventListener("input", () => setNote(note.dataset.note, note.value));
     });
-    document.getElementById("export-json").addEventListener("click", () => {
-      const blob = new Blob([JSON.stringify(buildReviewedSheet(), null, 2) + "\n"], { type: "application/json" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = "conan-real-media-review-sheet.json";
-      link.click();
-      URL.revokeObjectURL(link.href);
+    document.getElementById("save-review").addEventListener("click", () => {
+      saveReview().catch((error) => setSaveStatus(error.message));
     });
+    document.getElementById("export-json").addEventListener("click", exportReviewedSheet);
     document.getElementById("reset-review").addEventListener("click", () => {
-      decisions.clear();
-      originalSheet.rows.forEach((row) => decisions.set(String(row.index), {
-        status: row.status || "pending",
-        approved: row.approved === true,
-        reviewer_note: row.reviewer_note || ""
-      }));
+      initializeDecisionsFromSheet(originalSheet);
       document.querySelectorAll("[data-review-index]").forEach((card) => {
         const index = card.dataset.reviewIndex;
         const decision = decisions.get(index);
@@ -455,12 +504,37 @@
         if (note) note.value = decision.reviewer_note;
       });
       updateCount();
+      markDirty();
     });
-    document.querySelectorAll("[data-review-index]").forEach((card) => {
-      const decision = decisions.get(card.dataset.reviewIndex);
-      applyDecisionToCard(card, decision.status || "pending");
-    });
-    updateCount();
+    async function loadBackendSheet() {
+      if (!location.protocol.startsWith("http")) {
+        setSaveStatus("File mode: export review notes");
+        return;
+      }
+      try {
+        const response = await fetch("/api/review-sheet");
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        initializeDecisionsFromSheet(await response.json());
+        backendAvailable = true;
+        setSaveStatus("Ready to save");
+      } catch (error) {
+        backendAvailable = false;
+        setSaveStatus("File mode: export review notes");
+      }
+    }
+
+    function renderCurrentDecisions() {
+      document.querySelectorAll("[data-review-index]").forEach((card) => {
+        const decision = decisions.get(card.dataset.reviewIndex);
+        applyDecisionToCard(card, (decision && decision.status) || "pending");
+        const note = card.querySelector("[data-note]");
+        if (note && decision) note.value = decision.reviewer_note;
+      });
+      updateCount();
+    }
+
+    initializeDecisionsFromSheet(originalSheet);
+    loadBackendSheet().finally(renderCurrentDecisions);
   </script>
 </body>
 </html>

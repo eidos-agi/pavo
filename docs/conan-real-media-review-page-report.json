@@ -1,7 +1,7 @@
 {
   "passed": true,
-  "review_sheet": "/Users/dshanklinbv/repos-eidos-agi/pavo/docs/conan-real-media-review-sheet.json",
-  "review_page": "/Users/dshanklinbv/repos-eidos-agi/pavo/docs/conan-real-media-review.html",
+  "review_sheet": "docs/conan-real-media-review-sheet.json",
+  "review_page": "docs/conan-real-media-review.html",
   "candidate_count": 6,
   "audio_count": 6,
   "approve_count": 6,

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from http import HTTPStatus
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
 import shlex
 import shutil
@@ -8,6 +10,7 @@ from html import escape
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 
 @dataclass(frozen=True)
@@ -314,6 +317,10 @@ def create_anchor_review_page(
       align-items: center;
       margin: 18px 0;
     }}
+    .save-status {{
+      color: #315044;
+      font-weight: 700;
+    }}
     button {{
       border: 1px solid #174835;
       border-radius: 6px;
@@ -447,21 +454,32 @@ def create_anchor_review_page(
   <main>
     {instructions}
     <section class="actions">
+      <button type="button" id="save-review">Save review</button>
       <button type="button" id="export-json">{escape(str(export_label))}</button>
       <button type="button" class="secondary" id="reset-review">{escape(str(reset_label))}</button>
       <span id="review-count">{len(pending)} pending</span>
+      <span class="save-status" id="save-status">Checking save backend...</span>
     </section>
     {cards}
   </main>
   <script type="application/json" id="review-sheet-data">{sheet_json}</script>
   <script>
-    const originalSheet = JSON.parse(document.getElementById("review-sheet-data").textContent);
+    let originalSheet = JSON.parse(document.getElementById("review-sheet-data").textContent);
     const statusLabels = {status_labels_json};
-    const decisions = new Map(originalSheet.rows.map((row) => [String(row.index), {{
-      status: row.status || "pending",
-      approved: row.approved === true,
-      reviewer_note: row.reviewer_note || ""
-    }}]));
+    const decisions = new Map();
+    let backendAvailable = false;
+    let dirty = false;
+    let saveTimer = null;
+
+    function initializeDecisionsFromSheet(sheet) {{
+      originalSheet = sheet;
+      decisions.clear();
+      originalSheet.rows.forEach((row) => decisions.set(String(row.index), {{
+        status: row.status || "pending",
+        approved: row.approved === true,
+        reviewer_note: row.reviewer_note || ""
+      }}));
+    }}
 
     function setDecision(index, status) {{
       const key = String(index);
@@ -474,6 +492,7 @@ def create_anchor_review_page(
         applyDecisionToCard(card, status);
       }}
       updateCount();
+      markDirty();
     }}
 
     function setNote(index, note) {{
@@ -481,6 +500,7 @@ def create_anchor_review_page(
       const current = decisions.get(key) || {{}};
       current.reviewer_note = note;
       decisions.set(key, current);
+      markDirty();
     }}
 
     function buildReviewedSheet() {{
@@ -505,6 +525,47 @@ def create_anchor_review_page(
         pending_count: pendingCount,
         rows
       }};
+    }}
+
+    function setSaveStatus(message) {{
+      document.getElementById("save-status").textContent = message;
+    }}
+
+    function markDirty() {{
+      dirty = true;
+      setSaveStatus(backendAvailable ? "Unsaved changes" : "File mode: export review notes");
+      if (backendAvailable) {{
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => saveReview(), 450);
+      }}
+    }}
+
+    async function saveReview() {{
+      if (!backendAvailable) {{
+        exportReviewedSheet();
+        return;
+      }}
+      setSaveStatus("Saving...");
+      const response = await fetch("/api/review-sheet", {{
+        method: "POST",
+        headers: {{ "Content-Type": "application/json" }},
+        body: JSON.stringify(buildReviewedSheet())
+      }});
+      const payload = await response.json();
+      if (!response.ok || payload.saved !== true) {{
+        throw new Error(payload.error || `Save failed with HTTP ${{response.status}}`);
+      }}
+      dirty = false;
+      setSaveStatus(`Saved: ${{payload.approved_count}} works, ${{payload.rejected_count}} problems, ${{payload.pending_count}} unsure`);
+    }}
+
+    function exportReviewedSheet() {{
+      const blob = new Blob([JSON.stringify(buildReviewedSheet(), null, 2) + "\\n"], {{ type: "application/json" }});
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = {download_name_json};
+      link.click();
+      URL.revokeObjectURL(link.href);
     }}
 
     function updateCount() {{
@@ -534,21 +595,12 @@ def create_anchor_review_page(
     document.querySelectorAll("[data-note]").forEach((note) => {{
       note.addEventListener("input", () => setNote(note.dataset.note, note.value));
     }});
-    document.getElementById("export-json").addEventListener("click", () => {{
-      const blob = new Blob([JSON.stringify(buildReviewedSheet(), null, 2) + "\\n"], {{ type: "application/json" }});
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = {download_name_json};
-      link.click();
-      URL.revokeObjectURL(link.href);
+    document.getElementById("save-review").addEventListener("click", () => {{
+      saveReview().catch((error) => setSaveStatus(error.message));
     }});
+    document.getElementById("export-json").addEventListener("click", exportReviewedSheet);
     document.getElementById("reset-review").addEventListener("click", () => {{
-      decisions.clear();
-      originalSheet.rows.forEach((row) => decisions.set(String(row.index), {{
-        status: row.status || "pending",
-        approved: row.approved === true,
-        reviewer_note: row.reviewer_note || ""
-      }}));
+      initializeDecisionsFromSheet(originalSheet);
       document.querySelectorAll("[data-review-index]").forEach((card) => {{
         const index = card.dataset.reviewIndex;
         const decision = decisions.get(index);
@@ -557,12 +609,37 @@ def create_anchor_review_page(
         if (note) note.value = decision.reviewer_note;
       }});
       updateCount();
+      markDirty();
     }});
-    document.querySelectorAll("[data-review-index]").forEach((card) => {{
-      const decision = decisions.get(card.dataset.reviewIndex);
-      applyDecisionToCard(card, decision.status || "pending");
-    }});
-    updateCount();
+    async function loadBackendSheet() {{
+      if (!location.protocol.startsWith("http")) {{
+        setSaveStatus("File mode: export review notes");
+        return;
+      }}
+      try {{
+        const response = await fetch("/api/review-sheet");
+        if (!response.ok) throw new Error(`HTTP ${{response.status}}`);
+        initializeDecisionsFromSheet(await response.json());
+        backendAvailable = true;
+        setSaveStatus("Ready to save");
+      }} catch (error) {{
+        backendAvailable = false;
+        setSaveStatus("File mode: export review notes");
+      }}
+    }}
+
+    function renderCurrentDecisions() {{
+      document.querySelectorAll("[data-review-index]").forEach((card) => {{
+        const decision = decisions.get(card.dataset.reviewIndex);
+        applyDecisionToCard(card, (decision && decision.status) || "pending");
+        const note = card.querySelector("[data-note]");
+        if (note && decision) note.value = decision.reviewer_note;
+      }});
+      updateCount();
+    }}
+
+    initializeDecisionsFromSheet(originalSheet);
+    loadBackendSheet().finally(renderCurrentDecisions);
   </script>
 </body>
 </html>
@@ -636,14 +713,15 @@ def build_anchor_review_serve_command(
     if not index.exists():
         raise FileNotFoundError(f"Review bundle index not found: {index}")
     command = [
-        python,
-        "-m",
-        "http.server",
-        str(port),
-        "--bind",
-        host,
-        "--directory",
+        "pavo",
+        "review",
+        "anchors",
+        "serve",
         str(root),
+        "--host",
+        host,
+        "--port",
+        str(port),
     ]
     return AnchorReviewServeResult(
         bundle_dir=root,
@@ -655,6 +733,84 @@ def build_anchor_review_serve_command(
     )
 
 
+def serve_anchor_review_bundle(
+    bundle_dir: Path | str,
+    *,
+    host: str = "127.0.0.1",
+    port: int = 9876,
+) -> AnchorReviewServeResult:
+    result = build_anchor_review_serve_command(bundle_dir, host=host, port=port)
+    root = result.bundle_dir.resolve()
+    sheet_path = _find_bundle_review_sheet(root)
+
+    class ReviewHandler(SimpleHTTPRequestHandler):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, directory=str(root), **kwargs)
+
+        def do_GET(self) -> None:
+            if urlparse(self.path).path == "/api/review-sheet":
+                self._send_json(json.loads(sheet_path.read_text()))
+                return
+            super().do_GET()
+
+        def do_POST(self) -> None:
+            if urlparse(self.path).path != "/api/review-sheet":
+                self.send_error(HTTPStatus.NOT_FOUND)
+                return
+            try:
+                length = int(self.headers.get("content-length", "0"))
+            except ValueError:
+                self._send_error_json(HTTPStatus.BAD_REQUEST, "invalid content length")
+                return
+            if length <= 0:
+                self._send_error_json(HTTPStatus.BAD_REQUEST, "empty review payload")
+                return
+            if length > 2_000_000:
+                self._send_error_json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "review payload is too large")
+                return
+            try:
+                payload = json.loads(self.rfile.read(length).decode("utf-8"))
+                saved = save_anchor_review_sheet_payload(sheet_path, payload)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                self._send_error_json(HTTPStatus.BAD_REQUEST, "review payload is not valid JSON")
+                return
+            except ValueError as exc:
+                self._send_error_json(HTTPStatus.BAD_REQUEST, str(exc))
+                return
+            self._send_json(
+                {
+                    "saved": True,
+                    "review_sheet": str(saved.imported_sheet_path),
+                    "candidate_count": saved.candidate_count,
+                    "approved_count": saved.approved_count,
+                    "rejected_count": saved.rejected_count,
+                    "pending_count": saved.pending_count,
+                    "human_reviewed": saved.human_reviewed,
+                }
+            )
+
+        def log_message(self, format: str, *args: Any) -> None:
+            return
+
+        def _send_json(self, payload: dict[str, Any], status: int = HTTPStatus.OK) -> None:
+            body = (json.dumps(payload, indent=2) + "\n").encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def _send_error_json(self, status: int, message: str) -> None:
+            self._send_json({"saved": False, "error": message}, status=status)
+
+    server = ThreadingHTTPServer((host, port), ReviewHandler)
+    try:
+        server.serve_forever()
+    finally:
+        server.server_close()
+    return result
+
+
 def import_anchor_review_sheet(
     original_sheet_path: Path | str,
     reviewed_export_path: Path | str,
@@ -663,8 +819,18 @@ def import_anchor_review_sheet(
 ) -> AnchorReviewImportResult:
     original_path = Path(original_sheet_path)
     export_path = Path(reviewed_export_path)
-    original = json.loads(original_path.read_text())
     reviewed = json.loads(export_path.read_text())
+    return save_anchor_review_sheet_payload(original_path, reviewed, out_path=out_path)
+
+
+def save_anchor_review_sheet_payload(
+    original_sheet_path: Path | str,
+    reviewed: dict[str, Any],
+    *,
+    out_path: Path | str | None = None,
+) -> AnchorReviewImportResult:
+    original_path = Path(original_sheet_path)
+    original = json.loads(original_path.read_text())
     original_rows = original.get("rows", [])
     reviewed_rows = reviewed.get("rows", [])
     if len(original_rows) != len(reviewed_rows):
@@ -705,6 +871,7 @@ def import_anchor_review_sheet(
         pending_count=pending_count,
         human_reviewed=bool(imported_rows and not pending_count),
     )
+
 
 
 def build_anchor_review_rerun_command(
@@ -923,6 +1090,19 @@ def summarize_anchor_review_sheet(review_sheet_path: Path | str) -> dict[str, An
         "corrections": compile_anchor_review_corrections(sheet_path).corrections,
         "next_required_proof": "rerun Plaud decompose with exported --speaker-correction flags and produce accepted stems",
     }
+
+
+def _find_bundle_review_sheet(bundle_dir: Path) -> Path:
+    if not (bundle_dir / "index.html").exists():
+        raise FileNotFoundError(f"Review bundle index not found: {bundle_dir / 'index.html'}")
+    candidates = sorted(bundle_dir.glob("*-sheet.json"))
+    if not candidates:
+        candidates = sorted(path for path in bundle_dir.glob("*.json") if "manifest" not in path.name)
+    if not candidates:
+        raise FileNotFoundError(f"Review bundle sheet JSON not found: {bundle_dir}")
+    if len(candidates) > 1:
+        raise ValueError(f"Review bundle has multiple sheet JSON files: {', '.join(path.name for path in candidates)}")
+    return candidates[0]
 
 
 def _speaker_correction(start: Any, end: Any, speaker_label: Any) -> str | None:

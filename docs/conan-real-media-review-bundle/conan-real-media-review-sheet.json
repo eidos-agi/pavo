@@ -186,8 +186,8 @@
   "requires_import_instruction": false,
   "requires_rerun_instruction": false,
   "display_mode": "human_review",
-  "source_review_sheet": "/Users/dshanklinbv/repos-eidos-agi/pavo/docs/conan-real-media-review-sheet.json",
-  "bundle_dir": "/Users/dshanklinbv/repos-eidos-agi/pavo/docs/conan-real-media-review-bundle",
+  "source_review_sheet": "docs/conan-real-media-review-sheet.json",
+  "bundle_dir": "docs/conan-real-media-review-bundle",
   "copied_clip_count": 6,
   "missing_clip_count": 0
 }

@@ -12,6 +12,7 @@ from pavo.review import (
     create_anchor_review_sheet,
     gate_anchor_review,
     import_anchor_review_sheet,
+    save_anchor_review_sheet_payload,
     status_anchor_review,
     summarize_anchor_review_sheet,
     verify_anchor_review_page,
@@ -95,6 +96,9 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("Works", html)
         self.assertIn("Problem", html)
         self.assertIn("Unsure", html)
+        self.assertIn("Save review", html)
+        self.assertIn("/api/review-sheet", html)
+        self.assertIn("File mode: export review notes", html)
         self.assertIn("Opening handoff: mixed audio", html)
         self.assertIn("Technical details", html)
         self.assertNotIn("pavo review anchors import", html)
@@ -220,7 +224,9 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("<audio controls", html)
         self.assertIn(clip.as_uri(), html)
         self.assertIn("00:12-00:16=SPEAKER_01", html)
+        self.assertIn('id="save-review"', html)
         self.assertIn('id="export-json"', html)
+        self.assertIn("/api/review-sheet", html)
         self.assertIn('data-approve="1"', html)
         self.assertIn('data-reject="1"', html)
         embedded = html.split('<script type="application/json" id="review-sheet-data">', 1)[1].split("</script>", 1)[0]
@@ -316,8 +322,11 @@ class ReviewTests(unittest.TestCase):
             result = build_anchor_review_serve_command(bundle, host="127.0.0.1", port=9999, python="python3")
 
         self.assertEqual(result.url, "http://127.0.0.1:9999/index.html")
-        self.assertEqual(result.command, ["python3", "-m", "http.server", "9999", "--bind", "127.0.0.1", "--directory", str(bundle)])
-        self.assertIn("http.server 9999", result.shell_command)
+        self.assertEqual(
+            result.command,
+            ["pavo", "review", "anchors", "serve", str(bundle), "--host", "127.0.0.1", "--port", "9999"],
+        )
+        self.assertIn("pavo review anchors serve", result.shell_command)
 
     def test_build_anchor_review_serve_command_requires_index(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -413,6 +422,41 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.pending_count, 0)
         self.assertTrue(summary["passed"])
         self.assertEqual(corrections.cli_args, ["--speaker-correction", "00:12-00:16=SPEAKER_01"])
+
+    def test_save_anchor_review_sheet_payload_persists_validated_decisions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            original = root / "review-sheet.json"
+            sheet = {
+                "target_speaker_label": "SPEAKER_01",
+                "rows": [
+                    {
+                        "index": 1,
+                        "status": "pending",
+                        "approved": False,
+                        "target_speaker_label": "SPEAKER_01",
+                        "start": 12.06,
+                        "end": 16.06,
+                        "clip_path": "clips/candidate-1.wav",
+                        "suggested_speaker_correction": "00:12-00:16=SPEAKER_01",
+                        "reviewer_note": "",
+                    }
+                ],
+            }
+            reviewed = json.loads(json.dumps(sheet))
+            reviewed["rows"][0]["status"] = "approved"
+            reviewed["rows"][0]["approved"] = True
+            reviewed["rows"][0]["reviewer_note"] = "clear voiceprint match"
+            original.write_text(json.dumps(sheet))
+
+            result = save_anchor_review_sheet_payload(original, reviewed)
+            saved = json.loads(original.read_text())
+
+        self.assertTrue(result.human_reviewed)
+        self.assertEqual(result.imported_sheet_path, original)
+        self.assertEqual(saved["approved_count"], 1)
+        self.assertEqual(saved["pending_count"], 0)
+        self.assertEqual(saved["rows"][0]["reviewer_note"], "clear voiceprint match")
 
     def test_import_anchor_review_sheet_rejects_changed_clip_identity(self):
         with tempfile.TemporaryDirectory() as tmp:
