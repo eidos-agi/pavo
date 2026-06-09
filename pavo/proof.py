@@ -427,6 +427,7 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
         "nz_slang": _load_json(docs / "nz-slang-comparison-report.json"),
         "plaud_transcribe": _load_json(docs / "plaud-real-recording-report.json"),
         "plaud_decompose": _load_json(docs / "plaud-d535-decompose-report.json"),
+        "plaud_c37_decompose": _load_json(docs / "plaud-c37-decompose-report.json"),
         "demo_video": _load_json(docs / "conan-demo-video-report.json"),
         "accepted_stems": _load_json(docs / "real-media-accepted-stems-audit.json"),
         "merge_policy": _load_json(docs / "stem-merge-policy-report.json"),
@@ -488,7 +489,10 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
         remaining_gaps.append("accepted real-media stems with wrong-window leakage checks")
     if not real_media_stem_asr_improvement:
         remaining_gaps.append("real-media comparison showing stem ASR recovers words missed by mixed-audio ASR")
-    if not reports["plaud_decompose"].get("accepted_stems_passed"):
+    plaud_decompose_reports = [reports["plaud_decompose"], reports["plaud_c37_decompose"]]
+    plaud_decompose_attempt_count = sum(1 for report in plaud_decompose_reports if report.get("passed"))
+    plaud_accepted_stem_attempt_count = sum(1 for report in plaud_decompose_reports if report.get("accepted_stems_passed"))
+    if not plaud_accepted_stem_attempt_count:
         remaining_gaps.append("human-reviewed real Plaud multi-person overlap with accepted stems")
     merge_policy_reviewed = bool(reports["merge_policy"].get("passed"))
     if not merge_policy_reviewed:
@@ -502,6 +506,8 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
         "accepted_real_media_stems": accepted_real_media_stems,
         "accepted_real_media_stems_with_window_checks": accepted_real_media_stems_with_window_checks,
         "real_media_stem_asr_improvement": real_media_stem_asr_improvement,
+        "plaud_decompose_attempt_count": plaud_decompose_attempt_count,
+        "plaud_accepted_stem_attempt_count": plaud_accepted_stem_attempt_count,
         "merge_policy_reviewed": merge_policy_reviewed,
         "accepted_real_media_report_count": reports["accepted_stems"].get("accepted_report_count", 0),
         "accepted_real_media_report_with_window_checks_count": reports["accepted_stems"].get(

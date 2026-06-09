@@ -1,0 +1,122 @@
+{
+  "passed": true,
+  "accepted_stems_passed": false,
+  "source_id": "plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025",
+  "audio_sha256": "ab2a9c9a8210d9f9201933e9046338d6471a12e498e6bfd643fe281179ca849d",
+  "num_speakers": 2,
+  "best_method": "mfcc-kmeans",
+  "speaker_signature_count": 2,
+  "signature_sample_counts": {
+    "speaker-0": 33,
+    "speaker-1": 5
+  },
+  "immune_counts": {
+    "immune_agree": 98,
+    "immune_override": 18,
+    "immune_uncertain+rolling_mixed": 9,
+    "immune_conflict+rolling_mixed": 57,
+    "not_checked": 243,
+    "rolling_split_applied": 2,
+    "immune_context_override": 3,
+    "immune_uncertain": 1
+  },
+  "separated_region_count": 5,
+  "region_count": 5,
+  "accepted_region_count": 0,
+  "transcribed_stem_count": 10,
+  "diagnostic_segment_count": 12,
+  "trusted_segment_count": 0,
+  "stages": {
+    "download": true,
+    "voiceprints": true,
+    "speaker_change_detection": true,
+    "decomposition": true,
+    "stem_asr": true,
+    "manifests": true
+  },
+  "regions": [
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps/region-01-04m07s-04m11s/analysis.json",
+      "accepted": false,
+      "start": 247.02,
+      "end": 251.02,
+      "stem_count": 2,
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 1.0
+      },
+      "margins": {
+        "speaker-0": 0.0346,
+        "speaker-1": 0.0235
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps/region-02-04m47s-04m51s/analysis.json",
+      "accepted": false,
+      "start": 287.26,
+      "end": 291.26,
+      "stem_count": 2,
+      "wrong_rates": {
+        "speaker-0": 0.2857,
+        "speaker-1": 0.4286
+      },
+      "margins": {
+        "speaker-0": 0.0277,
+        "speaker-1": 0.0145
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps/region-03-05m03s-05m07s/analysis.json",
+      "accepted": false,
+      "start": 303.34,
+      "end": 307.34,
+      "stem_count": 2,
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 0.5714
+      },
+      "margins": {
+        "speaker-0": 0.0408,
+        "speaker-1": 0.0088
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps/region-04-05m11s-05m15s/analysis.json",
+      "accepted": false,
+      "start": 311.36,
+      "end": 315.36,
+      "stem_count": 2,
+      "wrong_rates": {
+        "speaker-0": 0.1429,
+        "speaker-1": 0.1429
+      },
+      "margins": {
+        "speaker-0": 0.0188,
+        "speaker-1": 0.0158
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps/region-05-12m48s-12m52s/analysis.json",
+      "accepted": false,
+      "start": 768.88,
+      "end": 772.9,
+      "stem_count": 2,
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 0.4286
+      },
+      "margins": {
+        "speaker-0": 0.0063,
+        "speaker-1": 0.0138
+      }
+    }
+  ],
+  "pavo_manifest": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/pavo-decompose-manifest.json",
+  "eidos_manifest": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/decompose-transcribe.manifest.json",
+  "speaker_manifest": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/process-call/speaker-pipeline/speaker-pipeline.manifest.json",
+  "signatures_manifest": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/process-call/speaker-pipeline/speaker-signatures/speaker-signatures.manifest.json",
+  "separation_manifest": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps/separate-overlaps.manifest.json",
+  "stem_asr_manifest": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/stem-asr/stem-asr.manifest.json",
+  "decomposed_transcript_json": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/stem-asr/decomposed-transcript.json",
+  "caveat": "Pipeline proof passes, but all separated regions are currently rejected; accepted real-media stems remain unproven."
+}

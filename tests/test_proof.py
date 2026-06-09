@@ -70,6 +70,16 @@ class ProofTests(unittest.TestCase):
         self.assertGreaterEqual(report["transcribed_stem_count"], 1)
         self.assertFalse(report["accepted_stems_passed"])
 
+    def test_committed_plaud_c37_report_proves_second_real_plaud_attempt_without_accepted_stems(self):
+        report_path = Path(__file__).resolve().parents[1] / "docs" / "plaud-c37-decompose-report.json"
+        report = json.loads(report_path.read_text())
+
+        self.assertTrue(report["passed"])
+        self.assertEqual(report["accepted_region_count"], 0)
+        self.assertFalse(report["accepted_stems_passed"])
+        self.assertGreaterEqual(report["region_count"], 5)
+        self.assertGreaterEqual(report["transcribed_stem_count"], 10)
+
     def test_committed_conan_old_sitcom_report_has_accepted_stem_asr_proof(self):
         report_path = Path(__file__).resolve().parents[1] / "docs" / "conan-old-sitcom-report.json"
         report = json.loads(report_path.read_text())
@@ -100,6 +110,8 @@ class ProofTests(unittest.TestCase):
         self.assertTrue(report["accepted_real_media_stems"])
         self.assertTrue(report["accepted_real_media_stems_with_window_checks"])
         self.assertFalse(report["real_media_stem_asr_improvement"])
+        self.assertEqual(report["plaud_decompose_attempt_count"], 2)
+        self.assertEqual(report["plaud_accepted_stem_attempt_count"], 0)
         self.assertTrue(report["merge_policy_reviewed"])
         self.assertGreater(report["reviewable_real_media_stem_count"], 0)
         self.assertNotIn("real accepted stems on a real overlap clip", report["remaining_gaps"])

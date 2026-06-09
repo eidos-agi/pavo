@@ -1,12 +1,12 @@
 {
   "passed": true,
   "cache_root": "/Users/dshanklinbv/Eidos/Pavo",
-  "separation_report_count": 11,
+  "separation_report_count": 51,
   "accepted_report_count": 2,
   "accepted_report_with_window_checks_count": 1,
-  "rejected_report_count": 9,
-  "trusted_stem_count": 11,
-  "trusted_stem_report_count": 9,
+  "rejected_report_count": 49,
+  "trusted_stem_count": 21,
+  "trusted_stem_report_count": 19,
   "trusted_stem_reports": [
     {
       "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps/region-02-00m07s-00m13s/analysis.json",
@@ -60,6 +60,276 @@
       "rolling_windows": {
         "speaker-0": 11,
         "speaker-1": 12
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps-sweep-pad-0/region-02-00m07s-00m13s/analysis.json",
+      "accepted": false,
+      "region_start": 7.76,
+      "region_end": 13.0,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "speaker-0"
+      ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "speaker-0"
+      ],
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 0.375
+      },
+      "margins": {
+        "speaker-0": 0.0617,
+        "speaker-1": 0.0198
+      },
+      "rolling_windows": {
+        "speaker-0": 8,
+        "speaker-1": 8
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps-sweep-pad-0/region-03-00m54s-00m59s/analysis.json",
+      "accepted": false,
+      "region_start": 54.78,
+      "region_end": 59.89,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "speaker-1"
+      ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "speaker-1"
+      ],
+      "wrong_rates": {
+        "speaker-0": 1.0,
+        "speaker-1": 0.0
+      },
+      "margins": {
+        "speaker-0": 0.1005,
+        "speaker-1": 0.1084
+      },
+      "rolling_windows": {
+        "speaker-0": 8,
+        "speaker-1": 8
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps-sweep-pad-0p1/region-02-00m07s-00m13s/analysis.json",
+      "accepted": false,
+      "region_start": 7.76,
+      "region_end": 13.0,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "speaker-0"
+      ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "speaker-0"
+      ],
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 0.375
+      },
+      "margins": {
+        "speaker-0": 0.0591,
+        "speaker-1": 0.0251
+      },
+      "rolling_windows": {
+        "speaker-0": 8,
+        "speaker-1": 8
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps-sweep-pad-0p1/region-03-00m54s-00m59s/analysis.json",
+      "accepted": false,
+      "region_start": 54.78,
+      "region_end": 59.89,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "speaker-1"
+      ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "speaker-1"
+      ],
+      "wrong_rates": {
+        "speaker-0": 1.0,
+        "speaker-1": 0.0
+      },
+      "margins": {
+        "speaker-0": 0.0884,
+        "speaker-1": 0.1082
+      },
+      "rolling_windows": {
+        "speaker-0": 8,
+        "speaker-1": 8
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps-sweep-pad-0p25/region-02-00m07s-00m13s/analysis.json",
+      "accepted": false,
+      "region_start": 7.76,
+      "region_end": 13.0,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "speaker-0"
+      ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "speaker-0"
+      ],
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 0.6667
+      },
+      "margins": {
+        "speaker-0": 0.0536,
+        "speaker-1": 0.0144
+      },
+      "rolling_windows": {
+        "speaker-0": 9,
+        "speaker-1": 9
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps-sweep-pad-0p25/region-03-00m54s-00m59s/analysis.json",
+      "accepted": false,
+      "region_start": 54.78,
+      "region_end": 59.89,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "speaker-1"
+      ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "speaker-1"
+      ],
+      "wrong_rates": {
+        "speaker-0": 1.0,
+        "speaker-1": 0.0
+      },
+      "margins": {
+        "speaker-0": 0.0862,
+        "speaker-1": 0.0977
+      },
+      "rolling_windows": {
+        "speaker-0": 9,
+        "speaker-1": 9
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps-sweep-pad-0p5/region-02-00m07s-00m13s/analysis.json",
+      "accepted": false,
+      "region_start": 7.76,
+      "region_end": 13.0,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "speaker-0"
+      ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "speaker-0"
+      ],
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 0.4
+      },
+      "margins": {
+        "speaker-0": 0.0582,
+        "speaker-1": 0.0105
+      },
+      "rolling_windows": {
+        "speaker-0": 10,
+        "speaker-1": 10
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps-sweep-pad-0p5/region-03-00m54s-00m59s/analysis.json",
+      "accepted": false,
+      "region_start": 54.78,
+      "region_end": 59.89,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "speaker-1"
+      ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "speaker-1"
+      ],
+      "wrong_rates": {
+        "speaker-0": 1.0,
+        "speaker-1": 0.0
+      },
+      "margins": {
+        "speaker-0": 0.0897,
+        "speaker-1": 0.1037
+      },
+      "rolling_windows": {
+        "speaker-0": 10,
+        "speaker-1": 10
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps-sweep-region2-pad-0p25/region-01-00m06s-00m07s/analysis.json",
+      "accepted": false,
+      "region_start": 6.5,
+      "region_end": 7.76,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "speaker-0"
+      ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "speaker-0"
+      ],
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 1.0
+      },
+      "margins": {
+        "speaker-0": 0.0701,
+        "speaker-1": 0.0551
+      },
+      "rolling_windows": {
+        "speaker-0": 1,
+        "speaker-1": 1
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps-sweep-region3-pad-0p25/region-01-00m54s-00m59s/analysis.json",
+      "accepted": false,
+      "region_start": 54.78,
+      "region_end": 59.89,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "speaker-1"
+      ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "speaker-1"
+      ],
+      "wrong_rates": {
+        "speaker-0": 1.0,
+        "speaker-1": 0.0
+      },
+      "margins": {
+        "speaker-0": 0.0862,
+        "speaker-1": 0.0977
+      },
+      "rolling_windows": {
+        "speaker-0": 9,
+        "speaker-1": 9
       }
     },
     {
@@ -339,6 +609,581 @@
   ],
   "reports": [
     {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps/region-01-04m07s-04m11s/analysis.json",
+      "accepted": false,
+      "region_start": 247.02,
+      "region_end": 251.02,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 1.0
+      },
+      "margins": {
+        "speaker-0": 0.0346,
+        "speaker-1": 0.0235
+      },
+      "rolling_windows": {
+        "speaker-0": 7,
+        "speaker-1": 7
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps/region-02-04m47s-04m51s/analysis.json",
+      "accepted": false,
+      "region_start": 287.26,
+      "region_end": 291.26,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.2857,
+        "speaker-1": 0.4286
+      },
+      "margins": {
+        "speaker-0": 0.0277,
+        "speaker-1": 0.0145
+      },
+      "rolling_windows": {
+        "speaker-0": 7,
+        "speaker-1": 7
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps/region-03-05m03s-05m07s/analysis.json",
+      "accepted": false,
+      "region_start": 303.34,
+      "region_end": 307.34,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 0.5714
+      },
+      "margins": {
+        "speaker-0": 0.0408,
+        "speaker-1": 0.0088
+      },
+      "rolling_windows": {
+        "speaker-0": 7,
+        "speaker-1": 7
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps/region-04-05m11s-05m15s/analysis.json",
+      "accepted": false,
+      "region_start": 311.36,
+      "region_end": 315.36,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.1429,
+        "speaker-1": 0.1429
+      },
+      "margins": {
+        "speaker-0": 0.0188,
+        "speaker-1": 0.0158
+      },
+      "rolling_windows": {
+        "speaker-0": 7,
+        "speaker-1": 7
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps/region-05-12m48s-12m52s/analysis.json",
+      "accepted": false,
+      "region_start": 768.88,
+      "region_end": 772.9,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 0.4286
+      },
+      "margins": {
+        "speaker-0": 0.0063,
+        "speaker-1": 0.0138
+      },
+      "rolling_windows": {
+        "speaker-0": 7,
+        "speaker-1": 7
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps-sweep-pad-0/region-01-04m07s-04m11s/analysis.json",
+      "accepted": false,
+      "region_start": 247.02,
+      "region_end": 251.02,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 0.8333
+      },
+      "margins": {
+        "speaker-0": 0.0331,
+        "speaker-1": 0.0184
+      },
+      "rolling_windows": {
+        "speaker-0": 6,
+        "speaker-1": 6
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps-sweep-pad-0/region-02-04m47s-04m51s/analysis.json",
+      "accepted": false,
+      "region_start": 287.26,
+      "region_end": 291.26,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.3333,
+        "speaker-1": 0.3333
+      },
+      "margins": {
+        "speaker-0": 0.0155,
+        "speaker-1": 0.0056
+      },
+      "rolling_windows": {
+        "speaker-0": 6,
+        "speaker-1": 6
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps-sweep-pad-0/region-03-05m03s-05m07s/analysis.json",
+      "accepted": false,
+      "region_start": 303.34,
+      "region_end": 307.34,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 0.6667
+      },
+      "margins": {
+        "speaker-0": 0.0457,
+        "speaker-1": 0.0015
+      },
+      "rolling_windows": {
+        "speaker-0": 6,
+        "speaker-1": 6
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps-sweep-pad-0/region-04-05m11s-05m15s/analysis.json",
+      "accepted": false,
+      "region_start": 311.36,
+      "region_end": 315.36,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.1667,
+        "speaker-1": 0.1667
+      },
+      "margins": {
+        "speaker-0": 0.027,
+        "speaker-1": 0.0091
+      },
+      "rolling_windows": {
+        "speaker-0": 6,
+        "speaker-1": 6
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps-sweep-pad-0/region-05-12m48s-12m52s/analysis.json",
+      "accepted": false,
+      "region_start": 768.88,
+      "region_end": 772.9,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 0.5
+      },
+      "margins": {
+        "speaker-0": 0.0178,
+        "speaker-1": 0.0243
+      },
+      "rolling_windows": {
+        "speaker-0": 6,
+        "speaker-1": 6
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps-sweep-pad-0p1/region-01-04m07s-04m11s/analysis.json",
+      "accepted": false,
+      "region_start": 247.02,
+      "region_end": 251.02,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 0.8333
+      },
+      "margins": {
+        "speaker-0": 0.0354,
+        "speaker-1": 0.0188
+      },
+      "rolling_windows": {
+        "speaker-0": 6,
+        "speaker-1": 6
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps-sweep-pad-0p1/region-02-04m47s-04m51s/analysis.json",
+      "accepted": false,
+      "region_start": 287.26,
+      "region_end": 291.26,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.1667,
+        "speaker-1": 0.1667
+      },
+      "margins": {
+        "speaker-0": 0.0099,
+        "speaker-1": 0.0083
+      },
+      "rolling_windows": {
+        "speaker-0": 6,
+        "speaker-1": 6
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps-sweep-pad-0p1/region-03-05m03s-05m07s/analysis.json",
+      "accepted": false,
+      "region_start": 303.34,
+      "region_end": 307.34,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 0.3333
+      },
+      "margins": {
+        "speaker-0": 0.0415,
+        "speaker-1": 0.0004
+      },
+      "rolling_windows": {
+        "speaker-0": 6,
+        "speaker-1": 6
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps-sweep-pad-0p1/region-04-05m11s-05m15s/analysis.json",
+      "accepted": false,
+      "region_start": 311.36,
+      "region_end": 315.36,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.1667,
+        "speaker-1": 0.5
+      },
+      "margins": {
+        "speaker-0": 0.0269,
+        "speaker-1": 0.0138
+      },
+      "rolling_windows": {
+        "speaker-0": 6,
+        "speaker-1": 6
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps-sweep-pad-0p1/region-05-12m48s-12m52s/analysis.json",
+      "accepted": false,
+      "region_start": 768.88,
+      "region_end": 772.9,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 0.5
+      },
+      "margins": {
+        "speaker-0": 0.0135,
+        "speaker-1": 0.0223
+      },
+      "rolling_windows": {
+        "speaker-0": 6,
+        "speaker-1": 6
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps-sweep-pad-0p5/region-01-04m07s-04m11s/analysis.json",
+      "accepted": false,
+      "region_start": 247.02,
+      "region_end": 251.02,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 0.75
+      },
+      "margins": {
+        "speaker-0": 0.04,
+        "speaker-1": 0.0341
+      },
+      "rolling_windows": {
+        "speaker-0": 8,
+        "speaker-1": 8
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps-sweep-pad-0p5/region-02-04m47s-04m51s/analysis.json",
+      "accepted": false,
+      "region_start": 287.26,
+      "region_end": 291.26,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.25,
+        "speaker-1": 0.5
+      },
+      "margins": {
+        "speaker-0": 0.0272,
+        "speaker-1": 0.0144
+      },
+      "rolling_windows": {
+        "speaker-0": 8,
+        "speaker-1": 8
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps-sweep-pad-0p5/region-03-05m03s-05m07s/analysis.json",
+      "accepted": false,
+      "region_start": 303.34,
+      "region_end": 307.34,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 0.625
+      },
+      "margins": {
+        "speaker-0": 0.0413,
+        "speaker-1": 0.0082
+      },
+      "rolling_windows": {
+        "speaker-0": 8,
+        "speaker-1": 8
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps-sweep-pad-0p5/region-04-05m11s-05m15s/analysis.json",
+      "accepted": false,
+      "region_start": 311.36,
+      "region_end": 315.36,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.25,
+        "speaker-1": 0.125
+      },
+      "margins": {
+        "speaker-0": 0.0089,
+        "speaker-1": 0.0128
+      },
+      "rolling_windows": {
+        "speaker-0": 8,
+        "speaker-1": 8
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps-sweep-pad-0p5/region-05-12m48s-12m52s/analysis.json",
+      "accepted": false,
+      "region_start": 768.88,
+      "region_end": 772.9,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 0.5
+      },
+      "margins": {
+        "speaker-0": 0.0089,
+        "speaker-1": 0.0127
+      },
+      "rolling_windows": {
+        "speaker-0": 8,
+        "speaker-1": 8
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps-sweep-pad-1p0/region-01-04m07s-04m11s/analysis.json",
+      "accepted": false,
+      "region_start": 247.02,
+      "region_end": 251.02,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 0.8
+      },
+      "margins": {
+        "speaker-0": 0.038,
+        "speaker-1": 0.0206
+      },
+      "rolling_windows": {
+        "speaker-0": 10,
+        "speaker-1": 10
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps-sweep-pad-1p0/region-02-04m47s-04m51s/analysis.json",
+      "accepted": false,
+      "region_start": 287.26,
+      "region_end": 291.26,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.2,
+        "speaker-1": 0.6
+      },
+      "margins": {
+        "speaker-0": 0.0377,
+        "speaker-1": 0.018
+      },
+      "rolling_windows": {
+        "speaker-0": 10,
+        "speaker-1": 10
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps-sweep-pad-1p0/region-03-05m03s-05m07s/analysis.json",
+      "accepted": false,
+      "region_start": 303.34,
+      "region_end": 307.34,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 0.6
+      },
+      "margins": {
+        "speaker-0": 0.0386,
+        "speaker-1": 0.0015
+      },
+      "rolling_windows": {
+        "speaker-0": 10,
+        "speaker-1": 10
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps-sweep-pad-1p0/region-04-05m11s-05m15s/analysis.json",
+      "accepted": false,
+      "region_start": 311.36,
+      "region_end": 315.36,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.3,
+        "speaker-1": 0.3
+      },
+      "margins": {
+        "speaker-0": 0.0142,
+        "speaker-1": 0.0062
+      },
+      "rolling_windows": {
+        "speaker-0": 10,
+        "speaker-1": 10
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/decompose-transcribe/separated-overlaps-sweep-pad-1p0/region-05-12m48s-12m52s/analysis.json",
+      "accepted": false,
+      "region_start": 768.88,
+      "region_end": 772.9,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.3,
+        "speaker-1": 0.7
+      },
+      "margins": {
+        "speaker-0": 0.0026,
+        "speaker-1": 0.004
+      },
+      "rolling_windows": {
+        "speaker-0": 10,
+        "speaker-1": 10
+      }
+    },
+    {
       "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps/region-01-00m00s-00m05s/analysis.json",
       "accepted": false,
       "region_start": 0.0,
@@ -413,6 +1258,391 @@
       "rolling_windows": {
         "speaker-0": 11,
         "speaker-1": 12
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps-sweep-pad-0/region-01-00m00s-00m05s/analysis.json",
+      "accepted": false,
+      "region_start": 0.0,
+      "region_end": 5.0,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.25,
+        "speaker-1": 0.25
+      },
+      "margins": {
+        "speaker-0": 0.014,
+        "speaker-1": 0.0373
+      },
+      "rolling_windows": {
+        "speaker-0": 8,
+        "speaker-1": 8
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps-sweep-pad-0/region-02-00m07s-00m13s/analysis.json",
+      "accepted": false,
+      "region_start": 7.76,
+      "region_end": 13.0,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "speaker-0"
+      ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "speaker-0"
+      ],
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 0.375
+      },
+      "margins": {
+        "speaker-0": 0.0617,
+        "speaker-1": 0.0198
+      },
+      "rolling_windows": {
+        "speaker-0": 8,
+        "speaker-1": 8
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps-sweep-pad-0/region-03-00m54s-00m59s/analysis.json",
+      "accepted": false,
+      "region_start": 54.78,
+      "region_end": 59.89,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "speaker-1"
+      ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "speaker-1"
+      ],
+      "wrong_rates": {
+        "speaker-0": 1.0,
+        "speaker-1": 0.0
+      },
+      "margins": {
+        "speaker-0": 0.1005,
+        "speaker-1": 0.1084
+      },
+      "rolling_windows": {
+        "speaker-0": 8,
+        "speaker-1": 8
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps-sweep-pad-0p1/region-01-00m00s-00m05s/analysis.json",
+      "accepted": false,
+      "region_start": 0.0,
+      "region_end": 5.0,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.25,
+        "speaker-1": 0.25
+      },
+      "margins": {
+        "speaker-0": 0.0206,
+        "speaker-1": 0.0442
+      },
+      "rolling_windows": {
+        "speaker-0": 8,
+        "speaker-1": 8
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps-sweep-pad-0p1/region-02-00m07s-00m13s/analysis.json",
+      "accepted": false,
+      "region_start": 7.76,
+      "region_end": 13.0,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "speaker-0"
+      ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "speaker-0"
+      ],
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 0.375
+      },
+      "margins": {
+        "speaker-0": 0.0591,
+        "speaker-1": 0.0251
+      },
+      "rolling_windows": {
+        "speaker-0": 8,
+        "speaker-1": 8
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps-sweep-pad-0p1/region-03-00m54s-00m59s/analysis.json",
+      "accepted": false,
+      "region_start": 54.78,
+      "region_end": 59.89,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "speaker-1"
+      ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "speaker-1"
+      ],
+      "wrong_rates": {
+        "speaker-0": 1.0,
+        "speaker-1": 0.0
+      },
+      "margins": {
+        "speaker-0": 0.0884,
+        "speaker-1": 0.1082
+      },
+      "rolling_windows": {
+        "speaker-0": 8,
+        "speaker-1": 8
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps-sweep-pad-0p25/region-01-00m00s-00m05s/analysis.json",
+      "accepted": false,
+      "region_start": 0.0,
+      "region_end": 5.0,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.25,
+        "speaker-1": 0.25
+      },
+      "margins": {
+        "speaker-0": 0.0211,
+        "speaker-1": 0.0457
+      },
+      "rolling_windows": {
+        "speaker-0": 8,
+        "speaker-1": 8
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps-sweep-pad-0p25/region-02-00m07s-00m13s/analysis.json",
+      "accepted": false,
+      "region_start": 7.76,
+      "region_end": 13.0,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "speaker-0"
+      ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "speaker-0"
+      ],
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 0.6667
+      },
+      "margins": {
+        "speaker-0": 0.0536,
+        "speaker-1": 0.0144
+      },
+      "rolling_windows": {
+        "speaker-0": 9,
+        "speaker-1": 9
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps-sweep-pad-0p25/region-03-00m54s-00m59s/analysis.json",
+      "accepted": false,
+      "region_start": 54.78,
+      "region_end": 59.89,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "speaker-1"
+      ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "speaker-1"
+      ],
+      "wrong_rates": {
+        "speaker-0": 1.0,
+        "speaker-1": 0.0
+      },
+      "margins": {
+        "speaker-0": 0.0862,
+        "speaker-1": 0.0977
+      },
+      "rolling_windows": {
+        "speaker-0": 9,
+        "speaker-1": 9
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps-sweep-pad-0p5/region-01-00m00s-00m05s/analysis.json",
+      "accepted": false,
+      "region_start": 0.0,
+      "region_end": 5.0,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 0.3333,
+        "speaker-1": 0.0
+      },
+      "margins": {
+        "speaker-0": 0.0222,
+        "speaker-1": 0.0457
+      },
+      "rolling_windows": {
+        "speaker-0": 9,
+        "speaker-1": 9
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps-sweep-pad-0p5/region-02-00m07s-00m13s/analysis.json",
+      "accepted": false,
+      "region_start": 7.76,
+      "region_end": 13.0,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "speaker-0"
+      ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "speaker-0"
+      ],
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 0.4
+      },
+      "margins": {
+        "speaker-0": 0.0582,
+        "speaker-1": 0.0105
+      },
+      "rolling_windows": {
+        "speaker-0": 10,
+        "speaker-1": 10
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps-sweep-pad-0p5/region-03-00m54s-00m59s/analysis.json",
+      "accepted": false,
+      "region_start": 54.78,
+      "region_end": 59.89,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "speaker-1"
+      ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "speaker-1"
+      ],
+      "wrong_rates": {
+        "speaker-0": 1.0,
+        "speaker-1": 0.0
+      },
+      "margins": {
+        "speaker-0": 0.0897,
+        "speaker-1": 0.1037
+      },
+      "rolling_windows": {
+        "speaker-0": 10,
+        "speaker-1": 10
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps-sweep-region2-pad-0p25/region-01-00m06s-00m07s/analysis.json",
+      "accepted": false,
+      "region_start": 6.5,
+      "region_end": 7.76,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "speaker-0"
+      ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "speaker-0"
+      ],
+      "wrong_rates": {
+        "speaker-0": 0.0,
+        "speaker-1": 1.0
+      },
+      "margins": {
+        "speaker-0": 0.0701,
+        "speaker-1": 0.0551
+      },
+      "rolling_windows": {
+        "speaker-0": 1,
+        "speaker-1": 1
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps-sweep-region2-pad-0p25/region-02-00m13s-00m13s/analysis.json",
+      "accepted": false,
+      "region_start": 13.0,
+      "region_end": 13.56,
+      "stem_count": 2,
+      "trusted_stem_count": 0,
+      "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "speaker-0": 1.0,
+        "speaker-1": 0.0
+      },
+      "margins": {
+        "speaker-0": 0.0159,
+        "speaker-1": 0.0261
+      },
+      "rolling_windows": {
+        "speaker-0": 1,
+        "speaker-1": 1
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps-sweep-region3-pad-0p25/region-01-00m54s-00m59s/analysis.json",
+      "accepted": false,
+      "region_start": 54.78,
+      "region_end": 59.89,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "speaker-1"
+      ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "speaker-1"
+      ],
+      "wrong_rates": {
+        "speaker-0": 1.0,
+        "speaker-1": 0.0
+      },
+      "margins": {
+        "speaker-0": 0.0862,
+        "speaker-1": 0.0977
+      },
+      "rolling_windows": {
+        "speaker-0": 9,
+        "speaker-1": 9
       }
     },
     {

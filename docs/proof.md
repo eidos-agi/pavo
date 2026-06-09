@@ -146,8 +146,12 @@ Transcript output:
   voiceprint-first pipeline can run on real Plaud audio with generic speaker
   labels: download, two speaker signatures, rolling speaker-change evidence,
   three separated regions, diagnostic stem ASR, and manifests.
-- The separated regions in that Plaud run are still rejected by the quality
-  gates, so this is not accepted-stem proof.
+- A longer Plaud recording, `c37d65f27fc0cf75c85fd0dadb8a6ba1`, also runs
+  through the full Plaud decompose path: download, ASR, voiceprints,
+  speaker-change candidates, five separated regions, diagnostic stem ASR, and
+  manifests.
+- The separated regions in both Plaud decompose runs are still rejected by the
+  quality gates, so this is not accepted Plaud stem proof.
 - The real-media audit now finds accepted Conan/Kaitlin overlap separation:
   both stems pass the trust gate with wrong-window leakage checks. The accepted
   stem ASR manifest writes trusted global-timed evidence for that overlap.
