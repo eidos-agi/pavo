@@ -304,6 +304,8 @@ def conan_old_sitcom_report(separation_manifest_path: Path | str, stem_asr_manif
             "whole_clip_best": stem.get("whole_clip", {}).get("best"),
             "margin": stem.get("whole_clip", {}).get("margin"),
             "wrong_rate": stem.get("wrong_rate"),
+            "rolling_windows": stem.get("rolling_windows"),
+            "trusted": _stem_report_trusted(stem),
             "path": stem.get("path"),
         }
         for report in region_reports
@@ -320,7 +322,15 @@ def conan_old_sitcom_report(separation_manifest_path: Path | str, stem_asr_manif
         and rejected_segments
         and not trusted_segments
     )
-    passed = bool(overlap_detected and region_reports and not accepted_regions and diagnostic_available)
+    accepted_stem_asr_available = bool(
+        accepted_regions
+        and stem_asr_manifest.get("include_rejected") is False
+        and stem_asr_manifest.get("transcribed_stem_count", 0) >= len(stem_reports)
+        and trusted_segments
+        and not rejected_segments
+    )
+    stem_asr_improvement_passed = bool(False)
+    passed = bool(overlap_detected and region_reports and (diagnostic_available or accepted_stem_asr_available))
     return {
         "passed": passed,
         "overlap_detected": overlap_detected,
@@ -331,6 +341,8 @@ def conan_old_sitcom_report(separation_manifest_path: Path | str, stem_asr_manif
         "stem_count": len(stem_reports),
         "stem_reports": stem_reports,
         "diagnostic_available": diagnostic_available,
+        "accepted_stem_asr_available": accepted_stem_asr_available,
+        "stem_asr_improvement_passed": stem_asr_improvement_passed,
         "include_rejected": stem_asr_manifest.get("include_rejected"),
         "transcribed_stem_count": stem_asr_manifest.get("transcribed_stem_count", 0),
         "diagnostic_segment_count": len(diagnostic_segments),
@@ -359,6 +371,11 @@ def real_media_accepted_stems_audit(cache_root: Path | str) -> dict[str, Any]:
             for slug, stem in stem_reports.items()
             if _stem_report_trusted(stem)
         }
+        checked_trusted_stems = {
+            slug: stem
+            for slug, stem in trusted_stems.items()
+            if int(stem.get("rolling_windows") or 0) > 0
+        }
         separation_reports.append(
             {
                 "path": str(path),
@@ -368,12 +385,20 @@ def real_media_accepted_stems_audit(cache_root: Path | str) -> dict[str, Any]:
                 "stem_count": len(stem_reports),
                 "trusted_stem_count": len(trusted_stems),
                 "trusted_stems": sorted(trusted_stems),
+                "checked_trusted_stem_count": len(checked_trusted_stems),
+                "checked_trusted_stems": sorted(checked_trusted_stems),
                 "wrong_rates": {slug: stem.get("wrong_rate") for slug, stem in stem_reports.items()},
                 "margins": {slug: stem.get("whole_clip", {}).get("margin") for slug, stem in stem_reports.items()},
+                "rolling_windows": {slug: stem.get("rolling_windows") for slug, stem in stem_reports.items()},
             }
         )
 
     accepted = [report for report in separation_reports if report["accepted"]]
+    accepted_with_window_checks = [
+        report
+        for report in accepted
+        if report["stem_count"] > 0 and report["checked_trusted_stem_count"] == report["stem_count"]
+    ]
     trusted_stem_reports = [report for report in separation_reports if report["trusted_stem_count"] > 0]
     trusted_stem_count = sum(report["trusted_stem_count"] for report in separation_reports)
     return {
@@ -381,11 +406,13 @@ def real_media_accepted_stems_audit(cache_root: Path | str) -> dict[str, Any]:
         "cache_root": str(root),
         "separation_report_count": len(separation_reports),
         "accepted_report_count": len(accepted),
+        "accepted_report_with_window_checks_count": len(accepted_with_window_checks),
         "rejected_report_count": len(separation_reports) - len(accepted),
         "trusted_stem_count": trusted_stem_count,
         "trusted_stem_report_count": len(trusted_stem_reports),
         "trusted_stem_reports": trusted_stem_reports,
         "accepted_reports": accepted,
+        "accepted_reports_with_window_checks": accepted_with_window_checks,
         "reports": separation_reports,
         "next_required_proof": "at least one real-media overlap separation report with accepted: true and trusted stem ASR evidence",
         "note": "trusted individual stems are reviewable evidence, but rejected regions still do not produce trusted canonical stem ASR",
@@ -445,15 +472,22 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
         ),
     ]
     accepted_real_media_stems = bool(reports["accepted_stems"].get("passed"))
+    accepted_real_media_stems_with_window_checks = bool(
+        reports["accepted_stems"].get("accepted_report_with_window_checks_count", 0)
+    )
+    real_media_stem_asr_improvement = bool(reports["conan_old_sitcom"].get("stem_asr_improvement_passed"))
     remaining_gaps = []
     if not accepted_real_media_stems:
         remaining_gaps.extend(
             [
                 "real accepted stems on a real overlap clip",
                 "real-media two-speaker separation with accepted stems",
-                "real-media comparison showing stem ASR recovers words missed by mixed-audio ASR",
             ]
         )
+    if accepted_real_media_stems and not accepted_real_media_stems_with_window_checks:
+        remaining_gaps.append("accepted real-media stems with wrong-window leakage checks")
+    if not real_media_stem_asr_improvement:
+        remaining_gaps.append("real-media comparison showing stem ASR recovers words missed by mixed-audio ASR")
     if not reports["plaud_decompose"].get("accepted_stems_passed"):
         remaining_gaps.append("human-reviewed real Plaud multi-person overlap with accepted stems")
     merge_policy_reviewed = bool(reports["merge_policy"].get("passed"))
@@ -466,8 +500,13 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
         "total_count": 25,
         "tests": tests,
         "accepted_real_media_stems": accepted_real_media_stems,
+        "accepted_real_media_stems_with_window_checks": accepted_real_media_stems_with_window_checks,
+        "real_media_stem_asr_improvement": real_media_stem_asr_improvement,
         "merge_policy_reviewed": merge_policy_reviewed,
         "accepted_real_media_report_count": reports["accepted_stems"].get("accepted_report_count", 0),
+        "accepted_real_media_report_with_window_checks_count": reports["accepted_stems"].get(
+            "accepted_report_with_window_checks_count", 0
+        ),
         "reviewable_real_media_stem_count": reports["accepted_stems"].get("trusted_stem_count", 0),
         "reviewable_real_media_stem_report_count": reports["accepted_stems"].get("trusted_stem_report_count", 0),
         "real_media_separation_report_count": reports["accepted_stems"].get("separation_report_count", 0),

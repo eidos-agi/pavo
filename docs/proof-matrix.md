@@ -90,15 +90,17 @@ Machine-readable rollup: [proof-status-summary.json](proof-status-summary.json)
 
 The strongest remaining proof gaps are:
 
-- real accepted stems on a real overlap clip
-  - Evidence: [real-media-accepted-stems-audit.json](real-media-accepted-stems-audit.json)
-  - Current progress: 4 reviewable individual real-media stems were detected,
-    but 0 whole overlap regions are accepted.
-- real-media two-speaker separation with accepted stems
 - real-media comparison showing stem ASR recovers words missed by mixed-audio ASR
 - human-reviewed real Plaud multi-person overlap recording
 
 Resolved gap:
+
+- real accepted stems on a real overlap clip
+  - Evidence: [real-media-accepted-stems-audit.json](real-media-accepted-stems-audit.json)
+  - Current result: 1 accepted real-media overlap region has both stems trusted
+    with wrong-window leakage checks.
+- real-media two-speaker separation with accepted stems
+  - Evidence: [conan-old-sitcom-report.json](conan-old-sitcom-report.json)
 
 - reviewed merge policy for when stem ASR can augment or override the canonical
   transcript

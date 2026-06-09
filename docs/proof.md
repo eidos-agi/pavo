@@ -148,15 +148,17 @@ Transcript output:
   three separated regions, diagnostic stem ASR, and manifests.
 - The separated regions in that Plaud run are still rejected by the quality
   gates, so this is not accepted-stem proof.
-- The real-media audit now finds 4 reviewable individual stems that pass the
-  per-stem trust gate, but 0 whole overlap regions are accepted. That means the
-  system is identifying useful partial separated audio, but it has not yet
-  proven clean two-speaker accepted separation on real media.
+- The real-media audit now finds accepted Conan/Kaitlin overlap separation:
+  both stems pass the trust gate with wrong-window leakage checks. The accepted
+  stem ASR manifest writes trusted global-timed evidence for that overlap.
 - Pavo does not currently run genetic algorithms.
 - The merge policy is now proven by
   [stem-merge-policy-report.json](stem-merge-policy-report.json); the remaining
-  blocker is accepted real-media stem evidence, not the policy gate.
+  blockers are stem-ASR improvement over mixed audio and human-reviewed
+  multi-person Plaud accepted overlap.
 
 The next proof target should be a real two-speaker Plaud recording with overlap,
 speaker mappings, and a `separate-overlaps` run that produces accepted stem
-reports, ideally with human-reviewed speaker identities.
+reports, ideally with human-reviewed speaker identities. The other next target
+is a real-media comparison proving stem ASR recovers words missed by mixed-audio
+ASR.

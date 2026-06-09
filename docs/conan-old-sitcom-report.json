@@ -3,35 +3,41 @@
   "overlap_detected": true,
   "candidate_count": 1,
   "region_count": 1,
-  "accepted_region_count": 0,
-  "all_regions_rejected": true,
+  "accepted_region_count": 1,
+  "all_regions_rejected": false,
   "stem_count": 2,
   "stem_reports": [
     {
       "speaker_slug": "conan-obrien",
       "target": "Conan O'Brien",
       "whole_clip_best": "Conan O'Brien",
-      "margin": 0.0655,
-      "wrong_rate": 0.3333,
-      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom/region-01-00m18s-00m18s/conan-obrien.wav"
+      "margin": 0.1212,
+      "wrong_rate": 0.0,
+      "rolling_windows": 1,
+      "trusted": true,
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/conan-obrien.wav"
     },
     {
       "speaker_slug": "kaitlin-olson",
       "target": "Kaitlin Olson",
       "whole_clip_best": "Kaitlin Olson",
-      "margin": 0.0517,
-      "wrong_rate": 0.3333,
-      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom/region-01-00m18s-00m18s/kaitlin-olson.wav"
+      "margin": 0.0645,
+      "wrong_rate": 0.0,
+      "rolling_windows": 1,
+      "trusted": true,
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/kaitlin-olson.wav"
     }
   ],
-  "diagnostic_available": true,
-  "include_rejected": true,
+  "diagnostic_available": false,
+  "accepted_stem_asr_available": true,
+  "stem_asr_improvement_passed": false,
+  "include_rejected": false,
   "transcribed_stem_count": 2,
   "diagnostic_segment_count": 4,
-  "trusted_segment_count": 0,
-  "rejected_segment_count": 4,
+  "trusted_segment_count": 4,
+  "rejected_segment_count": 0,
   "merge_policy": "evidence only; does not replace canonical transcript",
-  "separation_manifest": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom/separate-overlaps.manifest.json",
-  "stem_asr_manifest": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom/stem-asr-diagnostic/stem-asr.manifest.json",
-  "decomposed_transcript_json": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom/stem-asr-diagnostic/decomposed-transcript.json"
+  "separation_manifest": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/separate-overlaps.manifest.json",
+  "stem_asr_manifest": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/stem-asr-accepted/stem-asr.manifest.json",
+  "decomposed_transcript_json": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/stem-asr-accepted/decomposed-transcript.json"
 }

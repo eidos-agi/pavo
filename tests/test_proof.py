@@ -70,22 +70,24 @@ class ProofTests(unittest.TestCase):
         self.assertGreaterEqual(report["transcribed_stem_count"], 1)
         self.assertFalse(report["accepted_stems_passed"])
 
-    def test_committed_conan_old_sitcom_report_is_passing_rejected_diagnostic_proof(self):
+    def test_committed_conan_old_sitcom_report_has_accepted_stem_asr_proof(self):
         report_path = Path(__file__).resolve().parents[1] / "docs" / "conan-old-sitcom-report.json"
         report = json.loads(report_path.read_text())
 
         self.assertTrue(report["passed"])
         self.assertTrue(report["overlap_detected"])
-        self.assertTrue(report["all_regions_rejected"])
-        self.assertTrue(report["diagnostic_available"])
-        self.assertEqual(report["trusted_segment_count"], 0)
+        self.assertFalse(report["all_regions_rejected"])
+        self.assertTrue(report["accepted_stem_asr_available"])
+        self.assertFalse(report["stem_asr_improvement_passed"])
+        self.assertGreater(report["trusted_segment_count"], 0)
 
-    def test_committed_real_media_accepted_stems_audit_records_current_gap(self):
+    def test_committed_real_media_accepted_stems_audit_records_accepted_overlap(self):
         report_path = Path(__file__).resolve().parents[1] / "docs" / "real-media-accepted-stems-audit.json"
         report = json.loads(report_path.read_text())
 
-        self.assertFalse(report["passed"])
-        self.assertEqual(report["accepted_report_count"], 0)
+        self.assertTrue(report["passed"])
+        self.assertGreaterEqual(report["accepted_report_count"], 1)
+        self.assertGreaterEqual(report["accepted_report_with_window_checks_count"], 1)
         self.assertGreaterEqual(report["separation_report_count"], 1)
 
     def test_committed_proof_status_summary_records_current_goal_gap(self):
@@ -95,10 +97,13 @@ class ProofTests(unittest.TestCase):
         self.assertFalse(report["passed"])
         self.assertEqual(report["total_count"], 25)
         self.assertEqual(report["proved_count"], 25)
-        self.assertFalse(report["accepted_real_media_stems"])
+        self.assertTrue(report["accepted_real_media_stems"])
+        self.assertTrue(report["accepted_real_media_stems_with_window_checks"])
+        self.assertFalse(report["real_media_stem_asr_improvement"])
         self.assertTrue(report["merge_policy_reviewed"])
         self.assertGreater(report["reviewable_real_media_stem_count"], 0)
-        self.assertIn("real accepted stems on a real overlap clip", report["remaining_gaps"])
+        self.assertNotIn("real accepted stems on a real overlap clip", report["remaining_gaps"])
+        self.assertIn("real-media comparison showing stem ASR recovers words missed by mixed-audio ASR", report["remaining_gaps"])
         self.assertNotIn("reviewed merge policy for when stem ASR can augment or override the canonical transcript", report["remaining_gaps"])
 
     def test_conan_experience_comparison_proves_pavo_adds_named_speaker_evidence(self):
@@ -552,6 +557,70 @@ class ProofTests(unittest.TestCase):
         self.assertFalse(report["passed"])
         self.assertFalse(report["diagnostic_available"])
 
+    def test_conan_old_sitcom_report_accepts_trusted_stem_asr_without_claiming_improvement(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            region_dir = root / "region-01"
+            stem_dir = root / "stem-asr-accepted"
+            region_dir.mkdir()
+            stem_dir.mkdir()
+            analysis = region_dir / "analysis.json"
+            analysis.write_text(
+                json.dumps(
+                    {
+                        "region": {"immune": "not_checked+rolling_mixed"},
+                        "accepted": True,
+                        "stem_reports": {
+                            "conan-obrien": {
+                                "target": "Conan O'Brien",
+                                "whole_clip": {"best": "Conan O'Brien", "margin": 0.12},
+                                "wrong_rate": 0.0,
+                                "rolling_windows": 1,
+                                "path": str(region_dir / "conan-obrien.wav"),
+                            },
+                            "kaitlin-olson": {
+                                "target": "Kaitlin Olson",
+                                "whole_clip": {"best": "Kaitlin Olson", "margin": 0.06},
+                                "wrong_rate": 0.0,
+                                "rolling_windows": 1,
+                                "path": str(region_dir / "kaitlin-olson.wav"),
+                            },
+                        },
+                    }
+                )
+            )
+            separation_manifest = root / "separate-overlaps.manifest.json"
+            separation_manifest.write_text(json.dumps({"candidate_count": 1, "regions": [str(analysis)]}))
+            decomposed = stem_dir / "decomposed-transcript.json"
+            decomposed.write_text(
+                json.dumps(
+                    {
+                        "merge_policy": "evidence only; does not replace canonical transcript",
+                        "segments": [
+                            {"trusted": True, "source": "separated_stem"},
+                            {"trusted": True, "source": "separated_stem"},
+                        ],
+                    }
+                )
+            )
+            stem_asr_manifest = stem_dir / "stem-asr.manifest.json"
+            stem_asr_manifest.write_text(
+                json.dumps(
+                    {
+                        "include_rejected": False,
+                        "transcribed_stem_count": 2,
+                        "decomposed_transcript_json": str(decomposed),
+                    }
+                )
+            )
+
+            report = conan_old_sitcom_report(separation_manifest, stem_asr_manifest)
+
+        self.assertTrue(report["passed"])
+        self.assertEqual(report["accepted_region_count"], 1)
+        self.assertTrue(report["accepted_stem_asr_available"])
+        self.assertFalse(report["stem_asr_improvement_passed"])
+
     def test_real_media_accepted_stems_audit_passes_when_any_report_is_accepted(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -563,8 +632,18 @@ class ProofTests(unittest.TestCase):
                         "accepted": True,
                         "region": {"start": 10.0, "end": 12.0},
                         "stem_reports": {
-                            "speaker-a": {"wrong_rate": 0.0, "whole_clip": {"margin": 0.2}},
-                            "speaker-b": {"wrong_rate": 0.0, "whole_clip": {"margin": 0.3}},
+                            "speaker-a": {
+                                "target": "Speaker A",
+                                "wrong_rate": 0.0,
+                                "rolling_windows": 1,
+                                "whole_clip": {"best": "Speaker A", "margin": 0.2},
+                            },
+                            "speaker-b": {
+                                "target": "Speaker B",
+                                "wrong_rate": 0.0,
+                                "rolling_windows": 1,
+                                "whole_clip": {"best": "Speaker B", "margin": 0.3},
+                            },
                         },
                     }
                 )
@@ -574,6 +653,7 @@ class ProofTests(unittest.TestCase):
 
         self.assertTrue(report["passed"])
         self.assertEqual(report["accepted_report_count"], 1)
+        self.assertEqual(report["accepted_report_with_window_checks_count"], 1)
         self.assertEqual(report["accepted_reports"][0]["stem_count"], 2)
 
     def test_real_media_accepted_stems_audit_fails_when_reports_are_rejected(self):

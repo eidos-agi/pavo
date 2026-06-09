@@ -1,11 +1,12 @@
 {
-  "passed": false,
+  "passed": true,
   "cache_root": "/Users/dshanklinbv/Eidos/Pavo",
-  "separation_report_count": 6,
-  "accepted_report_count": 0,
-  "rejected_report_count": 6,
-  "trusted_stem_count": 4,
-  "trusted_stem_report_count": 4,
+  "separation_report_count": 11,
+  "accepted_report_count": 2,
+  "accepted_report_with_window_checks_count": 1,
+  "rejected_report_count": 9,
+  "trusted_stem_count": 11,
+  "trusted_stem_report_count": 9,
   "trusted_stem_reports": [
     {
       "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps/region-02-00m07s-00m13s/analysis.json",
@@ -17,6 +18,10 @@
       "trusted_stems": [
         "speaker-0"
       ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "speaker-0"
+      ],
       "wrong_rates": {
         "speaker-0": 0.0,
         "speaker-1": 0.4167
@@ -24,6 +29,10 @@
       "margins": {
         "speaker-0": 0.0558,
         "speaker-1": 0.0044
+      },
+      "rolling_windows": {
+        "speaker-0": 12,
+        "speaker-1": 12
       }
     },
     {
@@ -36,6 +45,10 @@
       "trusted_stems": [
         "speaker-1"
       ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "speaker-1"
+      ],
       "wrong_rates": {
         "speaker-0": 1.0,
         "speaker-1": 0.0833
@@ -43,6 +56,10 @@
       "margins": {
         "speaker-0": 0.0847,
         "speaker-1": 0.0891
+      },
+      "rolling_windows": {
+        "speaker-0": 11,
+        "speaker-1": 12
       }
     },
     {
@@ -55,6 +72,10 @@
       "trusted_stems": [
         "kaitlin-olson"
       ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "kaitlin-olson"
+      ],
       "wrong_rates": {
         "conan-obrien": 1.0,
         "kaitlin-olson": 0.0
@@ -62,6 +83,142 @@
       "margins": {
         "conan-obrien": 0.0032,
         "kaitlin-olson": 0.1368
+      },
+      "rolling_windows": {
+        "conan-obrien": 5,
+        "kaitlin-olson": 5
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0/region-01-00m18s-00m18s/analysis.json",
+      "accepted": false,
+      "region_start": 18.04,
+      "region_end": 18.96,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "conan-obrien"
+      ],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "conan-obrien": null,
+        "kaitlin-olson": null
+      },
+      "margins": {
+        "conan-obrien": 0.1397,
+        "kaitlin-olson": 0.0035
+      },
+      "rolling_windows": {
+        "conan-obrien": 0,
+        "kaitlin-olson": 0
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p1/region-01-00m18s-00m18s/analysis.json",
+      "accepted": false,
+      "region_start": 18.04,
+      "region_end": 18.96,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "conan-obrien"
+      ],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "conan-obrien": null,
+        "kaitlin-olson": null
+      },
+      "margins": {
+        "conan-obrien": 0.132,
+        "kaitlin-olson": 0.0083
+      },
+      "rolling_windows": {
+        "conan-obrien": 0,
+        "kaitlin-olson": 0
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25/region-01-00m18s-00m18s/analysis.json",
+      "accepted": true,
+      "region_start": 18.04,
+      "region_end": 18.96,
+      "stem_count": 2,
+      "trusted_stem_count": 2,
+      "trusted_stems": [
+        "conan-obrien",
+        "kaitlin-olson"
+      ],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "conan-obrien": null,
+        "kaitlin-olson": null
+      },
+      "margins": {
+        "conan-obrien": 0.1212,
+        "kaitlin-olson": 0.0645
+      },
+      "rolling_windows": {
+        "conan-obrien": 0,
+        "kaitlin-olson": 0
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/analysis.json",
+      "accepted": true,
+      "region_start": 18.04,
+      "region_end": 18.96,
+      "stem_count": 2,
+      "trusted_stem_count": 2,
+      "trusted_stems": [
+        "conan-obrien",
+        "kaitlin-olson"
+      ],
+      "checked_trusted_stem_count": 2,
+      "checked_trusted_stems": [
+        "conan-obrien",
+        "kaitlin-olson"
+      ],
+      "wrong_rates": {
+        "conan-obrien": 0.0,
+        "kaitlin-olson": 0.0
+      },
+      "margins": {
+        "conan-obrien": 0.1212,
+        "kaitlin-olson": 0.0645
+      },
+      "rolling_windows": {
+        "conan-obrien": 1,
+        "kaitlin-olson": 1
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p5/region-01-00m18s-00m18s/analysis.json",
+      "accepted": false,
+      "region_start": 18.04,
+      "region_end": 18.96,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "conan-obrien"
+      ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "conan-obrien"
+      ],
+      "wrong_rates": {
+        "conan-obrien": 0.0,
+        "kaitlin-olson": 0.0
+      },
+      "margins": {
+        "conan-obrien": 0.0818,
+        "kaitlin-olson": 0.0419
+      },
+      "rolling_windows": {
+        "conan-obrien": 1,
+        "kaitlin-olson": 1
       }
     },
     {
@@ -74,6 +231,10 @@
       "trusted_stems": [
         "kaitlin-olson"
       ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "kaitlin-olson"
+      ],
       "wrong_rates": {
         "conan-obrien": 1.0,
         "kaitlin-olson": 0.0
@@ -81,10 +242,101 @@
       "margins": {
         "conan-obrien": 0.0032,
         "kaitlin-olson": 0.1368
+      },
+      "rolling_windows": {
+        "conan-obrien": 5,
+        "kaitlin-olson": 5
       }
     }
   ],
-  "accepted_reports": [],
+  "accepted_reports": [
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25/region-01-00m18s-00m18s/analysis.json",
+      "accepted": true,
+      "region_start": 18.04,
+      "region_end": 18.96,
+      "stem_count": 2,
+      "trusted_stem_count": 2,
+      "trusted_stems": [
+        "conan-obrien",
+        "kaitlin-olson"
+      ],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "conan-obrien": null,
+        "kaitlin-olson": null
+      },
+      "margins": {
+        "conan-obrien": 0.1212,
+        "kaitlin-olson": 0.0645
+      },
+      "rolling_windows": {
+        "conan-obrien": 0,
+        "kaitlin-olson": 0
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/analysis.json",
+      "accepted": true,
+      "region_start": 18.04,
+      "region_end": 18.96,
+      "stem_count": 2,
+      "trusted_stem_count": 2,
+      "trusted_stems": [
+        "conan-obrien",
+        "kaitlin-olson"
+      ],
+      "checked_trusted_stem_count": 2,
+      "checked_trusted_stems": [
+        "conan-obrien",
+        "kaitlin-olson"
+      ],
+      "wrong_rates": {
+        "conan-obrien": 0.0,
+        "kaitlin-olson": 0.0
+      },
+      "margins": {
+        "conan-obrien": 0.1212,
+        "kaitlin-olson": 0.0645
+      },
+      "rolling_windows": {
+        "conan-obrien": 1,
+        "kaitlin-olson": 1
+      }
+    }
+  ],
+  "accepted_reports_with_window_checks": [
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/analysis.json",
+      "accepted": true,
+      "region_start": 18.04,
+      "region_end": 18.96,
+      "stem_count": 2,
+      "trusted_stem_count": 2,
+      "trusted_stems": [
+        "conan-obrien",
+        "kaitlin-olson"
+      ],
+      "checked_trusted_stem_count": 2,
+      "checked_trusted_stems": [
+        "conan-obrien",
+        "kaitlin-olson"
+      ],
+      "wrong_rates": {
+        "conan-obrien": 0.0,
+        "kaitlin-olson": 0.0
+      },
+      "margins": {
+        "conan-obrien": 0.1212,
+        "kaitlin-olson": 0.0645
+      },
+      "rolling_windows": {
+        "conan-obrien": 1,
+        "kaitlin-olson": 1
+      }
+    }
+  ],
   "reports": [
     {
       "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_d535f050e8b65bd1ee0cf144cf215873_generic2/decompose-transcribe/separated-overlaps/region-01-00m00s-00m05s/analysis.json",
@@ -94,6 +346,8 @@
       "stem_count": 2,
       "trusted_stem_count": 0,
       "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
       "wrong_rates": {
         "speaker-0": 0.2,
         "speaker-1": 0.375
@@ -101,6 +355,10 @@
       "margins": {
         "speaker-0": 0.0265,
         "speaker-1": 0.0324
+      },
+      "rolling_windows": {
+        "speaker-0": 10,
+        "speaker-1": 8
       }
     },
     {
@@ -113,6 +371,10 @@
       "trusted_stems": [
         "speaker-0"
       ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "speaker-0"
+      ],
       "wrong_rates": {
         "speaker-0": 0.0,
         "speaker-1": 0.4167
@@ -120,6 +382,10 @@
       "margins": {
         "speaker-0": 0.0558,
         "speaker-1": 0.0044
+      },
+      "rolling_windows": {
+        "speaker-0": 12,
+        "speaker-1": 12
       }
     },
     {
@@ -132,6 +398,10 @@
       "trusted_stems": [
         "speaker-1"
       ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "speaker-1"
+      ],
       "wrong_rates": {
         "speaker-0": 1.0,
         "speaker-1": 0.0833
@@ -139,6 +409,10 @@
       "margins": {
         "speaker-0": 0.0847,
         "speaker-1": 0.0891
+      },
+      "rolling_windows": {
+        "speaker-0": 11,
+        "speaker-1": 12
       }
     },
     {
@@ -151,6 +425,10 @@
       "trusted_stems": [
         "kaitlin-olson"
       ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "kaitlin-olson"
+      ],
       "wrong_rates": {
         "conan-obrien": 1.0,
         "kaitlin-olson": 0.0
@@ -158,6 +436,10 @@
       "margins": {
         "conan-obrien": 0.0032,
         "kaitlin-olson": 0.1368
+      },
+      "rolling_windows": {
+        "conan-obrien": 5,
+        "kaitlin-olson": 5
       }
     },
     {
@@ -168,6 +450,8 @@
       "stem_count": 2,
       "trusted_stem_count": 0,
       "trusted_stems": [],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
       "wrong_rates": {
         "conan-obrien": 0.3333,
         "kaitlin-olson": 0.3333
@@ -175,6 +459,142 @@
       "margins": {
         "conan-obrien": 0.0655,
         "kaitlin-olson": 0.0517
+      },
+      "rolling_windows": {
+        "conan-obrien": 3,
+        "kaitlin-olson": 3
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0/region-01-00m18s-00m18s/analysis.json",
+      "accepted": false,
+      "region_start": 18.04,
+      "region_end": 18.96,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "conan-obrien"
+      ],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "conan-obrien": null,
+        "kaitlin-olson": null
+      },
+      "margins": {
+        "conan-obrien": 0.1397,
+        "kaitlin-olson": 0.0035
+      },
+      "rolling_windows": {
+        "conan-obrien": 0,
+        "kaitlin-olson": 0
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p1/region-01-00m18s-00m18s/analysis.json",
+      "accepted": false,
+      "region_start": 18.04,
+      "region_end": 18.96,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "conan-obrien"
+      ],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "conan-obrien": null,
+        "kaitlin-olson": null
+      },
+      "margins": {
+        "conan-obrien": 0.132,
+        "kaitlin-olson": 0.0083
+      },
+      "rolling_windows": {
+        "conan-obrien": 0,
+        "kaitlin-olson": 0
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25/region-01-00m18s-00m18s/analysis.json",
+      "accepted": true,
+      "region_start": 18.04,
+      "region_end": 18.96,
+      "stem_count": 2,
+      "trusted_stem_count": 2,
+      "trusted_stems": [
+        "conan-obrien",
+        "kaitlin-olson"
+      ],
+      "checked_trusted_stem_count": 0,
+      "checked_trusted_stems": [],
+      "wrong_rates": {
+        "conan-obrien": null,
+        "kaitlin-olson": null
+      },
+      "margins": {
+        "conan-obrien": 0.1212,
+        "kaitlin-olson": 0.0645
+      },
+      "rolling_windows": {
+        "conan-obrien": 0,
+        "kaitlin-olson": 0
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p25-short-window/region-01-00m18s-00m18s/analysis.json",
+      "accepted": true,
+      "region_start": 18.04,
+      "region_end": 18.96,
+      "stem_count": 2,
+      "trusted_stem_count": 2,
+      "trusted_stems": [
+        "conan-obrien",
+        "kaitlin-olson"
+      ],
+      "checked_trusted_stem_count": 2,
+      "checked_trusted_stems": [
+        "conan-obrien",
+        "kaitlin-olson"
+      ],
+      "wrong_rates": {
+        "conan-obrien": 0.0,
+        "kaitlin-olson": 0.0
+      },
+      "margins": {
+        "conan-obrien": 0.1212,
+        "kaitlin-olson": 0.0645
+      },
+      "rolling_windows": {
+        "conan-obrien": 1,
+        "kaitlin-olson": 1
+      }
+    },
+    {
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_KxJWK8R7uVQ_named_v1/process-call/pavo-separated-overlaps-that-old-sitcom-pad-0p5/region-01-00m18s-00m18s/analysis.json",
+      "accepted": false,
+      "region_start": 18.04,
+      "region_end": 18.96,
+      "stem_count": 2,
+      "trusted_stem_count": 1,
+      "trusted_stems": [
+        "conan-obrien"
+      ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "conan-obrien"
+      ],
+      "wrong_rates": {
+        "conan-obrien": 0.0,
+        "kaitlin-olson": 0.0
+      },
+      "margins": {
+        "conan-obrien": 0.0818,
+        "kaitlin-olson": 0.0419
+      },
+      "rolling_windows": {
+        "conan-obrien": 1,
+        "kaitlin-olson": 1
       }
     },
     {
@@ -187,6 +607,10 @@
       "trusted_stems": [
         "kaitlin-olson"
       ],
+      "checked_trusted_stem_count": 1,
+      "checked_trusted_stems": [
+        "kaitlin-olson"
+      ],
       "wrong_rates": {
         "conan-obrien": 1.0,
         "kaitlin-olson": 0.0
@@ -194,6 +618,10 @@
       "margins": {
         "conan-obrien": 0.0032,
         "kaitlin-olson": 0.1368
+      },
+      "rolling_windows": {
+        "conan-obrien": 5,
+        "kaitlin-olson": 5
       }
     }
   ],

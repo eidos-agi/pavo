@@ -200,7 +200,7 @@
       "evidence": [
         "conan-old-sitcom-report.json"
       ],
-      "accepted_stems": false
+      "accepted_stems": true
     },
     {
       "id": 23,
@@ -232,15 +232,16 @@
       ]
     }
   ],
-  "accepted_real_media_stems": false,
+  "accepted_real_media_stems": true,
+  "accepted_real_media_stems_with_window_checks": true,
+  "real_media_stem_asr_improvement": false,
   "merge_policy_reviewed": true,
-  "accepted_real_media_report_count": 0,
-  "reviewable_real_media_stem_count": 4,
-  "reviewable_real_media_stem_report_count": 4,
-  "real_media_separation_report_count": 6,
+  "accepted_real_media_report_count": 2,
+  "accepted_real_media_report_with_window_checks_count": 1,
+  "reviewable_real_media_stem_count": 11,
+  "reviewable_real_media_stem_report_count": 9,
+  "real_media_separation_report_count": 11,
   "remaining_gaps": [
-    "real accepted stems on a real overlap clip",
-    "real-media two-speaker separation with accepted stems",
     "real-media comparison showing stem ASR recovers words missed by mixed-audio ASR",
     "human-reviewed real Plaud multi-person overlap with accepted stems"
   ]
