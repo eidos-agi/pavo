@@ -43,6 +43,48 @@ def conan_experience_comparison_report(path: Path | str) -> dict[str, Any]:
     }
 
 
+def nz_slang_comparison_report(
+    path: Path | str,
+    *,
+    required_improvements: list[str] | None = None,
+) -> dict[str, Any]:
+    comparison = json.loads(Path(path).read_text())
+    required = required_improvements or ["box of birds", "sweet as", "bottle of milk"]
+    term_presence = comparison.get("term_presence", {})
+    improved = []
+    missing = []
+    for term in required:
+        presence = term_presence.get(term, {})
+        if presence.get("pavo") is True and presence.get("youtube") is False:
+            improved.append(term)
+        else:
+            missing.append(
+                {
+                    "term": term,
+                    "youtube": presence.get("youtube"),
+                    "pavo": presence.get("pavo"),
+                }
+            )
+
+    passed = bool(
+        not comparison.get("youtube_has_speaker_names", True)
+        and int(comparison.get("speaker_count") or 0) >= 2
+        and not missing
+    )
+    return {
+        "passed": passed,
+        "title": comparison.get("title"),
+        "channel": comparison.get("channel"),
+        "youtube_has_speaker_names": comparison.get("youtube_has_speaker_names"),
+        "pavo_best_method": comparison.get("pavo_best_method"),
+        "speaker_count": comparison.get("speaker_count"),
+        "required_improvements": required,
+        "improved_terms": improved,
+        "missing_improvements": missing,
+        "improved_term_count": len(improved),
+    }
+
+
 def _find_case(comparison: dict[str, Any], label: str) -> dict[str, Any]:
     for case in comparison.get("cases", []):
         if case.get("label") == label:

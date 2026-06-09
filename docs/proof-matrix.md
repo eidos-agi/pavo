@@ -74,6 +74,7 @@ Status values:
    - Evidence: `docs/conan-diagnostic-stems.md`
 23. New Zealand Accent Slang Test - `fixture-backed`
    - Evidence: `~/Eidos/Pavo/demos/nz-accent-test/`.
+   - Evidence: [nz-slang-comparison-report.json](nz-slang-comparison-report.json)
 24. Plaud Real Recording Test - `fixture-backed`
    - Evidence: single-speaker Plaud proof exists; multi-speaker overlap proof is still missing.
 25. End-to-End Demo Video Test - `fixture-backed`

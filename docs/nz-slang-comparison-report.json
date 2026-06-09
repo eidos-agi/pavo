@@ -1,0 +1,21 @@
+{
+  "passed": true,
+  "title": "New Zealand Accent/ Slang",
+  "channel": "King Country Kiwi",
+  "youtube_has_speaker_names": false,
+  "pavo_best_method": "resemblyzer-kmeans",
+  "speaker_count": 6,
+  "required_improvements": [
+    "box of birds",
+    "sweet as",
+    "bottle of milk"
+  ],
+  "improved_terms": [
+    "box of birds",
+    "sweet as",
+    "bottle of milk"
+  ],
+  "missing_improvements": [],
+  "improved_term_count": 3,
+  "source_comparison": "/Users/dshanklinbv/Eidos/Pavo/demos/nz-accent-test/comparison.json"
+}

@@ -43,6 +43,7 @@ pavo audio separate-overlaps youtube_KxJWK8R7uVQ_named_v1 \
 - Local demo folder: `/Users/dshanklinbv/Eidos/Pavo/demos/nz-accent-test/`
 - Preview video: `/Users/dshanklinbv/Eidos/Pavo/demos/nz-accent-test/pavo-nz-accent-preview.mp4`
 - Comparison: `/Users/dshanklinbv/Eidos/Pavo/demos/nz-accent-test/comparison.json`
+- Slang comparison report: [nz-slang-comparison-report.json](nz-slang-comparison-report.json)
 - Process manifest: `/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/pavo-process-manifest.json`
 - Scorecard: `/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/process-call/speaker-pipeline/scorecard.json`
 
@@ -55,6 +56,8 @@ Useful cases:
   diarization.
 - Term checks for phrases such as `box of birds`, `sweet as`, and
   `bottle of milk`.
+- Machine-checked comparison where those three terms are present in Pavo and
+  absent from YouTube captions.
 
 Rerun the six-speaker process:
 
