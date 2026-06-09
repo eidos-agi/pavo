@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shlex
+from html.parser import HTMLParser
 from html import escape
 from dataclasses import dataclass
 from pathlib import Path
@@ -49,6 +50,45 @@ class AnchorReviewRerunCommandResult:
     approved_count: int
     command: list[str]
     shell_command: str
+
+
+@dataclass(frozen=True)
+class AnchorReviewPageVerificationResult:
+    review_sheet_path: Path
+    review_page_path: Path
+    passed: bool
+    candidate_count: int
+    audio_count: int
+    approve_count: int
+    reject_count: int
+    pending_button_count: int
+    note_count: int
+    export_button_present: bool
+    reset_button_present: bool
+    embedded_sheet_present: bool
+    import_instruction_present: bool
+    rerun_instruction_present: bool
+    missing: list[str]
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "passed": self.passed,
+            "review_sheet": str(self.review_sheet_path),
+            "review_page": str(self.review_page_path),
+            "candidate_count": self.candidate_count,
+            "audio_count": self.audio_count,
+            "approve_count": self.approve_count,
+            "reject_count": self.reject_count,
+            "pending_button_count": self.pending_button_count,
+            "note_count": self.note_count,
+            "export_button_present": self.export_button_present,
+            "reset_button_present": self.reset_button_present,
+            "embedded_sheet_present": self.embedded_sheet_present,
+            "import_instruction_present": self.import_instruction_present,
+            "rerun_instruction_present": self.rerun_instruction_present,
+            "missing": self.missing,
+            "next_required_proof": "human reviewer must approve or reject every clip, then import the reviewed sheet",
+        }
 
 
 def create_anchor_review_sheet(
@@ -512,6 +552,64 @@ def build_anchor_review_rerun_command(
     )
 
 
+def verify_anchor_review_page(
+    review_sheet_path: Path | str,
+    review_page_path: Path | str,
+) -> AnchorReviewPageVerificationResult:
+    sheet_path = Path(review_sheet_path)
+    page_path = Path(review_page_path)
+    sheet = json.loads(sheet_path.read_text())
+    html = page_path.read_text()
+    parser = _ReviewPageParser()
+    parser.feed(html)
+    candidate_count = len(sheet.get("rows", []))
+    missing = []
+    expected_counts = {
+        "audio controls": parser.audio_count,
+        "approve buttons": parser.approve_count,
+        "reject buttons": parser.reject_count,
+        "pending buttons": parser.pending_button_count,
+        "reviewer note fields": parser.note_count,
+    }
+    for label, count in expected_counts.items():
+        if count != candidate_count:
+            missing.append(f"{label}: expected {candidate_count}, found {count}")
+    embedded_sheet_present = False
+    if parser.review_sheet_json:
+        try:
+            embedded = json.loads(parser.review_sheet_json)
+            embedded_sheet_present = len(embedded.get("rows", [])) == candidate_count
+        except json.JSONDecodeError:
+            embedded_sheet_present = False
+    checks = {
+        "export button": parser.export_button_present,
+        "reset button": parser.reset_button_present,
+        "embedded sheet JSON": embedded_sheet_present,
+        "import instruction": "pavo review anchors import" in html,
+        "rerun instruction": "pavo review anchors rerun-command" in html,
+    }
+    for label, present in checks.items():
+        if not present:
+            missing.append(label)
+    return AnchorReviewPageVerificationResult(
+        review_sheet_path=sheet_path,
+        review_page_path=page_path,
+        passed=not missing,
+        candidate_count=candidate_count,
+        audio_count=parser.audio_count,
+        approve_count=parser.approve_count,
+        reject_count=parser.reject_count,
+        pending_button_count=parser.pending_button_count,
+        note_count=parser.note_count,
+        export_button_present=parser.export_button_present,
+        reset_button_present=parser.reset_button_present,
+        embedded_sheet_present=embedded_sheet_present,
+        import_instruction_present=checks["import instruction"],
+        rerun_instruction_present=checks["rerun instruction"],
+        missing=missing,
+    )
+
+
 def summarize_anchor_review_sheet(review_sheet_path: Path | str) -> dict[str, Any]:
     sheet_path = Path(review_sheet_path)
     sheet = json.loads(sheet_path.read_text())
@@ -608,6 +706,51 @@ def _audio_src(clip_path: Any) -> str:
     if path.is_absolute():
         return path.as_uri()
     return str(path)
+
+
+class _ReviewPageParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.audio_count = 0
+        self.approve_count = 0
+        self.reject_count = 0
+        self.pending_button_count = 0
+        self.note_count = 0
+        self.export_button_present = False
+        self.reset_button_present = False
+        self._in_review_sheet_script = False
+        self._review_sheet_chunks: list[str] = []
+
+    @property
+    def review_sheet_json(self) -> str:
+        return "".join(self._review_sheet_chunks).strip()
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attr = dict(attrs)
+        if tag == "audio":
+            self.audio_count += 1
+        if "data-approve" in attr:
+            self.approve_count += 1
+        if "data-reject" in attr:
+            self.reject_count += 1
+        if "data-pending" in attr:
+            self.pending_button_count += 1
+        if "data-note" in attr:
+            self.note_count += 1
+        if attr.get("id") == "export-json":
+            self.export_button_present = True
+        if attr.get("id") == "reset-review":
+            self.reset_button_present = True
+        if tag == "script" and attr.get("id") == "review-sheet-data":
+            self._in_review_sheet_script = True
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "script":
+            self._in_review_sheet_script = False
+
+    def handle_data(self, data: str) -> None:
+        if self._in_review_sheet_script:
+            self._review_sheet_chunks.append(data)
 
 
 def _format_seconds(value: Any) -> str:

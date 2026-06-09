@@ -18,6 +18,7 @@ from .review import (
     compile_anchor_review_corrections,
     import_anchor_review_sheet,
     summarize_anchor_review_sheet,
+    verify_anchor_review_page,
 )
 from .render import RenderVideoRequest, render_video
 from .transcribe import (
@@ -121,6 +122,10 @@ def build_parser() -> argparse.ArgumentParser:
     review_anchors_page = review_anchors_sub.add_parser("page", help="Create an HTML page for listening to anchor clips")
     review_anchors_page.add_argument("review_sheet", type=Path)
     review_anchors_page.add_argument("--out", type=Path, help="Review page HTML path")
+    review_anchors_verify_page = review_anchors_sub.add_parser("verify-page", help="Verify a generated anchor review HTML page")
+    review_anchors_verify_page.add_argument("review_sheet", type=Path)
+    review_anchors_verify_page.add_argument("review_page", type=Path)
+    review_anchors_verify_page.add_argument("--report", type=Path, help="Write machine-readable verification report JSON")
     review_anchors_import = review_anchors_sub.add_parser("import", help="Validate and import an exported reviewed sheet")
     review_anchors_import.add_argument("review_sheet", type=Path)
     review_anchors_import.add_argument("reviewed_export", type=Path)
@@ -346,6 +351,22 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"candidate_count: {result.candidate_count}")
                 print(f"pending_count: {result.pending_count}")
                 return 0
+            if args.review_anchors_command == "verify-page":
+                result = verify_anchor_review_page(args.review_sheet, args.review_page)
+                if args.report:
+                    args.report.parent.mkdir(parents=True, exist_ok=True)
+                    args.report.write_text(__import__("json").dumps(result.as_report(), indent=2) + "\n")
+                    print(f"report: {args.report}")
+                print(f"passed: {str(result.passed).lower()}")
+                print(f"candidate_count: {result.candidate_count}")
+                print(f"audio_count: {result.audio_count}")
+                print(f"approve_count: {result.approve_count}")
+                print(f"reject_count: {result.reject_count}")
+                print(f"pending_button_count: {result.pending_button_count}")
+                print(f"note_count: {result.note_count}")
+                if result.missing:
+                    print("missing: " + "; ".join(result.missing))
+                return 0 if result.passed else 2
             if args.review_anchors_command == "import":
                 try:
                     result = import_anchor_review_sheet(args.review_sheet, args.reviewed_export, out_path=args.out)

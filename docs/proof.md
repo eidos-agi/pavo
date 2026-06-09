@@ -179,6 +179,12 @@ Transcript output:
   approved `--speaker-correction` flags. The current c37 sheet still has no
   approved rows, so the rerun command report correctly remains blocked:
   [plaud-c37-anchor-rerun-command-report.json](plaud-c37-anchor-rerun-command-report.json).
+- The review page itself is now verified by a local HTML parser because the
+  in-app browser blocks direct `file://` navigation. The page verification
+  report confirms 20 audio players, 20 approve controls, 20 reject controls,
+  20 pending controls, 20 note fields, embedded sheet JSON, and import/rerun
+  instructions:
+  [plaud-c37-anchor-review-page-report.json](plaud-c37-anchor-review-page-report.json).
 - The real-media audit now finds accepted Conan/Kaitlin overlap separation:
   both stems pass the trust gate with wrong-window leakage checks. The accepted
   stem ASR manifest writes trusted global-timed evidence for that overlap.

@@ -10,6 +10,7 @@ from pavo.review import (
     create_anchor_review_sheet,
     import_anchor_review_sheet,
     summarize_anchor_review_sheet,
+    verify_anchor_review_page,
 )
 
 
@@ -154,6 +155,60 @@ class ReviewTests(unittest.TestCase):
         self.assertIn('data-reject="1"', html)
         embedded = html.split('<script type="application/json" id="review-sheet-data">', 1)[1].split("</script>", 1)[0]
         self.assertEqual(json.loads(embedded)["rows"][0]["index"], 1)
+
+    def test_verify_anchor_review_page_checks_required_controls(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            clip = root / "candidate.wav"
+            clip.write_bytes(b"RIFF")
+            sheet = root / "review-sheet.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "target_speaker_label": "SPEAKER_01",
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "pending",
+                                "approved": False,
+                                "target_speaker_label": "SPEAKER_01",
+                                "start": 12.06,
+                                "end": 16.06,
+                                "clip_path": str(clip),
+                                "suggested_speaker_correction": "00:12-00:16=SPEAKER_01",
+                            }
+                        ],
+                    }
+                )
+            )
+            page = create_anchor_review_page(sheet).review_page_path
+
+            result = verify_anchor_review_page(sheet, page)
+
+        self.assertTrue(result.passed)
+        self.assertEqual(result.audio_count, 1)
+        self.assertEqual(result.approve_count, 1)
+        self.assertEqual(result.reject_count, 1)
+        self.assertEqual(result.pending_button_count, 1)
+        self.assertEqual(result.note_count, 1)
+        self.assertTrue(result.embedded_sheet_present)
+        self.assertTrue(result.import_instruction_present)
+        self.assertTrue(result.rerun_instruction_present)
+        self.assertEqual(result.as_report()["missing"], [])
+
+    def test_verify_anchor_review_page_fails_when_controls_are_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sheet = root / "review-sheet.json"
+            page = root / "review.html"
+            sheet.write_text(json.dumps({"rows": [{"index": 1}]}))
+            page.write_text("<html><body><audio></audio></body></html>")
+
+            result = verify_anchor_review_page(sheet, page)
+
+        self.assertFalse(result.passed)
+        self.assertIn("approve buttons: expected 1, found 0", result.missing)
+        self.assertIn("embedded sheet JSON", result.missing)
 
     def test_summary_requires_all_rows_reviewed_before_human_reviewed_is_true(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -106,6 +106,8 @@ The strongest remaining proof gaps are:
     [plaud-c37-speaker1-anchor-review-sheet.json](plaud-c37-speaker1-anchor-review-sheet.json)
   - Review page:
     [plaud-c37-speaker1-anchor-review.html](plaud-c37-speaker1-anchor-review.html)
+  - Review page verification:
+    [plaud-c37-anchor-review-page-report.json](plaud-c37-anchor-review-page-report.json)
   - Current result: the review page embeds all 20 WAV clips, proposed
     corrections, approve/reject controls, reviewer notes, and JSON export.
     Pavo now validates and imports that export with `pavo review anchors import`
