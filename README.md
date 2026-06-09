@@ -37,6 +37,9 @@ transcription run.
 See [media tests](docs/media-tests.md) for the real Conan overlap fixture and
 the New Zealand accent/slang fixture.
 
+See [proof matrix](docs/proof-matrix.md) for the 25-test proof plan and current
+coverage status.
+
 See [diarization direction](docs/diarization.md) for the current product
 principle: detect speaker changes first, then attribute and merge.
 
