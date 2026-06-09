@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from html import escape
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,14 @@ class AnchorReviewCorrectionsResult:
     approved_count: int
     corrections: list[str]
     cli_args: list[str]
+
+
+@dataclass(frozen=True)
+class AnchorReviewPageResult:
+    review_sheet_path: Path
+    review_page_path: Path
+    candidate_count: int
+    pending_count: int
 
 
 def create_anchor_review_sheet(
@@ -98,6 +107,142 @@ def compile_anchor_review_corrections(review_sheet_path: Path | str) -> AnchorRe
     )
 
 
+def create_anchor_review_page(
+    review_sheet_path: Path | str,
+    *,
+    out_path: Path | str | None = None,
+) -> AnchorReviewPageResult:
+    sheet_path = Path(review_sheet_path)
+    sheet = json.loads(sheet_path.read_text())
+    page_path = Path(out_path) if out_path else sheet_path.with_suffix(".html")
+    rows = sheet.get("rows", [])
+    pending = [row for row in rows if row.get("status") == "pending"]
+    cards = "\n".join(_review_card(row) for row in rows)
+    title = f"Pavo Anchor Review - {sheet.get('target_speaker_name') or sheet.get('target_speaker_label') or 'Speaker'}"
+    html = f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{escape(title)}</title>
+  <style>
+    body {{
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #17211c;
+      background: #f7faf4;
+    }}
+    header {{
+      padding: 28px 32px;
+      background: #0d3b2e;
+      color: #f9fff7;
+    }}
+    main {{
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 24px;
+    }}
+    h1 {{
+      margin: 0 0 8px;
+      font-size: 28px;
+      letter-spacing: 0;
+    }}
+    .meta {{
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      color: #d7f5dd;
+    }}
+    .instructions {{
+      margin: 0 0 18px;
+      padding: 16px;
+      border: 1px solid #bfd7c5;
+      background: #ffffff;
+    }}
+    article {{
+      margin: 16px 0;
+      padding: 18px;
+      border: 1px solid #cfdfd1;
+      border-radius: 8px;
+      background: #ffffff;
+    }}
+    .row-head {{
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      margin-bottom: 10px;
+    }}
+    h2 {{
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 0;
+    }}
+    code {{
+      background: #eef4ee;
+      padding: 2px 5px;
+      border-radius: 4px;
+    }}
+    audio {{
+      width: 100%;
+      margin: 10px 0;
+    }}
+    dl {{
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 8px 12px;
+      margin: 12px 0 0;
+    }}
+    dt {{
+      font-weight: 700;
+      color: #315044;
+    }}
+    dd {{
+      margin: 0;
+      overflow-wrap: anywhere;
+    }}
+    .status {{
+      font-weight: 700;
+      color: #7a4e00;
+    }}
+    @media (max-width: 700px) {{
+      header {{ padding: 22px 18px; }}
+      main {{ padding: 16px; }}
+      dl {{ grid-template-columns: 1fr; }}
+    }}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>{escape(title)}</h1>
+    <div class="meta">
+      <span>{len(rows)} candidate clips</span>
+      <span>{len(pending)} pending</span>
+      <span>sheet: {escape(str(sheet_path))}</span>
+    </div>
+  </header>
+  <main>
+    <section class="instructions">
+      Listen for clean {escape(str(sheet.get('target_speaker_label') or 'target speaker'))} anchor clips.
+      In the JSON sheet, set <code>status</code> to <code>approved</code> and <code>approved</code> to
+      <code>true</code> only when the clip is clean. Set uncertain, overlapping, noisy, or wrong-speaker clips
+      to <code>rejected</code>. Then run <code>pavo review anchors corrections {escape(str(sheet_path))}</code>.
+    </section>
+    {cards}
+  </main>
+</body>
+</html>
+"""
+    page_path.parent.mkdir(parents=True, exist_ok=True)
+    page_path.write_text(html)
+    return AnchorReviewPageResult(
+        review_sheet_path=sheet_path,
+        review_page_path=page_path,
+        candidate_count=len(rows),
+        pending_count=len(pending),
+    )
+
+
 def summarize_anchor_review_sheet(review_sheet_path: Path | str) -> dict[str, Any]:
     sheet_path = Path(review_sheet_path)
     sheet = json.loads(sheet_path.read_text())
@@ -123,6 +268,37 @@ def _speaker_correction(start: Any, end: Any, speaker_label: Any) -> str | None:
     if start is None or end is None or not speaker_label:
         return None
     return f"{_format_seconds(start)}-{_format_seconds(end)}={speaker_label}"
+
+
+def _review_card(row: dict[str, Any]) -> str:
+    clip_path = row.get("clip_path")
+    audio_src = _audio_src(clip_path)
+    correction = row.get("suggested_speaker_correction") or _speaker_correction(
+        row.get("start"), row.get("end"), row.get("target_speaker_label")
+    )
+    return f"""<article>
+  <div class="row-head">
+    <h2>Clip {escape(str(row.get('index')))}</h2>
+    <span class="status">{escape(str(row.get('status') or 'pending'))}</span>
+  </div>
+  <audio controls preload="metadata" src="{escape(audio_src)}"></audio>
+  <dl>
+    <dt>Time</dt><dd>{escape(str(row.get('start')))} - {escape(str(row.get('end')))} seconds</dd>
+    <dt>Text</dt><dd>{escape(str(row.get('text') or ''))}</dd>
+    <dt>Target</dt><dd>{escape(str(row.get('target_speaker_label') or ''))} / {escape(str(row.get('target_speaker_name') or ''))}</dd>
+    <dt>Correction</dt><dd><code>{escape(str(correction or ''))}</code></dd>
+    <dt>Clip path</dt><dd>{escape(str(clip_path or ''))}</dd>
+  </dl>
+</article>"""
+
+
+def _audio_src(clip_path: Any) -> str:
+    if not clip_path:
+        return ""
+    path = Path(str(clip_path)).expanduser()
+    if path.is_absolute():
+        return path.as_uri()
+    return str(path)
 
 
 def _format_seconds(value: Any) -> str:

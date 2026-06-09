@@ -104,6 +104,8 @@ The strongest remaining proof gaps are:
     human review before corrected Plaud decomposition is rerun.
   - Review sheet:
     [plaud-c37-speaker1-anchor-review-sheet.json](plaud-c37-speaker1-anchor-review-sheet.json)
+  - Review page:
+    [plaud-c37-speaker1-anchor-review.html](plaud-c37-speaker1-anchor-review.html)
   - Current result: 20 rows are pending and 0 rows are approved, so no
     `--speaker-correction` flags are exported yet.
 

@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from pavo.review import (
+    create_anchor_review_page,
     compile_anchor_review_corrections,
     create_anchor_review_sheet,
     summarize_anchor_review_sheet,
@@ -98,6 +99,44 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.cli_args, ["--speaker-correction", "00:12-00:16=SPEAKER_01"])
         self.assertTrue(summary["human_reviewed"])
         self.assertTrue(summary["passed"])
+
+    def test_create_anchor_review_page_embeds_clip_audio_and_correction(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            clip = root / "candidate.wav"
+            clip.write_bytes(b"RIFF")
+            sheet = root / "review-sheet.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "target_speaker_label": "SPEAKER_01",
+                        "target_speaker_name": "Speaker 1",
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "pending",
+                                "approved": False,
+                                "target_speaker_label": "SPEAKER_01",
+                                "target_speaker_name": "Speaker 1",
+                                "start": 12.06,
+                                "end": 16.06,
+                                "text": "candidate",
+                                "clip_path": str(clip),
+                                "suggested_speaker_correction": "00:12-00:16=SPEAKER_01",
+                            }
+                        ],
+                    }
+                )
+            )
+
+            result = create_anchor_review_page(sheet)
+            html = result.review_page_path.read_text()
+
+        self.assertEqual(result.candidate_count, 1)
+        self.assertEqual(result.pending_count, 1)
+        self.assertIn("<audio controls", html)
+        self.assertIn(clip.as_uri(), html)
+        self.assertIn("00:12-00:16=SPEAKER_01", html)
 
     def test_summary_requires_all_rows_reviewed_before_human_reviewed_is_true(self):
         with tempfile.TemporaryDirectory() as tmp:

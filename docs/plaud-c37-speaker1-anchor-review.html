@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pavo Anchor Review - Speaker 1</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #17211c;
+      background: #f7faf4;
+    }
+    header {
+      padding: 28px 32px;
+      background: #0d3b2e;
+      color: #f9fff7;
+    }
+    main {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      letter-spacing: 0;
+    }
+    .meta {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      color: #d7f5dd;
+    }
+    .instructions {
+      margin: 0 0 18px;
+      padding: 16px;
+      border: 1px solid #bfd7c5;
+      background: #ffffff;
+    }
+    article {
+      margin: 16px 0;
+      padding: 18px;
+      border: 1px solid #cfdfd1;
+      border-radius: 8px;
+      background: #ffffff;
+    }
+    .row-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      margin-bottom: 10px;
+    }
+    h2 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+    code {
+      background: #eef4ee;
+      padding: 2px 5px;
+      border-radius: 4px;
+    }
+    audio {
+      width: 100%;
+      margin: 10px 0;
+    }
+    dl {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 8px 12px;
+      margin: 12px 0 0;
+    }
+    dt {
+      font-weight: 700;
+      color: #315044;
+    }
+    dd {
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+    .status {
+      font-weight: 700;
+      color: #7a4e00;
+    }
+    @media (max-width: 700px) {
+      header { padding: 22px 18px; }
+      main { padding: 16px; }
+      dl { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Pavo Anchor Review - Speaker 1</h1>
+    <div class="meta">
+      <span>20 candidate clips</span>
+      <span>20 pending</span>
+      <span>sheet: docs/plaud-c37-speaker1-anchor-review-sheet.json</span>
+    </div>
+  </header>
+  <main>
+    <section class="instructions">
+      Listen for clean SPEAKER_01 anchor clips.
+      In the JSON sheet, set <code>status</code> to <code>approved</code> and <code>approved</code> to
+      <code>true</code> only when the clip is clean. Set uncertain, overlapping, noisy, or wrong-speaker clips
+      to <code>rejected</code>. Then run <code>pavo review anchors corrections docs/plaud-c37-speaker1-anchor-review-sheet.json</code>.
+    </section>
+    <article>
+  <div class="row-head">
+    <h2>Clip 1</h2>
+    <span class="status">pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-01-001206-001606.wav"></audio>
+  <dl>
+    <dt>Time</dt><dd>12.06 - 16.06 seconds</dd>
+    <dt>Text</dt><dd>I think I&#x27;d wrap out.</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>00:12-00:16=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-01-001206-001606.wav</dd>
+  </dl>
+</article>
+<article>
+  <div class="row-head">
+    <h2>Clip 2</h2>
+    <span class="status">pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-02-022460-022860.wav"></audio>
+  <dl>
+    <dt>Time</dt><dd>144.60000000000002 - 148.60000000000002 seconds</dd>
+    <dt>Text</dt><dd>memory.</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>02:25-02:29=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-02-022460-022860.wav</dd>
+  </dl>
+</article>
+<article>
+  <div class="row-head">
+    <h2>Clip 3</h2>
+    <span class="status">pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-03-153788-154188.wav"></audio>
+  <dl>
+    <dt>Time</dt><dd>937.88 - 941.88 seconds</dd>
+    <dt>Text</dt><dd>I just covered this in a variety of different energy</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>15:38-15:42=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-03-153788-154188.wav</dd>
+  </dl>
+</article>
+<article>
+  <div class="row-head">
+    <h2>Clip 4</h2>
+    <span class="status">pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-04-153386-153786.wav"></audio>
+  <dl>
+    <dt>Time</dt><dd>933.86 - 937.86 seconds</dd>
+    <dt>Text</dt><dd>Wait, I&#x27;ll ask you.</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>15:34-15:38=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-04-153386-153786.wav</dd>
+  </dl>
+</article>
+<article>
+  <div class="row-head">
+    <h2>Clip 5</h2>
+    <span class="status">pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-05-121272-121672.wav"></audio>
+  <dl>
+    <dt>Time</dt><dd>732.72 - 736.72 seconds</dd>
+    <dt>Text</dt><dd>Yeah, I think also it&#x27;s like</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>12:13-12:17=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-05-121272-121672.wav</dd>
+  </dl>
+</article>
+<article>
+  <div class="row-head">
+    <h2>Clip 6</h2>
+    <span class="status">pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-06-053948-054348.wav"></audio>
+  <dl>
+    <dt>Time</dt><dd>339.47999999999996 - 343.47999999999996 seconds</dd>
+    <dt>Text</dt><dd>Now you can build back. If you can build back,</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>05:39-05:43=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-06-053948-054348.wav</dd>
+  </dl>
+</article>
+<article>
+  <div class="row-head">
+    <h2>Clip 7</h2>
+    <span class="status">pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-07-154190-154590.wav"></audio>
+  <dl>
+    <dt>Time</dt><dd>941.9 - 945.9 seconds</dd>
+    <dt>Text</dt><dd>and compliments by that side.</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>15:42-15:46=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-07-154190-154590.wav</dd>
+  </dl>
+</article>
+<article>
+  <div class="row-head">
+    <h2>Clip 8</h2>
+    <span class="status">pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-08-001608-002008.wav"></audio>
+  <dl>
+    <dt>Time</dt><dd>16.080000000000002 - 20.080000000000002 seconds</dd>
+    <dt>Text</dt><dd>Fall into IC.</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>00:16-00:20=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-08-001608-002008.wav</dd>
+  </dl>
+</article>
+<article>
+  <div class="row-head">
+    <h2>Clip 9</h2>
+    <span class="status">pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-09-161404-161804.wav"></audio>
+  <dl>
+    <dt>Time</dt><dd>974.04 - 978.04 seconds</dd>
+    <dt>Text</dt><dd>I&#x27;m driving through Kokomo, Indiana</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>16:14-16:18=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-09-161404-161804.wav</dd>
+  </dl>
+</article>
+<article>
+  <div class="row-head">
+    <h2>Clip 10</h2>
+    <span class="status">pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-10-285460-285660.wav"></audio>
+  <dl>
+    <dt>Time</dt><dd>1734.6 - 1736.6 seconds</dd>
+    <dt>Text</dt><dd>Thank you.</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>28:55-28:57=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-10-285460-285660.wav</dd>
+  </dl>
+</article>
+<article>
+  <div class="row-head">
+    <h2>Clip 11</h2>
+    <span class="status">pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-11-045932-050332.wav"></audio>
+  <dl>
+    <dt>Time</dt><dd>299.32000000000005 - 303.32000000000005 seconds</dd>
+    <dt>Text</dt><dd>If these routers become connected to</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>04:59-05:03=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-11-045932-050332.wav</dd>
+  </dl>
+</article>
+<article>
+  <div class="row-head">
+    <h2>Clip 12</h2>
+    <span class="status">pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-12-265792-270192.wav"></audio>
+  <dl>
+    <dt>Time</dt><dd>1617.92 - 1621.92 seconds</dd>
+    <dt>Text</dt><dd>So if we can figure out a way for this ability here</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>26:58-27:02=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-12-265792-270192.wav</dd>
+  </dl>
+</article>
+<article>
+  <div class="row-head">
+    <h2>Clip 13</h2>
+    <span class="status">pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-13-232484-232884.wav"></audio>
+  <dl>
+    <dt>Time</dt><dd>1404.84 - 1408.84 seconds</dd>
+    <dt>Text</dt><dd>Is there any one thing that you can think of as I&#x27;m talking this out</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>23:25-23:29=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-13-232484-232884.wav</dd>
+  </dl>
+</article>
+<article>
+  <div class="row-head">
+    <h2>Clip 14</h2>
+    <span class="status">pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-14-231680-232080.wav"></audio>
+  <dl>
+    <dt>Time</dt><dd>1396.8 - 1400.8 seconds</dd>
+    <dt>Text</dt><dd>it literally can&#x27;t donate a little bit. Like, it&#x27;s not possible to give you</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>23:17-23:21=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-14-231680-232080.wav</dd>
+  </dl>
+</article>
+<article>
+  <div class="row-head">
+    <h2>Clip 15</h2>
+    <span class="status">pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-15-155396-155796.wav"></audio>
+  <dl>
+    <dt>Time</dt><dd>953.96 - 957.96 seconds</dd>
+    <dt>Text</dt><dd>I felt like that is absolutely awesome. You know what else we can do?</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>15:54-15:58=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-15-155396-155796.wav</dd>
+  </dl>
+</article>
+<article>
+  <div class="row-head">
+    <h2>Clip 16</h2>
+    <span class="status">pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-16-115264-115664.wav"></audio>
+  <dl>
+    <dt>Time</dt><dd>712.64 - 716.64 seconds</dd>
+    <dt>Text</dt><dd>Most companies are fine.</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>11:53-11:57=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-16-115264-115664.wav</dd>
+  </dl>
+</article>
+<article>
+  <div class="row-head">
+    <h2>Clip 17</h2>
+    <span class="status">pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-17-262980-263380.wav"></audio>
+  <dl>
+    <dt>Time</dt><dd>1589.8 - 1593.8 seconds</dd>
+    <dt>Text</dt><dd>I&#x27;m going to go load it up with our phone call, take a picture of this</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>26:30-26:34=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-17-262980-263380.wav</dd>
+  </dl>
+</article>
+<article>
+  <div class="row-head">
+    <h2>Clip 18</h2>
+    <span class="status">pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-18-120468-120868.wav"></audio>
+  <dl>
+    <dt>Time</dt><dd>724.68 - 728.68 seconds</dd>
+    <dt>Text</dt><dd>So that one seems pretty obvious in a way.</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>12:05-12:09=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-18-120468-120868.wav</dd>
+  </dl>
+</article>
+<article>
+  <div class="row-head">
+    <h2>Clip 19</h2>
+    <span class="status">pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-19-055154-055554.wav"></audio>
+  <dl>
+    <dt>Time</dt><dd>351.53999999999996 - 355.53999999999996 seconds</dd>
+    <dt>Text</dt><dd>This is kind of a new different thing. When you go to</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>05:52-05:56=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-19-055154-055554.wav</dd>
+  </dl>
+</article>
+<article>
+  <div class="row-head">
+    <h2>Clip 20</h2>
+    <span class="status">pending</span>
+  </div>
+  <audio controls preload="metadata" src="file:///Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-20-202254-202654.wav"></audio>
+  <dl>
+    <dt>Time</dt><dd>1222.54 - 1226.54 seconds</dd>
+    <dt>Text</dt><dd>Like my mind doesn&#x27;t even comprehend how that&#x27;s possible.</dd>
+    <dt>Target</dt><dd>SPEAKER_01 / Speaker 1</dd>
+    <dt>Correction</dt><dd><code>20:23-20:27=SPEAKER_01</code></dd>
+    <dt>Clip path</dt><dd>/Users/dshanklinbv/Eidos/Pavo/cache/imports/plaud_c37d65f27fc0cf75c85fd0dadb8a6ba1_generic2_pad025/anchor-review/speaker-1/candidate-20-202254-202654.wav</dd>
+  </dl>
+</article>
+  </main>
+</body>
+</html>

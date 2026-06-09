@@ -167,6 +167,10 @@ Transcript output:
   [plaud-c37-speaker1-anchor-review-sheet.json](plaud-c37-speaker1-anchor-review-sheet.json).
   The sheet currently has 20 pending rows and 0 approved corrections, so no
   unreviewed clip can be exported as a speaker override.
+- Pavo also writes a local HTML listening page for that same sheet:
+  [plaud-c37-speaker1-anchor-review.html](plaud-c37-speaker1-anchor-review.html).
+  It embeds all 20 WAV clips with their proposed `--speaker-correction` values
+  so the human review can be completed without opening clip paths by hand.
 - The real-media audit now finds accepted Conan/Kaitlin overlap separation:
   both stems pass the trust gate with wrong-window leakage checks. The accepted
   stem ASR manifest writes trusted global-timed evidence for that overlap.

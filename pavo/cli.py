@@ -11,7 +11,12 @@ from .config import DEFAULT_HOME, home_from_arg, init_home
 from .download import save_audio
 from .overlap import SeparateOverlapsRequest, separate_overlaps
 from .plaud import PlaudCli, PlaudCliError
-from .review import create_anchor_review_sheet, compile_anchor_review_corrections, summarize_anchor_review_sheet
+from .review import (
+    create_anchor_review_page,
+    create_anchor_review_sheet,
+    compile_anchor_review_corrections,
+    summarize_anchor_review_sheet,
+)
 from .render import RenderVideoRequest, render_video
 from .transcribe import (
     DecomposeAudioRequest,
@@ -111,6 +116,9 @@ def build_parser() -> argparse.ArgumentParser:
     review_anchors_init.add_argument("--out", type=Path, help="Review sheet JSON path")
     review_anchors_summary = review_anchors_sub.add_parser("summary", help="Summarize review progress")
     review_anchors_summary.add_argument("review_sheet", type=Path)
+    review_anchors_page = review_anchors_sub.add_parser("page", help="Create an HTML page for listening to anchor clips")
+    review_anchors_page.add_argument("review_sheet", type=Path)
+    review_anchors_page.add_argument("--out", type=Path, help="Review page HTML path")
     review_anchors_corrections = review_anchors_sub.add_parser("corrections", help="Print approved --speaker-correction flags")
     review_anchors_corrections.add_argument("review_sheet", type=Path)
 
@@ -321,6 +329,12 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"approved_count: {summary['approved_count']}")
                 print(f"rejected_count: {summary['rejected_count']}")
                 print(f"pending_count: {summary['pending_count']}")
+                return 0
+            if args.review_anchors_command == "page":
+                result = create_anchor_review_page(args.review_sheet, out_path=args.out)
+                print(f"review_page: {result.review_page_path}")
+                print(f"candidate_count: {result.candidate_count}")
+                print(f"pending_count: {result.pending_count}")
                 return 0
             if args.review_anchors_command == "corrections":
                 result = compile_anchor_review_corrections(args.review_sheet)
