@@ -10,6 +10,7 @@ from .audio import run_audio_doctor
 from .config import DEFAULT_HOME, home_from_arg, init_home
 from .download import save_audio
 from .plaud import PlaudCli, PlaudCliError
+from .render import RenderVideoRequest, render_video
 from .transcribe import ProcessAudioRequest, TranscribeRequest, process_audio, transcribe_recording
 
 
@@ -50,6 +51,21 @@ def build_parser() -> argparse.ArgumentParser:
     transcribe.add_argument("--context-term", action="append", default=[], help="Known-good term to pass to eidos-transcribe")
     transcribe.add_argument("--context-file", type=Path, help="Context file to pass to eidos-transcribe")
     transcribe.add_argument("--engine", action="append", default=[], help="ASR engine to run; repeatable. Defaults to faster-whisper.")
+
+    video = subparsers.add_parser("video", help="Video rendering commands")
+    video_sub = video.add_subparsers(dest="video_command", required=True)
+    video_render = video_sub.add_parser("render", help="Burn captions into a video from a processed Pavo source")
+    video_render.add_argument("source_id")
+    video_render.add_argument("--audio-path", type=Path, help="Override source audio/video path")
+    video_render.add_argument("--transcript-json", type=Path, help="Override transcript JSON to render")
+    video_render.add_argument("--out", type=Path, help="Output video path")
+    video_render.add_argument("--title", help="Rendered video title")
+    video_render.add_argument("--portrait", action="append", default=[], help="Speaker portrait as 'Speaker Name=/path/to/image'")
+    video_render.add_argument("--width", type=int, help="Output width")
+    video_render.add_argument("--height", type=int, help="Output height")
+    video_render.add_argument("--fps", type=int, help="Output frames per second")
+    video_render.add_argument("--start", type=float, help="Start time in seconds")
+    video_render.add_argument("--duration", type=float, help="Render only this many seconds")
 
     config = subparsers.add_parser("config", help="Inspect local Pavo config")
     config_sub = config.add_subparsers(dest="config_command", required=True)
@@ -159,6 +175,35 @@ def main(argv: list[str] | None = None) -> int:
         print(f"transcribe_output_dir: {result.output_dir}")
         print(f"manifest: {result.manifest_path}")
         return 0
+
+    if args.command == "video":
+        if args.video_command == "render":
+            try:
+                result = render_video(
+                    RenderVideoRequest(
+                        source_id=args.source_id,
+                        home=home,
+                        audio_path=args.audio_path,
+                        transcript_json=args.transcript_json,
+                        out_path=args.out,
+                        title=args.title,
+                        portraits=args.portrait,
+                        width=args.width,
+                        height=args.height,
+                        fps=args.fps,
+                        start=args.start,
+                        duration=args.duration,
+                    )
+                )
+            except (FileNotFoundError, subprocess.CalledProcessError, RuntimeError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            print(f"source_id: {result.source_id}")
+            print(f"audio_path: {result.audio_path}")
+            print(f"transcript_json: {result.transcript_json}")
+            print(f"output_video: {result.out_path}")
+            print(f"manifest: {result.manifest_path}")
+            return 0
 
     if args.command == "config":
         pavo_home = init_home(home)

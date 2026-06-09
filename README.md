@@ -168,6 +168,7 @@ pavo audio doctor
 pavo audio process ./clip.mp4 --source-id youtube_<id> --num-speakers 6 \
   --speaker "SPEAKER_00=Conan O'Brien=conan-obrien" \
   --speaker-correction "00:00-00:06=SPEAKER_00"
+pavo video render youtube_<id> --title "Reviewed call" --duration 30
 pavo transcribe <recording-id> --context-term Plaud
 ```
 
@@ -187,6 +188,11 @@ its own run manifest next to the audio as `pavo-transcribe-manifest.json`.
 Pass `--speaker` only for labels you have reviewed, and use
 `--speaker-correction` for trusted time ranges where a human or video frame has
 confirmed the speaker.
+
+`pavo video render` burns captions into a video using the best transcript JSON
+from a processed source. It prefers rolling/immune or verified named artifacts
+when available, falls back to labeled speaker output, and writes
+`pavo-render-manifest.json` next to the processed source.
 
 ## Tests
 
