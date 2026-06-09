@@ -180,9 +180,11 @@ Transcript output:
   [stem-asr-improvement-search-report.json](stem-asr-improvement-search-report.json).
 - The New Zealand accent/slang fixture now runs through generic speaker
   signature enrollment, rolling/immune attribution, 20 separated regions, and
-  40 diagnostic stem transcripts. It still produced 0 accepted separated
-  regions, so it expands the real-media search but does not close the
-  stem-ASR improvement proof gap; see
+  40 diagnostic stem transcripts. A later assignment fix lets those stems match
+  any of the six speaker labels instead of only the first two labels, raising
+  reviewable trusted-stem regions to 11. It still produced 0 accepted separated
+  regions, so it expands the real-media search but does not close the stem-ASR
+  improvement proof gap; see
   [nz-decompose-proof-search-report.json](nz-decompose-proof-search-report.json).
 - Pavo does not currently run genetic algorithms.
 - The merge policy is now proven by

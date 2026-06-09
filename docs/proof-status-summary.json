@@ -252,6 +252,7 @@
   "nz_decompose_search_region_count": 20,
   "nz_decompose_search_transcribed_stem_count": 40,
   "nz_decompose_search_accepted_region_count": 0,
+  "nz_decompose_search_trusted_stem_region_count": 11,
   "remaining_gaps": [
     "real-media comparison showing stem ASR recovers words missed by mixed-audio ASR",
     "human-reviewed real Plaud multi-person overlap with accepted stems"

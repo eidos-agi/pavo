@@ -881,6 +881,9 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
         "nz_decompose_search_region_count": reports["nz_decompose_search"].get("separated_region_count", 0),
         "nz_decompose_search_transcribed_stem_count": reports["nz_decompose_search"].get("transcribed_stem_count", 0),
         "nz_decompose_search_accepted_region_count": reports["nz_decompose_search"].get("accepted_region_count", 0),
+        "nz_decompose_search_trusted_stem_region_count": reports["nz_decompose_search"].get(
+            "trusted_stem_region_count", 0
+        ),
         "remaining_gaps": remaining_gaps,
     }
 

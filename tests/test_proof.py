@@ -159,6 +159,7 @@ class ProofTests(unittest.TestCase):
         self.assertTrue(report["rolling_transcript_present"])
         self.assertEqual(report["accepted_region_count"], 0)
         self.assertGreaterEqual(report["separated_region_count"], 20)
+        self.assertGreaterEqual(report["trusted_stem_region_count"], 11)
         self.assertGreaterEqual(report["transcribed_stem_count"], 40)
         self.assertTrue(report["include_rejected"])
 
@@ -193,6 +194,7 @@ class ProofTests(unittest.TestCase):
         self.assertEqual(report["nz_decompose_search_region_count"], 20)
         self.assertEqual(report["nz_decompose_search_transcribed_stem_count"], 40)
         self.assertEqual(report["nz_decompose_search_accepted_region_count"], 0)
+        self.assertEqual(report["nz_decompose_search_trusted_stem_region_count"], 11)
         self.assertNotIn("real accepted stems on a real overlap clip", report["remaining_gaps"])
         self.assertIn("real-media comparison showing stem ASR recovers words missed by mixed-audio ASR", report["remaining_gaps"])
         self.assertNotIn("reviewed merge policy for when stem ASR can augment or override the canonical transcript", report["remaining_gaps"])

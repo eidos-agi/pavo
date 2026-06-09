@@ -1,36 +1,38 @@
 {
   "passed": false,
-  "manifest": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-generic/decompose-transcribe.manifest.json",
+  "manifest": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/decompose-transcribe.manifest.json",
   "speaker_signatures_present": true,
   "rolling_transcript_present": true,
-  "separation_manifest": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-generic/separated-overlaps/separate-overlaps.manifest.json",
-  "stem_asr_manifest": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-generic/stem-asr/stem-asr.manifest.json",
+  "separation_manifest": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/separated-overlaps/separate-overlaps.manifest.json",
+  "stem_asr_manifest": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/stem-asr/stem-asr.manifest.json",
   "separated_region_count": 20,
   "accepted_region_count": 0,
-  "trusted_stem_region_count": 7,
+  "trusted_stem_region_count": 11,
   "transcribed_stem_count": 40,
   "include_rejected": true,
   "regions": [
     {
-      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-generic/separated-overlaps/region-01-00m21s-00m24s/analysis.json",
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/separated-overlaps/region-01-00m21s-00m24s/analysis.json",
       "accepted": false,
       "start": 21.0,
       "end": 24.0,
       "text": "Matt Chisholm believes Heather's",
       "stem_count": 2,
-      "trusted_stems": [],
-      "trusted_stem_count": 0,
+      "trusted_stems": [
+        "speaker-04"
+      ],
+      "trusted_stem_count": 1,
       "wrong_rates": {
-        "speaker-00": 0.8,
-        "speaker-01": 1.0
+        "speaker-01": 0.2,
+        "speaker-04": 0.0
       },
       "margins": {
-        "speaker-00": 0.0268,
-        "speaker-01": 0.1452
+        "speaker-01": 0.0268,
+        "speaker-04": 0.1452
       }
     },
     {
-      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-generic/separated-overlaps/region-02-00m30s-00m32s/analysis.json",
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/separated-overlaps/region-02-00m30s-00m32s/analysis.json",
       "accepted": false,
       "start": 30.0,
       "end": 32.75,
@@ -48,7 +50,7 @@
       }
     },
     {
-      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-generic/separated-overlaps/region-03-00m35s-00m36s/analysis.json",
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/separated-overlaps/region-03-00m35s-00m36s/analysis.json",
       "accepted": false,
       "start": 35.0,
       "end": 36.0,
@@ -57,16 +59,16 @@
       "trusted_stems": [],
       "trusted_stem_count": 0,
       "wrong_rates": {
-        "speaker-00": 1.0,
-        "speaker-01": 0.0
+        "speaker-01": 0.0,
+        "speaker-03": 0.0
       },
       "margins": {
-        "speaker-00": 0.0275,
-        "speaker-01": 0.0204
+        "speaker-01": 0.0204,
+        "speaker-03": 0.0275
       }
     },
     {
-      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-generic/separated-overlaps/region-04-01m14s-01m15s/analysis.json",
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/separated-overlaps/region-04-01m14s-01m15s/analysis.json",
       "accepted": false,
       "start": 74.5,
       "end": 75.75,
@@ -77,16 +79,16 @@
       ],
       "trusted_stem_count": 1,
       "wrong_rates": {
-        "speaker-00": 1.0,
-        "speaker-01": 0.0
+        "speaker-01": 0.0,
+        "speaker-03": 1.0
       },
       "margins": {
-        "speaker-00": 0.0306,
-        "speaker-01": 0.0555
+        "speaker-01": 0.0555,
+        "speaker-03": 0.0306
       }
     },
     {
-      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-generic/separated-overlaps/region-05-01m41s-01m42s/analysis.json",
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/separated-overlaps/region-05-01m41s-01m42s/analysis.json",
       "accepted": false,
       "start": 101.0,
       "end": 102.75,
@@ -97,16 +99,16 @@
       ],
       "trusted_stem_count": 1,
       "wrong_rates": {
-        "speaker-00": 1.0,
-        "speaker-01": 0.0
+        "speaker-01": 0.0,
+        "speaker-03": 0.5
       },
       "margins": {
-        "speaker-00": 0.0139,
-        "speaker-01": 0.0785
+        "speaker-01": 0.0785,
+        "speaker-03": 0.0139
       }
     },
     {
-      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-generic/separated-overlaps/region-06-02m02s-02m06s/analysis.json",
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/separated-overlaps/region-06-02m02s-02m06s/analysis.json",
       "accepted": false,
       "start": 122.25,
       "end": 126.5,
@@ -118,15 +120,15 @@
       "trusted_stem_count": 1,
       "wrong_rates": {
         "speaker-00": 0.0,
-        "speaker-01": 1.0
+        "speaker-03": 0.7143
       },
       "margins": {
         "speaker-00": 0.236,
-        "speaker-01": 0.0578
+        "speaker-03": 0.0578
       }
     },
     {
-      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-generic/separated-overlaps/region-07-02m25s-02m28s/analysis.json",
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/separated-overlaps/region-07-02m25s-02m28s/analysis.json",
       "accepted": false,
       "start": 145.5,
       "end": 148.0,
@@ -146,7 +148,7 @@
       }
     },
     {
-      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-generic/separated-overlaps/region-08-02m33s-02m36s/analysis.json",
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/separated-overlaps/region-08-02m33s-02m36s/analysis.json",
       "accepted": false,
       "start": 153.0,
       "end": 156.5,
@@ -158,15 +160,15 @@
       "trusted_stem_count": 1,
       "wrong_rates": {
         "speaker-00": 0.0,
-        "speaker-01": 1.0
+        "speaker-03": 0.6667
       },
       "margins": {
         "speaker-00": 0.1885,
-        "speaker-01": 0.0692
+        "speaker-03": 0.0692
       }
     },
     {
-      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-generic/separated-overlaps/region-09-02m42s-02m46s/analysis.json",
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/separated-overlaps/region-09-02m42s-02m46s/analysis.json",
       "accepted": false,
       "start": 162.5,
       "end": 166.75,
@@ -175,16 +177,16 @@
       "trusted_stems": [],
       "trusted_stem_count": 0,
       "wrong_rates": {
-        "speaker-00": 1.0,
-        "speaker-01": 0.2857
+        "speaker-01": 0.2857,
+        "speaker-03": 0.1429
       },
       "margins": {
-        "speaker-00": 0.0142,
-        "speaker-01": 0.0117
+        "speaker-01": 0.0117,
+        "speaker-03": 0.0142
       }
     },
     {
-      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-generic/separated-overlaps/region-10-02m57s-03m02s/analysis.json",
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/separated-overlaps/region-10-02m57s-03m02s/analysis.json",
       "accepted": false,
       "start": 177.25,
       "end": 182.5,
@@ -194,15 +196,15 @@
       "trusted_stem_count": 0,
       "wrong_rates": {
         "speaker-00": 0.8889,
-        "speaker-01": 1.0
+        "speaker-05": 0.3333
       },
       "margins": {
         "speaker-00": 0.0003,
-        "speaker-01": 0.0117
+        "speaker-05": 0.0117
       }
     },
     {
-      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-generic/separated-overlaps/region-11-03m18s-03m20s/analysis.json",
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/separated-overlaps/region-11-03m18s-03m20s/analysis.json",
       "accepted": false,
       "start": 198.0,
       "end": 200.5,
@@ -211,34 +213,36 @@
       "trusted_stems": [],
       "trusted_stem_count": 0,
       "wrong_rates": {
-        "speaker-00": 1.0,
-        "speaker-01": 1.0
+        "speaker-01": 0.75,
+        "speaker-03": 0.0
       },
       "margins": {
-        "speaker-00": 0.0362,
-        "speaker-01": 0.0389
+        "speaker-01": 0.0362,
+        "speaker-03": 0.0389
       }
     },
     {
-      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-generic/separated-overlaps/region-12-03m41s-03m42s/analysis.json",
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/separated-overlaps/region-12-03m41s-03m42s/analysis.json",
       "accepted": false,
       "start": 221.0,
       "end": 222.25,
       "text": "They're chomping at the",
       "stem_count": 2,
-      "trusted_stems": [],
-      "trusted_stem_count": 0,
+      "trusted_stems": [
+        "speaker-02"
+      ],
+      "trusted_stem_count": 1,
       "wrong_rates": {
-        "speaker-00": 1.0,
-        "speaker-01": 0.0
+        "speaker-01": 0.0,
+        "speaker-02": 0.0
       },
       "margins": {
-        "speaker-00": 0.1055,
-        "speaker-01": 0.0424
+        "speaker-01": 0.0424,
+        "speaker-02": 0.1055
       }
     },
     {
-      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-generic/separated-overlaps/region-13-03m55s-03m57s/analysis.json",
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/separated-overlaps/region-13-03m55s-03m57s/analysis.json",
       "accepted": false,
       "start": 235.0,
       "end": 237.5,
@@ -247,16 +251,16 @@
       "trusted_stems": [],
       "trusted_stem_count": 0,
       "wrong_rates": {
-        "speaker-00": 0.5,
-        "speaker-01": 1.0
+        "speaker-02": 0.25,
+        "speaker-03": 0.5
       },
       "margins": {
-        "speaker-00": 0.0067,
-        "speaker-01": 0.0405
+        "speaker-02": 0.0405,
+        "speaker-03": 0.0067
       }
     },
     {
-      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-generic/separated-overlaps/region-14-04m01s-04m03s/analysis.json",
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/separated-overlaps/region-14-04m01s-04m03s/analysis.json",
       "accepted": false,
       "start": 241.5,
       "end": 243.75,
@@ -267,16 +271,16 @@
       ],
       "trusted_stem_count": 1,
       "wrong_rates": {
-        "speaker-00": 1.0,
-        "speaker-01": 0.0
+        "speaker-01": 0.0,
+        "speaker-03": 1.0
       },
       "margins": {
-        "speaker-00": 0.069,
-        "speaker-01": 0.0542
+        "speaker-01": 0.069,
+        "speaker-03": 0.0542
       }
     },
     {
-      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-generic/separated-overlaps/region-15-04m12s-04m14s/analysis.json",
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/separated-overlaps/region-15-04m12s-04m14s/analysis.json",
       "accepted": false,
       "start": 252.5,
       "end": 254.0,
@@ -287,16 +291,16 @@
       ],
       "trusted_stem_count": 1,
       "wrong_rates": {
-        "speaker-00": 1.0,
-        "speaker-01": 0.0
+        "speaker-01": 0.0,
+        "speaker-03": 0.5
       },
       "margins": {
-        "speaker-00": 0.0055,
-        "speaker-01": 0.1422
+        "speaker-01": 0.1422,
+        "speaker-03": 0.0055
       }
     },
     {
-      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-generic/separated-overlaps/region-16-04m17s-04m20s/analysis.json",
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/separated-overlaps/region-16-04m17s-04m20s/analysis.json",
       "accepted": false,
       "start": 257.5,
       "end": 260.0,
@@ -306,51 +310,55 @@
       "trusted_stem_count": 0,
       "wrong_rates": {
         "speaker-00": 0.5,
-        "speaker-01": 1.0
+        "speaker-02": 0.0
       },
       "margins": {
         "speaker-00": 0.0122,
-        "speaker-01": 0.049
+        "speaker-02": 0.049
       }
     },
     {
-      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-generic/separated-overlaps/region-17-04m34s-04m36s/analysis.json",
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/separated-overlaps/region-17-04m34s-04m36s/analysis.json",
       "accepted": false,
       "start": 274.0,
       "end": 276.0,
       "text": "inflection at the end of a sentence,",
       "stem_count": 2,
-      "trusted_stems": [],
-      "trusted_stem_count": 0,
+      "trusted_stems": [
+        "speaker-02"
+      ],
+      "trusted_stem_count": 1,
       "wrong_rates": {
-        "speaker-00": 0.6667,
-        "speaker-01": 1.0
+        "speaker-02": 0.0,
+        "speaker-03": 0.6667
       },
       "margins": {
-        "speaker-00": 0.0251,
-        "speaker-01": 0.0841
+        "speaker-02": 0.0841,
+        "speaker-03": 0.0251
       }
     },
     {
-      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-generic/separated-overlaps/region-18-04m53s-04m55s/analysis.json",
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/separated-overlaps/region-18-04m53s-04m55s/analysis.json",
       "accepted": false,
       "start": 293.5,
       "end": 295.0,
       "text": "this caption that says,",
       "stem_count": 2,
-      "trusted_stems": [],
-      "trusted_stem_count": 0,
+      "trusted_stems": [
+        "speaker-02"
+      ],
+      "trusted_stem_count": 1,
       "wrong_rates": {
-        "speaker-00": 1.0,
-        "speaker-01": 0.5
+        "speaker-01": 0.5,
+        "speaker-02": 0.0
       },
       "margins": {
-        "speaker-00": 0.1439,
-        "speaker-01": 0.0898
+        "speaker-01": 0.0898,
+        "speaker-02": 0.1439
       }
     },
     {
-      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-generic/separated-overlaps/region-19-05m25s-05m27s/analysis.json",
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/separated-overlaps/region-19-05m25s-05m27s/analysis.json",
       "accepted": false,
       "start": 325.25,
       "end": 327.5,
@@ -359,16 +367,16 @@
       "trusted_stems": [],
       "trusted_stem_count": 0,
       "wrong_rates": {
-        "speaker-00": 0.6667,
-        "speaker-01": 1.0
+        "speaker-03": 0.3333,
+        "speaker-05": 0.3333
       },
       "margins": {
-        "speaker-00": 0.0138,
-        "speaker-01": 0.0204
+        "speaker-03": 0.0204,
+        "speaker-05": 0.0138
       }
     },
     {
-      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-generic/separated-overlaps/region-20-05m35s-05m36s/analysis.json",
+      "path": "/Users/dshanklinbv/Eidos/Pavo/cache/imports/youtube_ddIP0k-XzpI_nz_accent_6speakers/decompose-transcribe-proof-search-assignment/separated-overlaps/region-20-05m35s-05m36s/analysis.json",
       "accepted": false,
       "start": 335.0,
       "end": 336.0,
@@ -378,11 +386,11 @@
       "trusted_stem_count": 0,
       "wrong_rates": {
         "speaker-00": 0.0,
-        "speaker-01": 1.0
+        "speaker-03": 0.0
       },
       "margins": {
         "speaker-00": 0.0377,
-        "speaker-01": 0.0047
+        "speaker-03": 0.0047
       }
     }
   ],

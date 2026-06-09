@@ -100,7 +100,8 @@ The strongest remaining proof gaps are:
     and found no additional accepted improvement candidate.
   - Current result: the New Zealand accent/slang fixture now creates generic
     speaker signatures and runs 20 separated regions with 40 diagnostic stem
-    transcripts, but 0 regions are accepted.
+    transcripts. After fixing multi-speaker stem assignment, 11 regions have at
+    least one trusted stem, but 0 regions are fully accepted.
   - Evidence: [nz-decompose-proof-search-report.json](nz-decompose-proof-search-report.json)
 - human-reviewed real Plaud multi-person overlap recording
   - Current result: 2 real Plaud decompose attempts passed the pipeline, but 0
