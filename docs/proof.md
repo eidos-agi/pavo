@@ -129,6 +129,10 @@ Transcript output:
   and manifests.
 - The audio-intelligence package has tested immune-style detector voting,
   rolling fingerprints, overlap candidate selection, and separation scoring.
+- The reviewed stem merge policy is now code-backed in `eidos-transcribe`: stem
+  ASR can propose transcript augmentations, but reviewed approval is required
+  before augmentation, and reviewed override requires accepted stem evidence,
+  high separation margin, and low-confidence canonical overlap.
 
 ## What Is Not Yet Proven
 
@@ -145,6 +149,9 @@ Transcript output:
 - The separated regions in that Plaud run are still rejected by the quality
   gates, so this is not accepted-stem proof.
 - Pavo does not currently run genetic algorithms.
+- The merge policy is now proven by
+  [stem-merge-policy-report.json](stem-merge-policy-report.json); the remaining
+  blocker is accepted real-media stem evidence, not the policy gate.
 
 The next proof target should be a real two-speaker Plaud recording with overlap,
 speaker mappings, and a `separate-overlaps` run that produces accepted stem

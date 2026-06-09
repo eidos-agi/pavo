@@ -96,7 +96,9 @@ class ProofTests(unittest.TestCase):
         self.assertEqual(report["total_count"], 25)
         self.assertEqual(report["proved_count"], 25)
         self.assertFalse(report["accepted_real_media_stems"])
+        self.assertTrue(report["merge_policy_reviewed"])
         self.assertIn("real accepted stems on a real overlap clip", report["remaining_gaps"])
+        self.assertNotIn("reviewed merge policy for when stem ASR can augment or override the canonical transcript", report["remaining_gaps"])
 
     def test_conan_experience_comparison_proves_pavo_adds_named_speaker_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -618,6 +620,30 @@ class ProofTests(unittest.TestCase):
         self.assertEqual(report["proved_count"], 25)
         self.assertFalse(report["accepted_real_media_stems"])
         self.assertIn("reviewed merge policy for when stem ASR can augment or override the canonical transcript", report["remaining_gaps"])
+
+    def test_proof_status_summary_removes_merge_policy_gap_when_review_policy_is_proved(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            docs = Path(tmp)
+            for name in [
+                "conan-experience-comparison-report.json",
+                "conan-old-sitcom-report.json",
+                "nz-slang-comparison-report.json",
+                "conan-demo-video-report.json",
+            ]:
+                (docs / name).write_text(json.dumps({"passed": True}))
+            (docs / "plaud-real-recording-report.json").write_text(json.dumps({"partial": True}))
+            (docs / "plaud-d535-decompose-report.json").write_text(
+                json.dumps({"passed": True, "accepted_stems_passed": False})
+            )
+            (docs / "real-media-accepted-stems-audit.json").write_text(
+                json.dumps({"passed": False, "accepted_report_count": 0, "separation_report_count": 6})
+            )
+            (docs / "stem-merge-policy-report.json").write_text(json.dumps({"passed": True}))
+
+            report = proof_status_summary(docs)
+
+        self.assertTrue(report["merge_policy_reviewed"])
+        self.assertNotIn("reviewed merge policy for when stem ASR can augment or override the canonical transcript", report["remaining_gaps"])
 
 
 if __name__ == "__main__":

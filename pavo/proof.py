@@ -389,6 +389,7 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
         "plaud_decompose": _load_json(docs / "plaud-d535-decompose-report.json"),
         "demo_video": _load_json(docs / "conan-demo-video-report.json"),
         "accepted_stems": _load_json(docs / "real-media-accepted-stems-audit.json"),
+        "merge_policy": _load_json(docs / "stem-merge-policy-report.json"),
     }
     tests = [
         *_automated_tests(1, 20),
@@ -442,7 +443,9 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
         )
     if not reports["plaud_decompose"].get("accepted_stems_passed"):
         remaining_gaps.append("human-reviewed real Plaud multi-person overlap with accepted stems")
-    remaining_gaps.append("reviewed merge policy for when stem ASR can augment or override the canonical transcript")
+    merge_policy_reviewed = bool(reports["merge_policy"].get("passed"))
+    if not merge_policy_reviewed:
+        remaining_gaps.append("reviewed merge policy for when stem ASR can augment or override the canonical transcript")
     proven_count = sum(1 for item in tests if item["proved"])
     return {
         "passed": proven_count == 25 and not remaining_gaps,
@@ -450,6 +453,7 @@ def proof_status_summary(docs_dir: Path | str) -> dict[str, Any]:
         "total_count": 25,
         "tests": tests,
         "accepted_real_media_stems": accepted_real_media_stems,
+        "merge_policy_reviewed": merge_policy_reviewed,
         "accepted_real_media_report_count": reports["accepted_stems"].get("accepted_report_count", 0),
         "real_media_separation_report_count": reports["accepted_stems"].get("separation_report_count", 0),
         "remaining_gaps": remaining_gaps,

@@ -1,0 +1,79 @@
+{
+  "passed": true,
+  "policy": "reviewed_stem_merge_policy_v1",
+  "package": "eidos-transcribe",
+  "evidence": [
+    "eidos-transcribe/tests/test_decompose.py::test_merge_policy_proposes_but_does_not_apply_unreviewed_stem_evidence",
+    "eidos-transcribe/tests/test_decompose.py::test_merge_policy_allows_reviewed_augmentation_without_override",
+    "eidos-transcribe/tests/test_decompose.py::test_merge_policy_requires_review_and_low_canonical_confidence_for_override"
+  ],
+  "rules": {
+    "augment": "trusted accepted stem plus recovered words plus human review",
+    "override": "trusted accepted stem plus explicit override review, strong separation margin, and low-confidence canonical overlap",
+    "preserve": "canonical transcript remains unchanged unless an approved override decision is present"
+  },
+  "reviewed_augmentation": {
+    "policy": "reviewed_stem_merge_policy_v1",
+    "canonical_preserved": true,
+    "proposed_change_count": 1,
+    "approved_change_count": 1,
+    "augment_count": 1,
+    "override_count": 0,
+    "decisions": [
+      {
+        "speaker": "Conan",
+        "speaker_slug": "conan-obrien",
+        "global_start": 18.2,
+        "global_end": 19.2,
+        "trusted": true,
+        "separation_margin": 0.31,
+        "canonical_overlap_count": 1,
+        "canonical_lowest_confidence": 0.74,
+        "recovered_words": [
+          "experience"
+        ],
+        "proposed_action": "augment",
+        "approved_action": "augment",
+        "review_decision": "augment",
+        "reasons": []
+      }
+    ],
+    "rules": {
+      "augment": "trusted accepted stem plus recovered words plus human review",
+      "override": "trusted accepted stem plus explicit override review, strong separation margin, and low-confidence canonical overlap",
+      "preserve": "canonical transcript remains unchanged unless an approved override decision is present"
+    }
+  },
+  "reviewed_override": {
+    "policy": "reviewed_stem_merge_policy_v1",
+    "canonical_preserved": false,
+    "proposed_change_count": 1,
+    "approved_change_count": 1,
+    "augment_count": 0,
+    "override_count": 1,
+    "decisions": [
+      {
+        "speaker": "Conan",
+        "speaker_slug": "conan-obrien",
+        "global_start": 7.1,
+        "global_end": 7.8,
+        "trusted": true,
+        "separation_margin": 0.48,
+        "canonical_overlap_count": 1,
+        "canonical_lowest_confidence": 0.42,
+        "recovered_words": [
+          "that"
+        ],
+        "proposed_action": "augment",
+        "approved_action": "override",
+        "review_decision": "override",
+        "reasons": []
+      }
+    ],
+    "rules": {
+      "augment": "trusted accepted stem plus recovered words plus human review",
+      "override": "trusted accepted stem plus explicit override review, strong separation margin, and low-confidence canonical overlap",
+      "preserve": "canonical transcript remains unchanged unless an approved override decision is present"
+    }
+  }
+}

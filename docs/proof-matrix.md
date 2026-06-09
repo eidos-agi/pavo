@@ -95,5 +95,9 @@ The strongest remaining proof gaps are:
 - real-media two-speaker separation with accepted stems
 - real-media comparison showing stem ASR recovers words missed by mixed-audio ASR
 - human-reviewed real Plaud multi-person overlap recording
+
+Resolved gap:
+
 - reviewed merge policy for when stem ASR can augment or override the canonical
   transcript
+  - Evidence: [stem-merge-policy-report.json](stem-merge-policy-report.json)
