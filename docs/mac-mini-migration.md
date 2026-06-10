@@ -1,19 +1,20 @@
 # Pavo Mac Mini Migration
 
-Pavo is an Eidos project and should live on `mac-mini-01` under the
-Eidos-oriented account when that machine is reachable.
+Pavo is an Eidos project and should live on `mac-mini-01` under Daniel's single
+Mac login when that machine is reachable. Eidos ownership should be represented
+by repo, folder, service, and deployment boundaries, not by a second macOS user.
 
 ## Target
 
 - Machine: `mac-mini-01`
-- Account: `danieleidos`
-- Home: `/Users/danieleidos`
-- Destination root: `/Users/danieleidos/repos-eidos-agi/pavo`
-- Data destination: `/Users/danieleidos/Eidos/Pavo`
+- Account: `dshanklin`
+- Home: `/Users/dshanklin`
+- Destination root: `/Users/dshanklin/repos-eidos-agi/pavo`
+- Data destination: `/Users/dshanklin/Eidos/Pavo`
 - Marketplace checkout destination:
-  `/Users/danieleidos/repos-eidos-agi/eidos-marketplace`
+  `/Users/dshanklin/repos-eidos-agi/eidos-marketplace`
 - Marketplace worktree destination:
-  `/Users/danieleidos/.codex/worktrees/pavo-marketplace-ship`
+  `/Users/dshanklin/.codex/worktrees/pavo-marketplace-ship`
 
 ## Source Surfaces
 
@@ -50,42 +51,42 @@ Largest data areas:
 Run these from any local shell once `mac-mini-01` answers SSH:
 
 ```bash
-/Users/dshanklinbv/plugins/conduit/scripts/conduit doctor mac-mini-01 --account danieleidos
+/Users/dshanklinbv/plugins/conduit/scripts/conduit doctor mac-mini-01 --account dshanklin
 
 /Users/dshanklinbv/plugins/conduit/scripts/conduit run \
   --target mac-mini-01 \
-  --account danieleidos \
+  --account dshanklin \
   'mkdir -p ~/repos-eidos-agi/eidos-marketplace/AUDITS ~/.codex/worktrees ~/Eidos'
 
 /Users/dshanklinbv/plugins/conduit/scripts/conduit sync \
   --target mac-mini-01 \
-  --account danieleidos \
+  --account dshanklin \
   /Users/dshanklinbv/repos-eidos-agi/pavo/ \
-  /Users/danieleidos/repos-eidos-agi/pavo/
+  /Users/dshanklin/repos-eidos-agi/pavo/
 
 /Users/dshanklinbv/plugins/conduit/scripts/conduit sync \
   --target mac-mini-01 \
-  --account danieleidos \
+  --account dshanklin \
   /Users/dshanklinbv/Eidos/Pavo/ \
-  /Users/danieleidos/Eidos/Pavo/
+  /Users/dshanklin/Eidos/Pavo/
 
 /Users/dshanklinbv/plugins/conduit/scripts/conduit sync \
   --target mac-mini-01 \
-  --account danieleidos \
+  --account dshanklin \
   /Users/dshanklinbv/repos-eidos-agi/eidos-marketplace/plugins/pavo/ \
-  /Users/danieleidos/repos-eidos-agi/eidos-marketplace/plugins/pavo/
+  /Users/dshanklin/repos-eidos-agi/eidos-marketplace/plugins/pavo/
 
 /Users/dshanklinbv/plugins/conduit/scripts/conduit sync \
   --target mac-mini-01 \
-  --account danieleidos \
+  --account dshanklin \
   /Users/dshanklinbv/repos-eidos-agi/eidos-marketplace/AUDITS/pavo.md \
-  /Users/danieleidos/repos-eidos-agi/eidos-marketplace/AUDITS/pavo.md
+  /Users/dshanklin/repos-eidos-agi/eidos-marketplace/AUDITS/pavo.md
 
 /Users/dshanklinbv/plugins/conduit/scripts/conduit sync \
   --target mac-mini-01 \
-  --account danieleidos \
+  --account dshanklin \
   /Users/dshanklinbv/.codex/worktrees/pavo-marketplace-ship/ \
-  /Users/danieleidos/.codex/worktrees/pavo-marketplace-ship/
+  /Users/dshanklin/.codex/worktrees/pavo-marketplace-ship/
 ```
 
 Do not pass `--delete` for the first migration. The migration should preserve
@@ -98,12 +99,12 @@ After syncing:
 ```bash
 /Users/dshanklinbv/plugins/conduit/scripts/conduit run \
   --target mac-mini-01 \
-  --account danieleidos \
+  --account dshanklin \
   'cd ~/repos-eidos-agi/pavo && git status --short --branch && python3 -m unittest discover -s tests'
 
 /Users/dshanklinbv/plugins/conduit/scripts/conduit run \
   --target mac-mini-01 \
-  --account danieleidos \
+  --account dshanklin \
   'du -sh ~/repos-eidos-agi/pavo ~/Eidos/Pavo ~/repos-eidos-agi/eidos-marketplace/plugins/pavo ~/.codex/worktrees/pavo-marketplace-ship'
 
 /Users/dshanklinbv/plugins/conduit/scripts/conduit proof --target mac-mini-01
@@ -111,6 +112,6 @@ After syncing:
 
 ## Current Blocker
 
-On 2026-06-10, Conduit knew `mac-mini-01` and both accounts, but SSH to
-`100.83.12.9:22` timed out for `dshanklin` and `danieleidos`. The move is
-blocked until the Mac mini is online and SSH/Tailscale accepts connections.
+On 2026-06-10, Conduit knew `mac-mini-01`, but SSH to `100.83.12.9:22` timed
+out for `dshanklin`. The move is blocked until the Mac mini is online and
+SSH/Tailscale accepts connections.
