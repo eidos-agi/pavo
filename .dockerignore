@@ -1,0 +1,11 @@
+.git
+.github
+.pytest_cache
+.venv
+__pycache__
+*.py[cod]
+*.egg-info
+.env
+.env.local
+.DS_Store
+docs/conan-real-media-review-bundle/review-notes

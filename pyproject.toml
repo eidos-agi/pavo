@@ -19,6 +19,7 @@ Issues = "https://github.com/eidos-agi/pavo/issues"
 
 [project.scripts]
 pavo = "pavo.cli:main"
+pavo-worker = "pavo.worker:main"
 
 [tool.setuptools.packages.find]
 include = ["pavo*"]
