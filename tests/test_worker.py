@@ -1,11 +1,13 @@
 import json
+import tempfile
 import threading
 import unittest
 import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
+from pathlib import Path
 
-from pavo.worker import WorkerConfig, create_worker_handler
+from pavo.worker import WorkerConfig, create_worker_handler, load_worker_config
 
 
 class WorkerTests(unittest.TestCase):
@@ -37,6 +39,7 @@ class WorkerTests(unittest.TestCase):
 
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["service"], "eidos-pavo-worker")
+        self.assertTrue(payload["data_dir_ready"])
 
     def test_manual_tick_accepts_worker_key(self):
         with self._server() as base_url:
@@ -53,9 +56,29 @@ class WorkerTests(unittest.TestCase):
         self.assertTrue(payload["accepted"])
         self.assertEqual(payload["action"], "manual_tick")
 
+    def test_worker_config_reads_data_dir(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            old = dict(__import__("os").environ)
+            try:
+                __import__("os").environ["PAVO_WORKER_KEY"] = "secret"
+                __import__("os").environ["PAVO_WORKER_DATA_DIR"] = tmp
+                config = load_worker_config()
+            finally:
+                __import__("os").environ.clear()
+                __import__("os").environ.update(old)
+
+        self.assertEqual(config.data_dir, Path(tmp))
+
     class _server:
         def __enter__(self):
-            config = WorkerConfig(host="127.0.0.1", port=0, private_key="secret", environment="test")
+            self.tmp = tempfile.TemporaryDirectory()
+            config = WorkerConfig(
+                host="127.0.0.1",
+                port=0,
+                private_key="secret",
+                environment="test",
+                data_dir=Path(self.tmp.name),
+            )
             self.server = ThreadingHTTPServer(("127.0.0.1", 0), create_worker_handler(config))
             self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
             self.thread.start()
@@ -66,3 +89,4 @@ class WorkerTests(unittest.TestCase):
             self.server.shutdown()
             self.server.server_close()
             self.thread.join(timeout=2)
+            self.tmp.cleanup()
