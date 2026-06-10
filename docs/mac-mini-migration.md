@@ -10,6 +10,8 @@ Eidos-oriented account when that machine is reachable.
 - Home: `/Users/danieleidos`
 - Destination root: `/Users/danieleidos/repos-eidos-agi/pavo`
 - Data destination: `/Users/danieleidos/Eidos/Pavo`
+- Marketplace checkout destination:
+  `/Users/danieleidos/repos-eidos-agi/eidos-marketplace`
 - Marketplace worktree destination:
   `/Users/danieleidos/.codex/worktrees/pavo-marketplace-ship`
 
@@ -19,6 +21,10 @@ Copy these as one migration set:
 
 - Repo: `/Users/dshanklinbv/repos-eidos-agi/pavo`
 - Local Pavo data: `/Users/dshanklinbv/Eidos/Pavo`
+- Canonical marketplace checkout:
+  `/Users/dshanklinbv/repos-eidos-agi/eidos-marketplace/plugins/pavo`
+- Canonical marketplace audit:
+  `/Users/dshanklinbv/repos-eidos-agi/eidos-marketplace/AUDITS/pavo.md`
 - Marketplace/plugin worktree:
   `/Users/dshanklinbv/.codex/worktrees/pavo-marketplace-ship`
 
@@ -29,6 +35,7 @@ Known local data size on 2026-06-10:
 
 - Repo: 36 MB
 - Eidos Pavo data folder: 411 MB
+- Canonical marketplace Pavo plugin: 2.7 MB
 - Marketplace worktree: 24 MB
 
 Largest data areas:
@@ -48,7 +55,7 @@ Run these from any local shell once `mac-mini-01` answers SSH:
 /Users/dshanklinbv/plugins/conduit/scripts/conduit run \
   --target mac-mini-01 \
   --account danieleidos \
-  'mkdir -p ~/repos-eidos-agi ~/.codex/worktrees ~/Eidos'
+  'mkdir -p ~/repos-eidos-agi/eidos-marketplace/AUDITS ~/.codex/worktrees ~/Eidos'
 
 /Users/dshanklinbv/plugins/conduit/scripts/conduit sync \
   --target mac-mini-01 \
@@ -61,6 +68,18 @@ Run these from any local shell once `mac-mini-01` answers SSH:
   --account danieleidos \
   /Users/dshanklinbv/Eidos/Pavo/ \
   /Users/danieleidos/Eidos/Pavo/
+
+/Users/dshanklinbv/plugins/conduit/scripts/conduit sync \
+  --target mac-mini-01 \
+  --account danieleidos \
+  /Users/dshanklinbv/repos-eidos-agi/eidos-marketplace/plugins/pavo/ \
+  /Users/danieleidos/repos-eidos-agi/eidos-marketplace/plugins/pavo/
+
+/Users/dshanklinbv/plugins/conduit/scripts/conduit sync \
+  --target mac-mini-01 \
+  --account danieleidos \
+  /Users/dshanklinbv/repos-eidos-agi/eidos-marketplace/AUDITS/pavo.md \
+  /Users/danieleidos/repos-eidos-agi/eidos-marketplace/AUDITS/pavo.md
 
 /Users/dshanklinbv/plugins/conduit/scripts/conduit sync \
   --target mac-mini-01 \
@@ -85,7 +104,7 @@ After syncing:
 /Users/dshanklinbv/plugins/conduit/scripts/conduit run \
   --target mac-mini-01 \
   --account danieleidos \
-  'du -sh ~/repos-eidos-agi/pavo ~/Eidos/Pavo ~/.codex/worktrees/pavo-marketplace-ship'
+  'du -sh ~/repos-eidos-agi/pavo ~/Eidos/Pavo ~/repos-eidos-agi/eidos-marketplace/plugins/pavo ~/.codex/worktrees/pavo-marketplace-ship'
 
 /Users/dshanklinbv/plugins/conduit/scripts/conduit proof --target mac-mini-01
 ```
