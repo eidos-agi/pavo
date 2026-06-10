@@ -1,0 +1,97 @@
+# Pavo Mac Mini Migration
+
+Pavo is an Eidos project and should live on `mac-mini-01` under the
+Eidos-oriented account when that machine is reachable.
+
+## Target
+
+- Machine: `mac-mini-01`
+- Account: `danieleidos`
+- Home: `/Users/danieleidos`
+- Destination root: `/Users/danieleidos/repos-eidos-agi/pavo`
+- Data destination: `/Users/danieleidos/Eidos/Pavo`
+- Marketplace worktree destination:
+  `/Users/danieleidos/.codex/worktrees/pavo-marketplace-ship`
+
+## Source Surfaces
+
+Copy these as one migration set:
+
+- Repo: `/Users/dshanklinbv/repos-eidos-agi/pavo`
+- Local Pavo data: `/Users/dshanklinbv/Eidos/Pavo`
+- Marketplace/plugin worktree:
+  `/Users/dshanklinbv/.codex/worktrees/pavo-marketplace-ship`
+
+The repo has a gitignored `.env.local` with private Railway/Pavo keys. It must
+move through the private machine conduit, not chat or public docs.
+
+Known local data size on 2026-06-10:
+
+- Repo: 36 MB
+- Eidos Pavo data folder: 411 MB
+- Marketplace worktree: 24 MB
+
+Largest data areas:
+
+- `/Users/dshanklinbv/Eidos/Pavo/cache/imports`: 241 MB
+- `/Users/dshanklinbv/Eidos/Pavo/cache/plaud`: 133 MB
+- `/Users/dshanklinbv/Eidos/Pavo/imports/youtube`: 20 MB
+- `/Users/dshanklinbv/Eidos/Pavo/demos/conan-pavo-demo`: 14 MB
+
+## Conduit Commands
+
+Run these from any local shell once `mac-mini-01` answers SSH:
+
+```bash
+/Users/dshanklinbv/plugins/conduit/scripts/conduit doctor mac-mini-01 --account danieleidos
+
+/Users/dshanklinbv/plugins/conduit/scripts/conduit run \
+  --target mac-mini-01 \
+  --account danieleidos \
+  'mkdir -p ~/repos-eidos-agi ~/.codex/worktrees ~/Eidos'
+
+/Users/dshanklinbv/plugins/conduit/scripts/conduit sync \
+  --target mac-mini-01 \
+  --account danieleidos \
+  /Users/dshanklinbv/repos-eidos-agi/pavo/ \
+  /Users/danieleidos/repos-eidos-agi/pavo/
+
+/Users/dshanklinbv/plugins/conduit/scripts/conduit sync \
+  --target mac-mini-01 \
+  --account danieleidos \
+  /Users/dshanklinbv/Eidos/Pavo/ \
+  /Users/danieleidos/Eidos/Pavo/
+
+/Users/dshanklinbv/plugins/conduit/scripts/conduit sync \
+  --target mac-mini-01 \
+  --account danieleidos \
+  /Users/dshanklinbv/.codex/worktrees/pavo-marketplace-ship/ \
+  /Users/danieleidos/.codex/worktrees/pavo-marketplace-ship/
+```
+
+Do not pass `--delete` for the first migration. The migration should preserve
+remote files if the machine already has local Pavo state.
+
+## Verification
+
+After syncing:
+
+```bash
+/Users/dshanklinbv/plugins/conduit/scripts/conduit run \
+  --target mac-mini-01 \
+  --account danieleidos \
+  'cd ~/repos-eidos-agi/pavo && git status --short --branch && python3 -m unittest discover -s tests'
+
+/Users/dshanklinbv/plugins/conduit/scripts/conduit run \
+  --target mac-mini-01 \
+  --account danieleidos \
+  'du -sh ~/repos-eidos-agi/pavo ~/Eidos/Pavo ~/.codex/worktrees/pavo-marketplace-ship'
+
+/Users/dshanklinbv/plugins/conduit/scripts/conduit proof --target mac-mini-01
+```
+
+## Current Blocker
+
+On 2026-06-10, Conduit knew `mac-mini-01` and both accounts, but SSH to
+`100.83.12.9:22` timed out for `dshanklin` and `danieleidos`. The move is
+blocked until the Mac mini is online and SSH/Tailscale accepts connections.
