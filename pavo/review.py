@@ -2007,10 +2007,14 @@ def status_cluster_review(
     forecast_path = sheet_path.with_name("pavo-cluster-review-forecast.json")
     forecast = _load_optional_json(forecast_path)
     decision_report_path = sheet_path.with_name(sheet_path.stem.replace("-sheet", "-decisions") + ".json")
+    slate_tsv_path = sheet_path.with_name("pavo-cluster-review-decision-slate.tsv")
     status_json_path = root / "pavo-cluster-review-status.json"
     status_markdown_path = root / "pavo-cluster-review-status.md"
     completion_commands = {
         "open_review_page": shlex.join(["open", str(page_path)]),
+        "finish_from_slate": shlex.join(
+            ["pavo", "review", "clusters", "finish-from-slate", str(root), str(sheet_path), str(slate_tsv_path)]
+        ),
         "decisions": shlex.join(["pavo", "review", "clusters", "decisions", str(sheet_path), "--out", str(decision_report_path)]),
         "materialize_decisions": shlex.join(["pavo", "review", "clusters", "materialize-decisions", str(decision_report_path)]),
         "finalize": shlex.join(["pavo", "review", "clusters", "finalize", str(sheet_path), str(root)]),
