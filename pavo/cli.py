@@ -1263,6 +1263,8 @@ def main(argv: list[str] | None = None) -> int:
                 speaker_suggestions_verification = verify_batch_speaker_suggestions(args.proof_report)
                 cockpit_verification = verify_batch_review_cockpit(args.proof_report)
                 readiness = summarize_batch_readiness(args.proof_report, pack_dir=args.pack_dir)
+                suggestions_payload = json.loads(Path(speaker_suggestions_verification.json_path).read_text())
+                speaker_review_triage = suggestions_payload.get("review_triage") if isinstance(suggestions_payload.get("review_triage"), dict) else {}
             except (OSError, json.JSONDecodeError, ValueError) as exc:
                 print(str(exc), file=sys.stderr)
                 return 2
@@ -1286,6 +1288,7 @@ def main(argv: list[str] | None = None) -> int:
                 "pending_clips": readiness.review_sprint.get("pending_clip_count"),
                 "estimated_review_minutes": readiness.review_sprint.get("estimated_minutes"),
                 "priority_queue_top": priority_queue_top,
+                "speaker_review_triage": speaker_review_triage,
                 "review_completion": readiness.review_completion,
                 "decision_board_written": board_result.as_report(),
                 "review_sprint_written": sprint_result.as_report(),
@@ -1326,6 +1329,17 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"pending_clips: {readiness.review_sprint.get('pending_clip_count')}")
                 print(f"estimated_review_minutes: {readiness.review_sprint.get('estimated_minutes')}")
                 print(f"priority_queue_top: {_format_batch_priority_queue_top(priority_queue_top)}")
+                stop_rule = speaker_review_triage.get("stop_rule") if isinstance(speaker_review_triage.get("stop_rule"), dict) else {}
+                next_actions = speaker_review_triage.get("next_actions") if isinstance(speaker_review_triage.get("next_actions"), list) else []
+                first_action = next_actions[0] if next_actions and isinstance(next_actions[0], dict) else {}
+                print(f"review_triage_strategy: {speaker_review_triage.get('strategy')}")
+                print(f"review_stop_rule: {stop_rule.get('name')} first {stop_rule.get('minimum_decision_count')} decisions")
+                if first_action:
+                    print(
+                        "review_first_action: "
+                        f"{first_action.get('decision_group')}/{first_action.get('cluster_id')}->{first_action.get('speaker')} "
+                        f"{first_action.get('decision_risk')} {first_action.get('review_lane')}"
+                    )
                 print(f"speaker_answer_sheet: {answer_sheet_result.markdown_path}")
                 print(f"review_bundle: {review_bundle_verification.markdown_path}")
                 print(f"review_completion: {review_completion_verification.markdown_path}")

@@ -3968,6 +3968,7 @@ def _batch_speaker_review_triage(suggestions: list[dict[str, Any]], *, limit: in
     lane_counts: dict[str, int] = {}
     confidence_counts: dict[str, int] = {}
     risk_counts: dict[str, int] = {}
+    high_value_lanes = {"identity_search", "compare_candidates"}
     lane_rank = {
         "identity_search": 0,
         "compare_candidates": 1,
@@ -3999,6 +4000,7 @@ def _batch_speaker_review_triage(suggestions: list[dict[str, Any]], *, limit: in
                 "decision_risk": risk,
                 "clip_count": item.get("clip_count"),
                 "why_now": _batch_speaker_triage_reason(item),
+                "stop_rule_value": lane in high_value_lanes or risk == "high",
                 "_sort": (
                     risk_rank.get(risk, 3),
                     lane_rank.get(lane, 5),
@@ -4012,6 +4014,12 @@ def _batch_speaker_review_triage(suggestions: list[dict[str, Any]], *, limit: in
     ordered = sorted(rows, key=lambda row: row["_sort"])
     for row in ordered:
         row.pop("_sort", None)
+    stop_rule_targets = [
+        row
+        for row in ordered
+        if row.get("stop_rule_value")
+    ]
+    stop_rule_target_ids = [str(row.get("decision_group") or "") for row in stop_rule_targets if row.get("decision_group")]
     return {
         "strategy": "risk_lane_blockers_then_queue_order",
         "total_decisions": len(rows),
@@ -4019,6 +4027,13 @@ def _batch_speaker_review_triage(suggestions: list[dict[str, Any]], *, limit: in
         "confidence_counts": dict(sorted(confidence_counts.items())),
         "risk_counts": dict(sorted(risk_counts.items())),
         "next_actions": ordered[: max(0, limit)],
+        "stop_rule": {
+            "name": "high_risk_and_identity_boundary",
+            "minimum_decision_count": len(stop_rule_targets),
+            "decision_groups": stop_rule_target_ids,
+            "description": "First answer every high-risk, identity-search, or compare-candidates decision. After that, remaining lower-risk confirmations can be sampled or delegated with second-listener calibration.",
+        },
+        "remaining_after_stop_rule_count": max(0, len(rows) - len(stop_rule_targets)),
         "human_gate": "listen_before_identity_approval",
     }
 
@@ -4061,9 +4076,26 @@ def _render_batch_speaker_suggestions_markdown(payload: dict[str, Any]) -> str:
         f"- Risk counts: `{triage.get('risk_counts') or {}}`",
         f"- Human gate: `{triage.get('human_gate') or 'listen_before_identity_approval'}`",
         "",
-        "### Next best decisions",
+        "### Stop rule",
         "",
     ]
+    stop_rule = triage.get("stop_rule") if isinstance(triage.get("stop_rule"), dict) else {}
+    lines.extend(
+        [
+            f"- Name: `{stop_rule.get('name') or 'high_risk_and_identity_boundary'}`",
+            f"- Minimum decisions before lower-risk sampling: `{stop_rule.get('minimum_decision_count') or 0}`",
+            f"- Decision groups: `{', '.join(str(value) for value in stop_rule.get('decision_groups') or [])}`",
+            f"- Remaining after stop rule: `{triage.get('remaining_after_stop_rule_count') or 0}`",
+            f"- Why: {stop_rule.get('description') or ''}",
+            "",
+        ]
+    )
+    lines.extend(
+        [
+            "### Next best decisions",
+            "",
+        ]
+    )
     for item in triage.get("next_actions") or []:
         if not isinstance(item, dict):
             continue
@@ -4475,6 +4507,7 @@ def _render_batch_review_cockpit_html(payload: dict[str, Any]) -> str:
     checks = payload.get("checks") if isinstance(payload.get("checks"), list) else []
     suggestion_items = suggestion_summary.get("items") if isinstance(suggestion_summary.get("items"), list) else []
     suggestion_triage = suggestion_summary.get("triage") if isinstance(suggestion_summary.get("triage"), dict) else {}
+    stop_rule = suggestion_triage.get("stop_rule") if isinstance(suggestion_triage.get("stop_rule"), dict) else {}
     triage_actions = suggestion_triage.get("next_actions") if isinstance(suggestion_triage.get("next_actions"), list) else []
     triage_rows = "\n".join(
         "<tr>"
@@ -4557,6 +4590,7 @@ def _render_batch_review_cockpit_html(payload: dict[str, Any]) -> str:
       <h3>Review triage</h3>
       <p>Strategy: <code>{escape(str(suggestion_triage.get('strategy') or 'risk_lane_blockers_then_queue_order'))}</code></p>
       <p>Lane counts: <code>{escape(str(suggestion_triage.get('lane_counts') or {}))}</code></p>
+      <p>Stop rule: <code>{escape(str(stop_rule.get('name') or 'high_risk_and_identity_boundary'))}</code>; answer <strong>{escape(str(stop_rule.get('minimum_decision_count') or 0))}</strong> high-value decision(s) first, then reassess the remaining <strong>{escape(str(suggestion_triage.get('remaining_after_stop_rule_count') or 0))}</strong>.</p>
       <table><thead><tr><th>Decision</th><th>Lane</th><th>Risk</th><th>Why now</th></tr></thead><tbody>{triage_rows}</tbody></table>
       <h3>Machine suggestion preview</h3>
       <table><thead><tr><th>#</th><th>Decision</th><th>Machine suggestion</th><th>Review lane</th><th>Safety blockers</th></tr></thead><tbody>{suggestion_rows}</tbody></table>
