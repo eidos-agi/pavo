@@ -12,6 +12,7 @@ from pavo.batch import (
     enrich_operator_handoff_with_validation,
     format_operator_handoff,
     load_operator_handoff,
+    operator_handoff_ready_to_finish,
     prove_batch,
     verify_batch_manifest,
 )
@@ -259,6 +260,10 @@ class BatchDoctorTests(unittest.TestCase):
             with redirect_stdout(checked_stdout):
                 checked_exit = main(["batch", "handoff", str(result.proof_report_path), "--check-validation"])
 
+            strict_stdout = io.StringIO()
+            with redirect_stdout(strict_stdout):
+                strict_exit = main(["batch", "handoff", str(result.proof_report_path), "--strict-ready"])
+
             loaded = load_operator_handoff(result.proof_report_path)
             formatted = format_operator_handoff(loaded)
             enriched = enrich_operator_handoff_with_validation(loaded)
@@ -267,6 +272,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(text_exit, 0)
         self.assertEqual(json_exit, 0)
         self.assertEqual(checked_exit, 0)
+        self.assertEqual(strict_exit, 3)
         self.assertIn("Pavo Operator Handoff", text_stdout.getvalue())
         self.assertIn("validate_command:", text_stdout.getvalue())
         self.assertIn("strict_proof_command:", text_stdout.getvalue())
@@ -276,6 +282,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("status: pending_review", checked_stdout.getvalue())
         self.assertIn("fresh: true", checked_stdout.getvalue())
         self.assertIn("pending_count: 2", checked_stdout.getvalue())
+        self.assertIn("pending_count: 2", strict_stdout.getvalue())
         self.assertIn("artifact_checks:", checked_stdout.getvalue())
         self.assertIn("proof_review_slate_tsv: exists=true", checked_stdout.getvalue())
         self.assertIn("review_page: exists=true", checked_stdout.getvalue())
@@ -288,7 +295,38 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(json_report["validation"]["status"], "pending_review")
         self.assertTrue(json_report["validation"]["fresh"])
         self.assertEqual(json_report["validation"]["pending_count"], 2)
+        self.assertFalse(operator_handoff_ready_to_finish(json_report))
         self.assertIn("finish-from-slate", json_report["finish_command"])
+
+    def test_batch_handoff_strict_ready_exits_zero_when_validation_ready(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            result.proof_review_slate_path.with_suffix(".validation.json").write_text(
+                json.dumps(
+                    {
+                        "passed": True,
+                        "ready_to_finalize": True,
+                        "applied_count": 2,
+                        "approved_count": 2,
+                        "rejected_count": 0,
+                        "pending_count": 0,
+                        "blockers": [],
+                    }
+                )
+            )
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(["batch", "handoff", str(result.proof_report_path), "--strict-ready", "--json"])
+
+            report = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(report["validation"]["status"], "ready_to_finish")
+        self.assertTrue(report["validation"]["fresh"])
+        self.assertTrue(operator_handoff_ready_to_finish(report))
 
     def test_batch_handoff_validation_marks_stale_when_slate_is_newer(self):
         with tempfile.TemporaryDirectory() as tmp:

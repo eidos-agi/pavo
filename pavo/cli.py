@@ -14,6 +14,7 @@ from .batch import (
     enrich_operator_handoff_with_validation,
     format_operator_handoff,
     load_operator_handoff,
+    operator_handoff_ready_to_finish,
     prove_batch,
     verify_batch_manifest,
 )
@@ -113,6 +114,7 @@ def build_parser() -> argparse.ArgumentParser:
     batch_handoff = batch_sub.add_parser("handoff", help="Print the operator handoff from a pavo-batch-proof.json report")
     batch_handoff.add_argument("proof_report", type=Path)
     batch_handoff.add_argument("--check-validation", action="store_true", help="Include current proof-slate validation report status when present")
+    batch_handoff.add_argument("--strict-ready", action="store_true", help="Exit nonzero unless validation is fresh and ready to finish")
     batch_handoff.add_argument("--json", action="store_true", help="Print machine-readable handoff JSON")
 
     brief = subparsers.add_parser("brief", help="Create a composed readiness and action brief for a meeting batch")
@@ -572,12 +574,14 @@ def main(argv: list[str] | None = None) -> int:
             except (OSError, json.JSONDecodeError, ValueError) as exc:
                 print(str(exc), file=sys.stderr)
                 return 2
-            if args.check_validation:
+            if args.check_validation or args.strict_ready:
                 handoff = enrich_operator_handoff_with_validation(handoff)
             if args.json:
                 print(json.dumps(handoff, indent=2, sort_keys=True))
             else:
                 print(format_operator_handoff(handoff), end="")
+            if args.strict_ready:
+                return 0 if operator_handoff_ready_to_finish(handoff) else 3
             return 0
 
     if args.command == "brief":

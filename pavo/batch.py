@@ -602,6 +602,19 @@ def enrich_operator_handoff_with_validation(handoff: dict[str, Any]) -> dict[str
     return enriched
 
 
+def operator_handoff_ready_to_finish(handoff: dict[str, Any]) -> bool:
+    validation = handoff.get("validation") if isinstance(handoff.get("validation"), dict) else {}
+    artifacts = handoff.get("artifact_checks") if isinstance(handoff.get("artifact_checks"), dict) else {}
+    artifacts_exist = bool(artifacts) and all(bool((check or {}).get("exists")) for check in artifacts.values())
+    return bool(
+        artifacts_exist
+        and validation.get("exists")
+        and validation.get("fresh")
+        and validation.get("ready_to_finalize")
+        and validation.get("status") == "ready_to_finish"
+    )
+
+
 def _handoff_artifact_check(path_value: str) -> dict[str, Any]:
     path = Path(path_value) if path_value else None
     exists = bool(path and path.exists())
