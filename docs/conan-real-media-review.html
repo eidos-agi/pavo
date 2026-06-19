@@ -170,6 +170,14 @@
       color: #4f665b;
       font-size: 14px;
     }
+    .review-effort {
+      margin: 0 0 18px;
+      padding: 12px 16px;
+      border: 1px solid #c7d9cc;
+      background: #f4f9f2;
+      color: #315044;
+      font-weight: 700;
+    }
     .save-status {
       color: #315044;
       font-weight: 700;
@@ -380,6 +388,9 @@
     <section class="next-review-plan" id="next-review-plan" aria-live="polite">
       <h2>Minimal next reviews</h2>
       <div id="next-review-plan-rows">Loading next review queue...</div>
+    </section>
+    <section class="review-effort" id="review-effort" aria-live="polite">
+      Calculating review effort...
     </section>
     <section class="actions">
       <button type="button" id="save-review">Save review</button>
@@ -983,6 +994,18 @@
       }).join("");
     }
 
+    function renderReviewEffort() {
+      const target = document.getElementById("review-effort");
+      if (!target) return;
+      const reviewed = buildReviewedSheet();
+      const plan = minimalNextReviewPlan();
+      const pending = Number(reviewed.pending_count || 0);
+      const minimum = Number(plan.length || 0);
+      const saved = Math.max(0, pending - minimum);
+      const reduction = pending ? ((saved / pending) * 100).toFixed(1) : "0.0";
+      target.textContent = `Review effort: ${minimum} minimum reviews vs ${pending} pending clips; up to ${saved} clips can be skipped by terminal cluster consensus (${reduction}% reduction).`;
+    }
+
     function focusNextRecommendedReview() {
       const plan = minimalNextReviewPlan();
       if (!plan.length) return;
@@ -1145,6 +1168,7 @@
         `${reviewed.approved_count} ${statusLabels.approved.toLowerCase()}, ${reviewed.rejected_count} ${statusLabels.rejected.toLowerCase()}, ${reviewed.pending_count} ${statusLabels.pending.toLowerCase()}`;
       renderClusterSummary();
       renderNextReviewPlan();
+      renderReviewEffort();
     }
 
     function applyDecisionToCard(card, status) {

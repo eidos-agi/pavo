@@ -642,6 +642,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"conflicted_cluster_count: {result.conflicted_cluster_count}")
                 print(f"unresolved_cluster_count: {result.unresolved_cluster_count}")
                 print(f"next_review_count: {result.next_review_count}")
+                print(f"review_effort: {result.review_effort.get('summary')}")
                 print(f"page_verified: {str(result.page_verified).lower()}")
                 print(f"top_cluster_id: {result.top_cluster_id}")
                 print(f"estimated_unlockable_segments: {result.estimated_unlockable_segments}")
@@ -747,6 +748,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"conflicted_cluster_count: {result.conflicted_cluster_count}")
                 print(f"unresolved_cluster_count: {result.unresolved_cluster_count}")
                 print(f"next_review_count: {result.next_review_count}")
+                print(f"review_effort: {result.review_effort.get('summary')}")
                 if result.blockers:
                     print("blockers: " + "; ".join(result.blockers))
                 print(f"report: {result.report_path}")

@@ -138,6 +138,7 @@ class AnchorReviewPageVerificationResult:
     draft_autosave_present: bool
     cluster_summary_present: bool
     next_review_plan_present: bool
+    review_effort_present: bool
     embedded_sheet_present: bool
     import_instruction_present: bool
     rerun_instruction_present: bool
@@ -162,6 +163,7 @@ class AnchorReviewPageVerificationResult:
             "draft_autosave_present": self.draft_autosave_present,
             "cluster_summary_present": self.cluster_summary_present,
             "next_review_plan_present": self.next_review_plan_present,
+            "review_effort_present": self.review_effort_present,
             "embedded_sheet_present": self.embedded_sheet_present,
             "import_instruction_present": self.import_instruction_present,
             "rerun_instruction_present": self.rerun_instruction_present,
@@ -238,6 +240,7 @@ class ClusterQuestionDecisionResult:
     conflicted_cluster_count: int
     unresolved_cluster_count: int
     next_review_count: int
+    review_effort: dict[str, Any]
     blockers: list[str]
 
 
@@ -342,6 +345,7 @@ class ClusterReviewStatusResult:
     conflicted_cluster_count: int
     unresolved_cluster_count: int
     next_review_count: int
+    review_effort: dict[str, Any]
     page_verified: bool
     top_cluster_id: str | None
     estimated_unlockable_segments: int | None
@@ -373,6 +377,7 @@ class ClusterReviewStatusResult:
             "conflicted_cluster_count": self.conflicted_cluster_count,
             "unresolved_cluster_count": self.unresolved_cluster_count,
             "next_review_count": self.next_review_count,
+            "review_effort": self.review_effort,
             "page_verified": self.page_verified,
             "top_cluster_id": self.top_cluster_id,
             "estimated_unlockable_segments": self.estimated_unlockable_segments,
@@ -403,6 +408,7 @@ class ClusterReviewStatusResult:
             f"- Approved / rejected / pending: {self.approved_count} / {self.rejected_count} / {self.pending_count}",
             f"- Cluster consensus: {self.ready_cluster_count} ready / {self.conflicted_cluster_count} conflicted / {self.unresolved_cluster_count} unresolved / {self.cluster_count} total",
             f"- Minimum next reviews: {self.next_review_count}",
+            f"- Review effort: {self.review_effort.get('minimum_reviews')} minimum / {self.review_effort.get('pending_reviews')} pending / {self.review_effort.get('possible_reviews_saved')} skippable ({self.review_effort.get('reduction_percent')}% reduction)",
             f"- Page verified: `{str(self.page_verified).lower()}`",
             f"- Top cluster: `{self.top_cluster_id}`",
             f"- Estimated unlock: {self.estimated_unlockable_segments} segments / {self.estimated_unlockable_seconds} seconds",
@@ -1597,6 +1603,7 @@ def export_cluster_question_decisions(
     pending = [row for row in decisions if row["status"] == "pending"]
     cluster_summaries = _cluster_question_consensus_summaries(decisions)
     next_review_plan = _cluster_question_next_review_plan(decisions, cluster_summaries)
+    review_effort = _cluster_question_review_effort(pending_count=len(pending), next_review_count=len(next_review_plan))
     ready_clusters = [row for row in cluster_summaries if str(row.get("consensus_state") or "").startswith("ready_for_")]
     conflicted_clusters = [row for row in cluster_summaries if row.get("consensus_state") == "conflicting_review"]
     unresolved_clusters = [
@@ -1626,6 +1633,7 @@ def export_cluster_question_decisions(
         "conflicted_cluster_count": len(conflicted_clusters),
         "unresolved_cluster_count": len(unresolved_clusters),
         "next_review_count": len(next_review_plan),
+        "review_effort": review_effort,
         "next_review_plan": next_review_plan,
         "cluster_reviewed": bool(cluster_summaries and not unresolved_clusters and not conflicted_clusters),
         "clusters": cluster_summaries,
@@ -1649,6 +1657,7 @@ def export_cluster_question_decisions(
         conflicted_cluster_count=len(conflicted_clusters),
         unresolved_cluster_count=len(unresolved_clusters),
         next_review_count=len(next_review_plan),
+        review_effort=review_effort,
         blockers=blockers,
     )
 
@@ -1786,6 +1795,7 @@ def status_cluster_review(
             conflicted_cluster_count=0,
             unresolved_cluster_count=0,
             next_review_count=0,
+            review_effort=_cluster_question_review_effort(pending_count=0, next_review_count=0),
             page_verified=False,
             top_cluster_id=None,
             estimated_unlockable_segments=None,
@@ -1812,6 +1822,7 @@ def status_cluster_review(
     decision_rows = [_cluster_question_decision_row(row) for row in rows]
     consensus = _cluster_question_consensus_summaries(decision_rows)
     next_review_plan = _cluster_question_next_review_plan(decision_rows, consensus)
+    review_effort = _cluster_question_review_effort(pending_count=len(pending), next_review_count=len(next_review_plan))
     ready_cluster_count = sum(1 for row in consensus if str(row.get("consensus_state") or "").startswith("ready_for_"))
     conflicted_cluster_count = sum(1 for row in consensus if row.get("consensus_state") == "conflicting_review")
     unresolved_cluster_count = sum(
@@ -1890,6 +1901,7 @@ def status_cluster_review(
         conflicted_cluster_count=conflicted_cluster_count,
         unresolved_cluster_count=unresolved_cluster_count,
         next_review_count=len(next_review_plan),
+        review_effort=review_effort,
         page_verified=page_verified,
         top_cluster_id=top_cluster,
         estimated_unlockable_segments=impact.get("estimated_unlockable_segments") if impact else None,
@@ -2115,6 +2127,14 @@ def create_anchor_review_page(
       color: #4f665b;
       font-size: 14px;
     }}
+    .review-effort {{
+      margin: 0 0 18px;
+      padding: 12px 16px;
+      border: 1px solid #c7d9cc;
+      background: #f4f9f2;
+      color: #315044;
+      font-weight: 700;
+    }}
     .save-status {{
       color: #315044;
       font-weight: 700;
@@ -2319,6 +2339,9 @@ def create_anchor_review_page(
     <section class="next-review-plan" id="next-review-plan" aria-live="polite">
       <h2>Minimal next reviews</h2>
       <div id="next-review-plan-rows">Loading next review queue...</div>
+    </section>
+    <section class="review-effort" id="review-effort" aria-live="polite">
+      Calculating review effort...
     </section>
     <section class="actions">
       <button type="button" id="save-review">Save review</button>
@@ -2695,6 +2718,18 @@ def create_anchor_review_page(
       }}).join("");
     }}
 
+    function renderReviewEffort() {{
+      const target = document.getElementById("review-effort");
+      if (!target) return;
+      const reviewed = buildReviewedSheet();
+      const plan = minimalNextReviewPlan();
+      const pending = Number(reviewed.pending_count || 0);
+      const minimum = Number(plan.length || 0);
+      const saved = Math.max(0, pending - minimum);
+      const reduction = pending ? ((saved / pending) * 100).toFixed(1) : "0.0";
+      target.textContent = `Review effort: ${{minimum}} minimum reviews vs ${{pending}} pending clips; up to ${{saved}} clips can be skipped by terminal cluster consensus (${{reduction}}% reduction).`;
+    }}
+
     function focusNextRecommendedReview() {{
       const plan = minimalNextReviewPlan();
       if (!plan.length) return;
@@ -2857,6 +2892,7 @@ def create_anchor_review_page(
         `${{reviewed.approved_count}} ${{statusLabels.approved.toLowerCase()}}, ${{reviewed.rejected_count}} ${{statusLabels.rejected.toLowerCase()}}, ${{reviewed.pending_count}} ${{statusLabels.pending.toLowerCase()}}`;
       renderClusterSummary();
       renderNextReviewPlan();
+      renderReviewEffort();
     }}
 
     function applyDecisionToCard(card, status) {{
@@ -3462,6 +3498,7 @@ def verify_anchor_review_page(
         "draft autosave": "localStorage" in html and "persistReviewDraft" in html and "loadReviewDraft" in html,
         "cluster summary": 'id="cluster-summary"' in html and "renderClusterSummary" in html and "clusterConsensusState" in html,
         "next review plan": 'id="next-review-plan"' in html and "minimalNextReviewPlan" in html and "focusNextRecommendedReview" in html,
+        "review effort": 'id="review-effort"' in html and "renderReviewEffort" in html,
         "embedded sheet JSON": embedded_sheet_present,
         "import instruction": (not requires_import) or "pavo review anchors import" in html,
         "rerun instruction": (not requires_rerun) or "pavo review anchors rerun-command" in html,
@@ -3487,6 +3524,7 @@ def verify_anchor_review_page(
         draft_autosave_present=checks["draft autosave"],
         cluster_summary_present=checks["cluster summary"],
         next_review_plan_present=checks["next review plan"],
+        review_effort_present=checks["review effort"],
         embedded_sheet_present=embedded_sheet_present,
         import_instruction_present=checks["import instruction"],
         rerun_instruction_present=checks["rerun instruction"],
@@ -4704,6 +4742,20 @@ def _cluster_question_next_review_plan(
             str(item.get("cluster_id") or ""),
         ),
     )
+
+
+def _cluster_question_review_effort(*, pending_count: int, next_review_count: int) -> dict[str, Any]:
+    pending = max(0, int(pending_count or 0))
+    minimum = max(0, int(next_review_count or 0))
+    saved = max(0, pending - minimum)
+    reduction = round((saved / pending) * 100.0, 1) if pending else 0.0
+    return {
+        "pending_reviews": pending,
+        "minimum_reviews": minimum,
+        "possible_reviews_saved": saved,
+        "reduction_percent": reduction,
+        "summary": f"{minimum} minimum reviews vs {pending} pending clips; up to {saved} clips can be skipped by terminal cluster consensus.",
+    }
 
 
 def _cluster_constraint_from_decision(decision: dict[str, Any], *, kind: str) -> dict[str, Any] | None:

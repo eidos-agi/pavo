@@ -673,6 +673,7 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.unresolved_cluster_count, 0)
         self.assertEqual(result.next_review_count, 0)
         self.assertEqual(result.next_review_plan, [])
+        self.assertEqual(result.review_effort["possible_reviews_saved"], 0)
         self.assertIn("prepare", result.next_command)
         self.assertIn("review sheet is missing", "; ".join(result.blockers))
 
@@ -727,6 +728,8 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.unresolved_cluster_count, 1)
         self.assertEqual(result.next_review_count, 1)
         self.assertEqual(len(result.next_review_plan), 1)
+        self.assertEqual(result.review_effort["pending_reviews"], 1)
+        self.assertEqual(result.review_effort["minimum_reviews"], 1)
         self.assertTrue(result.page_verified)
         self.assertIn("open", result.next_command)
 
@@ -762,6 +765,7 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.conflicted_cluster_count, 0)
         self.assertEqual(result.unresolved_cluster_count, 0)
         self.assertEqual(result.next_review_count, 0)
+        self.assertEqual(result.review_effort["minimum_reviews"], 0)
         self.assertTrue(result.page_verified)
         self.assertIn("finalize", result.next_command)
 
@@ -781,6 +785,7 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(report["unresolved_cluster_count"], 0)
         self.assertEqual(report["next_review_count"], 0)
         self.assertEqual(report["next_review_plan"], [])
+        self.assertEqual(report["review_effort"]["possible_reviews_saved"], 0)
         self.assertIn("next_command", report)
         self.assertIn("blockers", report)
         self.assertIn("Pavo Cluster Review Status", markdown)
@@ -1129,6 +1134,10 @@ class ReviewTests(unittest.TestCase):
         self.assertFalse(result.passed)
         self.assertEqual(result.next_review_count, 2)
         self.assertEqual(report["next_review_count"], 2)
+        self.assertEqual(result.review_effort["pending_reviews"], 3)
+        self.assertEqual(result.review_effort["minimum_reviews"], 2)
+        self.assertEqual(result.review_effort["possible_reviews_saved"], 1)
+        self.assertEqual(report["review_effort"]["reduction_percent"], 33.3)
         self.assertEqual(report["next_review_plan"][0]["cluster_id"], "S1")
         self.assertEqual(report["next_review_plan"][0]["row_index"], 2)
         self.assertEqual(report["next_review_plan"][0]["text"], "best sample")
@@ -1770,6 +1779,8 @@ class ReviewTests(unittest.TestCase):
         self.assertIn('id="next-review-plan"', html)
         self.assertIn("minimalNextReviewPlan", html)
         self.assertIn("focusNextRecommendedReview", html)
+        self.assertIn('id="review-effort"', html)
+        self.assertIn("renderReviewEffort", html)
         self.assertIn("<code>N</code> next recommended review", html)
         self.assertIn("<code>Space</code> play/pause", html)
         self.assertIn("<code>&larr;</code>/<code>&rarr;</code> seek 2s", html)
@@ -1821,6 +1832,7 @@ class ReviewTests(unittest.TestCase):
         self.assertTrue(result.draft_autosave_present)
         self.assertTrue(result.cluster_summary_present)
         self.assertTrue(result.next_review_plan_present)
+        self.assertTrue(result.review_effort_present)
         self.assertTrue(result.embedded_sheet_present)
         self.assertTrue(result.import_instruction_present)
         self.assertTrue(result.rerun_instruction_present)
@@ -1905,6 +1917,7 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("draft autosave", result.missing)
         self.assertIn("cluster summary", result.missing)
         self.assertIn("next review plan", result.missing)
+        self.assertIn("review effort", result.missing)
         self.assertIn("embedded sheet JSON", result.missing)
 
     def test_summary_requires_all_rows_reviewed_before_human_reviewed_is_true(self):
