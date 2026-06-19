@@ -932,10 +932,13 @@ class ReviewTests(unittest.TestCase):
             result = export_cluster_review_decision_brief(root)
             payload = json.loads(result.json_path.read_text())
             markdown = result.markdown_path.read_text()
+            html = result.html_path.read_text()
+            html_exists = result.html_path.exists()
 
         self.assertEqual(result.item_count, 1)
         self.assertEqual(result.total_unlockable_segments, 1)
         self.assertGreater(result.total_unlockable_seconds, 0)
+        self.assertTrue(html_exists)
         self.assertEqual(payload["summary"]["item_count"], 1)
         self.assertEqual(payload["items"][0]["rank"], 1)
         self.assertIn("review_instruction", payload["items"][0])
@@ -943,6 +946,9 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("Total visible unlock", markdown)
         self.assertIn("Ranked Decisions", markdown)
         self.assertIn("Human listening is required", markdown)
+        self.assertIn("Cluster Review Decision Brief", html)
+        self.assertIn("<audio", html)
+        self.assertIn("Pavo Active Speaker Correction", html)
 
     def test_cli_cluster_review_decision_brief_writes_json_and_markdown(self):
         from pavo.cli import main
@@ -980,13 +986,16 @@ class ReviewTests(unittest.TestCase):
             exit_code = main(["review", "clusters", "decision-brief", str(root), "--json"])
             json_path = bundle / "pavo-cluster-review-decision-brief.json"
             markdown_path = bundle / "pavo-cluster-review-decision-brief.md"
+            html_path = bundle / "pavo-cluster-review-decision-brief.html"
             json_exists = json_path.exists()
             markdown_exists = markdown_path.exists()
+            html_exists = html_path.exists()
             payload = json.loads(json_path.read_text())
 
         self.assertEqual(exit_code, 0)
         self.assertTrue(json_exists)
         self.assertTrue(markdown_exists)
+        self.assertTrue(html_exists)
         self.assertEqual(payload["summary"]["item_count"], 1)
         self.assertEqual(payload["summary"]["total_unlockable_segments"], 3)
 

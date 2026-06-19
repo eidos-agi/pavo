@@ -875,6 +875,7 @@ def main(argv: list[str] | None = None) -> int:
                                 "total_unlockable_seconds": result.total_unlockable_seconds,
                                 "json": str(result.json_path),
                                 "markdown": str(result.markdown_path),
+                                "html": str(result.html_path),
                                 "blockers": result.blockers,
                             },
                             indent=2,
@@ -889,6 +890,7 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"total_unlockable_seconds: {result.total_unlockable_seconds}")
                     print(f"json: {result.json_path}")
                     print(f"markdown: {result.markdown_path}")
+                    print(f"html: {result.html_path}")
                     if result.blockers:
                         print("blockers: " + "; ".join(result.blockers))
                 return 0 if result.item_count or result.state in {"ready_to_finalize", "finalized_passed"} else 2

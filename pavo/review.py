@@ -329,6 +329,7 @@ class ClusterReviewDecisionBriefResult:
     review_sheet_path: Path | None
     json_path: Path
     markdown_path: Path
+    html_path: Path
     item_count: int
     total_unlockable_segments: int
     total_unlockable_seconds: float
@@ -2265,15 +2266,18 @@ def export_cluster_review_decision_brief(
     target_dir.mkdir(parents=True, exist_ok=True)
     json_path = target_dir / "pavo-cluster-review-decision-brief.json"
     markdown_path = target_dir / "pavo-cluster-review-decision-brief.md"
+    html_path = target_dir / "pavo-cluster-review-decision-brief.html"
     payload = _cluster_review_decision_brief_payload(status)
     json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     markdown_path.write_text(_render_cluster_review_decision_brief_markdown(payload), encoding="utf-8")
+    html_path.write_text(_render_cluster_review_decision_brief_html(payload), encoding="utf-8")
     summary = payload["summary"]
     return ClusterReviewDecisionBriefResult(
         batch_root=Path(batch_root),
         review_sheet_path=status.review_sheet_path,
         json_path=json_path,
         markdown_path=markdown_path,
+        html_path=html_path,
         item_count=int(summary["item_count"]),
         total_unlockable_segments=int(summary["total_unlockable_segments"]),
         total_unlockable_seconds=float(summary["total_unlockable_seconds"]),
@@ -6079,6 +6083,142 @@ def _render_cluster_review_decision_brief_markdown(payload: dict[str, Any]) -> s
             ]
         )
     return "\n".join(lines).rstrip() + "\n"
+
+
+def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
+    summary = payload["summary"]
+    tier_counts = summary.get("tier_counts") or {}
+    tier_bits = "".join(
+        f'<span class="pill">{escape(str(tier))}: {count}</span>'
+        for tier, count in sorted(tier_counts.items())
+    ) or '<span class="pill">none</span>'
+    blockers = payload.get("blockers") or []
+    blocker_bits = "".join(f"<li>{escape(str(blocker))}</li>" for blocker in blockers) or "<li>None</li>"
+    item_cards = []
+    for item in payload.get("items") or []:
+        transcript = str(item.get("transcript_excerpt") or "")
+        if len(transcript) > 360:
+            transcript = transcript[:357].rstrip() + "..."
+        audio_src = _audio_src(item.get("clip_path"))
+        item_cards.append(
+            f"""
+      <article class="card {escape(str(item.get('priority_tier') or 'standard'))}">
+        <div class="card-top">
+          <div>
+            <p class="eyebrow">Decision {item.get('rank')} · cluster {escape(str(item.get('cluster_id')))}</p>
+            <h2>{escape(str(item.get('question') or 'Review cluster'))}</h2>
+          </div>
+          <span class="badge">{escape(str(item.get('priority_tier') or 'standard'))}</span>
+        </div>
+        <div class="metrics">
+          <div><strong>{item.get('unlockable_segments')}</strong><span>segments</span></div>
+          <div><strong>{item.get('unlockable_seconds')}</strong><span>seconds</span></div>
+          <div><strong>{escape(str(item.get('priority_score')))}</strong><span>priority</span></div>
+        </div>
+        <audio controls preload="metadata" src="{escape(audio_src)}"></audio>
+        <dl>
+          <dt>Target</dt><dd>{escape(str(item.get('target_speaker') or 'unknown'))}</dd>
+          <dt>Acoustic</dt><dd>{escape(str(item.get('acoustic_verdict')))} · min similarity {escape(str(item.get('acoustic_min_pair_similarity')))}</dd>
+          <dt>Instruction</dt><dd>{escape(str(item.get('review_instruction') or 'Listen before deciding.'))}</dd>
+          <dt>Approve</dt><dd>{escape(str(item.get('approve_effect') or ''))}</dd>
+          <dt>Reject</dt><dd>{escape(str(item.get('reject_effect') or ''))}</dd>
+        </dl>
+        <blockquote>{escape(transcript or 'No transcript excerpt')}</blockquote>
+        <p class="clip">{escape(str(item.get('clip_path') or ''))}</p>
+      </article>"""
+        )
+    cards = "\n".join(item_cards) or "<p>No review items remain.</p>"
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pavo Cluster Review Decision Brief</title>
+  <style>
+    :root {{
+      color-scheme: light;
+      --ink: #172033;
+      --muted: #667085;
+      --line: #d9e0ea;
+      --soft: #f6f8fb;
+      --blue: #2563eb;
+      --amber: #b45309;
+      --red: #b42318;
+      --green: #047857;
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{ margin: 0; background: #eef3f8; color: var(--ink); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
+    main {{ max-width: 1180px; margin: 0 auto; padding: 28px; }}
+    header {{ background: white; border: 1px solid var(--line); border-radius: 22px; padding: 26px; box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08); }}
+    h1 {{ margin: 0 0 8px; font-size: 34px; letter-spacing: -0.04em; }}
+    h2 {{ margin: 0; font-size: 20px; letter-spacing: -0.02em; }}
+    .subtle {{ color: var(--muted); margin: 0; }}
+    .grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 22px 0; }}
+    .stat {{ background: var(--soft); border: 1px solid var(--line); border-radius: 16px; padding: 15px; }}
+    .stat strong {{ display: block; font-size: 25px; }}
+    .stat span {{ color: var(--muted); }}
+    .commands, .blockers {{ background: white; border: 1px solid var(--line); border-radius: 18px; padding: 18px; margin: 18px 0; }}
+    code {{ background: #f1f5f9; border: 1px solid #dbe3ee; border-radius: 8px; padding: 2px 5px; overflow-wrap: anywhere; }}
+    .pill, .badge {{ display: inline-flex; align-items: center; border-radius: 999px; padding: 5px 10px; margin: 4px 6px 4px 0; font-weight: 700; background: #e8f0ff; color: #1d4ed8; }}
+    .cards {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 20px; }}
+    .card {{ background: white; border: 1px solid var(--line); border-left: 7px solid var(--blue); border-radius: 22px; padding: 20px; box-shadow: 0 12px 35px rgba(15, 23, 42, 0.07); }}
+    .card.urgent_listen {{ border-left-color: var(--red); }}
+    .card.careful_listen {{ border-left-color: var(--amber); }}
+    .card.normal_listen {{ border-left-color: var(--green); }}
+    .card-top {{ display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }}
+    .eyebrow {{ margin: 0 0 4px; color: var(--muted); text-transform: uppercase; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; }}
+    .metrics {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 16px 0; }}
+    .metrics div {{ background: var(--soft); border-radius: 14px; padding: 11px; }}
+    .metrics strong {{ display: block; font-size: 20px; }}
+    .metrics span {{ color: var(--muted); font-size: 12px; }}
+    audio {{ width: 100%; margin: 8px 0 14px; }}
+    dl {{ display: grid; grid-template-columns: 88px 1fr; gap: 8px 12px; margin: 0; }}
+    dt {{ color: var(--muted); font-weight: 800; }}
+    dd {{ margin: 0; }}
+    blockquote {{ margin: 16px 0 0; padding: 12px 14px; background: #f8fafc; border-left: 4px solid #cbd5e1; border-radius: 10px; }}
+    .clip {{ color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }}
+    @media print {{
+      body {{ background: white; }}
+      main {{ max-width: none; padding: 0; }}
+      header, .commands, .blockers, .card {{ box-shadow: none; break-inside: avoid; }}
+      .cards {{ grid-template-columns: 1fr; }}
+      audio {{ display: none; }}
+    }}
+    @media (max-width: 900px) {{
+      .grid, .cards {{ grid-template-columns: 1fr; }}
+    }}
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">Pavo Active Speaker Correction</p>
+      <h1>Cluster Review Decision Brief</h1>
+      <p class="subtle">{escape(str(payload.get('safety_boundary')))}</p>
+      <div class="grid">
+        <div class="stat"><strong>{summary.get('item_count')}</strong><span>human decisions</span></div>
+        <div class="stat"><strong>{summary.get('total_unlockable_segments')}</strong><span>visible segments</span></div>
+        <div class="stat"><strong>{summary.get('total_unlockable_seconds')}</strong><span>visible seconds</span></div>
+        <div class="stat"><strong>{summary.get('forecast_risk_adjusted_segments')}</strong><span>risk-adjusted segments</span></div>
+      </div>
+      <div>{tier_bits}</div>
+    </header>
+    <section class="commands">
+      <h2>Commands</h2>
+      <p>Open full review page: <code>{escape(str(payload.get('open_review_page_command') or ''))}</code></p>
+      <p>Finish after TSV review: <code>{escape(str(payload.get('finish_command') or ''))}</code></p>
+    </section>
+    <section class="blockers">
+      <h2>Current Blockers</h2>
+      <ul>{blocker_bits}</ul>
+    </section>
+    <section class="cards">
+      {cards}
+    </section>
+  </main>
+</body>
+</html>
+"""
 
 
 def _render_cluster_review_slate_markdown(status: ClusterReviewStatusResult) -> str:

@@ -288,6 +288,10 @@ can avoid pretending uncertainty is certainty.
 speaker regions that the rolling fingerprint marks as suspect. It writes
 separated stems, a score report for each stem, and `pavo-overlap-manifest.json`.
 
+`pavo review clusters decision-brief` writes JSON, Markdown, and a light-mode
+HTML dashboard for the ranked cluster-review queue, with embedded local audio
+clips, expected unlock, acoustic caution, and finish commands.
+
 `pavo review anchors init` creates a pending review sheet from speaker-anchor
 clips. After a human marks clean rows as `approved`, `pavo review anchors
 corrections` prints the exact `--speaker-correction` flags for the corrected
