@@ -5,6 +5,7 @@ import hashlib
 import json
 import shlex
 from dataclasses import dataclass
+from html import escape
 from pathlib import Path
 from typing import Any
 
@@ -438,6 +439,27 @@ class BatchReviewedProofFinalizeResult:
             "finish": self.finish,
             "strict_proof": self.strict_proof,
             "safety_boundary": "Finalizing a reviewed proof requires human-filled slate decisions. Pavo validates and materializes them, but it does not approve speaker identity from machine inference alone.",
+        }
+
+
+@dataclass(frozen=True)
+class BatchDecisionBoardResult:
+    proof_report_path: Path
+    decision_slate_path: Path
+    out_path: Path
+    decision_count: int
+    pending_decision_count: int
+    supporting_row_count: int
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "proof_report_path": str(self.proof_report_path),
+            "decision_slate_path": str(self.decision_slate_path),
+            "out_path": str(self.out_path),
+            "decision_count": self.decision_count,
+            "pending_decision_count": self.pending_decision_count,
+            "supporting_row_count": self.supporting_row_count,
+            "safety_boundary": "Decision board helps a human fill the review slate. It does not approve speaker identity or write reviewed decisions by itself.",
         }
 
 
@@ -1692,6 +1714,52 @@ def finalize_batch_reviewed_proof(
     )
 
 
+def write_batch_decision_board(
+    proof_report_path: Path | str,
+    *,
+    out_path: Path | str | None = None,
+) -> BatchDecisionBoardResult:
+    proof_path = Path(proof_report_path)
+    proof_report = json.loads(proof_path.read_text())
+    operator = proof_report.get("operator_handoff") if isinstance(proof_report.get("operator_handoff"), dict) else {}
+    decision_slate_value = (
+        proof_report.get("proof_decision_slate_path")
+        or (proof_report.get("review_packet") or {}).get("proof_decision_slate_tsv")
+        or operator.get("proof_decision_slate_tsv")
+    )
+    if not decision_slate_value:
+        raise ValueError(f"proof report does not name a decision slate: {proof_path}")
+    decision_slate_path = Path(str(decision_slate_value))
+    if not decision_slate_path.exists():
+        raise FileNotFoundError(f"proof decision slate not found: {decision_slate_path}")
+    decisions, _decision_fields = _read_tsv(decision_slate_path)
+    proof_slate_path = _proof_review_slate_path_from_report(proof_path)
+    proof_rows, _proof_fields = _read_tsv(proof_slate_path)
+    rows_by_group: dict[str, list[dict[str, str]]] = {}
+    for row in proof_rows:
+        rows_by_group.setdefault(str(row.get("decision_group") or ""), []).append(row)
+    target = Path(out_path) if out_path else proof_path.with_name("pavo-batch-proof.decision-board.html")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    html = _render_batch_decision_board_html(
+        proof_report=proof_report,
+        proof_report_path=proof_path,
+        proof_slate_path=proof_slate_path,
+        decision_slate_path=decision_slate_path,
+        decisions=decisions,
+        rows_by_group=rows_by_group,
+    )
+    target.write_text(html, encoding="utf-8")
+    pending_count = sum(1 for row in decisions if str(row.get("decision") or "").strip().lower() == "pending")
+    return BatchDecisionBoardResult(
+        proof_report_path=proof_path,
+        decision_slate_path=decision_slate_path,
+        out_path=target,
+        decision_count=len(decisions),
+        pending_decision_count=pending_count,
+        supporting_row_count=len(proof_rows),
+    )
+
+
 def _proof_review_slate_path_from_report(proof_path: Path) -> Path:
     proof_report = json.loads(proof_path.read_text())
     review_slate_value = (
@@ -1743,6 +1811,203 @@ def _write_tsv(path: Path, rows: list[dict[str, str]], fieldnames: list[str]) ->
         writer.writeheader()
         for row in rows:
             writer.writerow({field: row.get(field, "") for field in fieldnames})
+
+
+def _render_batch_decision_board_html(
+    *,
+    proof_report: dict[str, Any],
+    proof_report_path: Path,
+    proof_slate_path: Path,
+    decision_slate_path: Path,
+    decisions: list[dict[str, str]],
+    rows_by_group: dict[str, list[dict[str, str]]],
+) -> str:
+    batch_root = str(proof_report.get("batch_root") or "")
+    pending_count = sum(1 for row in decisions if str(row.get("decision") or "").strip().lower() == "pending")
+    supporting_count = sum(len(rows_by_group.get(str(row.get("decision_group") or ""), [])) for row in decisions)
+    rows_json = json.dumps(decisions, sort_keys=True)
+    cards = "\n".join(
+        _render_batch_decision_card(row, rows_by_group.get(str(row.get("decision_group") or ""), []))
+        for row in decisions
+    )
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pavo Batch Decision Board</title>
+  <style>
+    :root {{ color-scheme: light; --ink:#172033; --muted:#647086; --line:#d9e1ef; --soft:#f5f7fb; --brand:#3157d5; --ok:#0f8f61; --bad:#b42318; --pending:#9a6700; }}
+    * {{ box-sizing: border-box; }}
+    body {{ margin:0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color:var(--ink); background:#eef3fb; }}
+    header {{ position:sticky; top:0; z-index:2; background:rgba(255,255,255,.94); border-bottom:1px solid var(--line); padding:18px 24px; backdrop-filter: blur(8px); }}
+    h1 {{ margin:0; font-size:24px; }}
+    .sub {{ margin-top:5px; color:var(--muted); font-size:13px; }}
+    .scorebar {{ display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; }}
+    .score {{ background:var(--soft); border:1px solid var(--line); border-radius:12px; padding:9px 12px; min-width:130px; }}
+    .score strong {{ display:block; font-size:20px; }}
+    main {{ display:grid; grid-template-columns:minmax(0,1fr) 360px; gap:18px; padding:18px 24px 32px; }}
+    .card {{ background:#fff; border:1px solid var(--line); border-radius:16px; box-shadow:0 8px 24px rgba(23,32,51,.06); margin-bottom:14px; overflow:hidden; }}
+    .card-head {{ display:flex; gap:12px; align-items:flex-start; justify-content:space-between; padding:16px; border-bottom:1px solid var(--line); }}
+    .card h2 {{ margin:0 0 6px; font-size:17px; }}
+    .pill {{ display:inline-flex; align-items:center; border:1px solid var(--line); border-radius:999px; padding:3px 8px; font-size:12px; color:var(--muted); background:var(--soft); }}
+    .decision {{ min-width:160px; display:grid; gap:8px; }}
+    button {{ border:0; border-radius:10px; padding:9px 10px; color:#fff; font-weight:700; cursor:pointer; }}
+    button.approve {{ background:var(--ok); }}
+    button.reject {{ background:var(--bad); }}
+    button.pending {{ background:var(--pending); }}
+    button:focus {{ outline:3px solid rgba(49,87,213,.28); }}
+    label {{ display:block; font-size:12px; color:var(--muted); margin-bottom:4px; }}
+    input, textarea {{ width:100%; border:1px solid var(--line); border-radius:10px; padding:8px 10px; font:inherit; }}
+    .body {{ padding:16px; }}
+    .meta {{ display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 12px; }}
+    .sample {{ border-top:1px solid var(--line); padding:12px 0; }}
+    .sample:first-child {{ border-top:0; padding-top:0; }}
+    audio {{ width:100%; margin:8px 0; }}
+    .transcript {{ background:var(--soft); border-radius:12px; padding:10px; color:#28344d; line-height:1.45; }}
+    aside {{ position:sticky; top:118px; align-self:start; background:#fff; border:1px solid var(--line); border-radius:16px; box-shadow:0 8px 24px rgba(23,32,51,.06); padding:16px; }}
+    aside h2 {{ margin:0 0 8px; font-size:16px; }}
+    .commands {{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; white-space:pre-wrap; background:#0d1324; color:#dbeafe; border-radius:12px; padding:12px; overflow:auto; }}
+    #tsv {{ min-height:220px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; }}
+    .notice {{ color:var(--muted); font-size:13px; line-height:1.4; }}
+    @media (max-width: 980px) {{ main {{ grid-template-columns:1fr; }} aside {{ position:static; }} }}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Pavo Batch Decision Board</h1>
+    <div class="sub">Human review surface for grouped speaker decisions. This page does not write files or approve identity by itself.</div>
+    <div class="scorebar">
+      <div class="score"><strong>{len(decisions)}</strong> decisions</div>
+      <div class="score"><strong>{pending_count}</strong> pending</div>
+      <div class="score"><strong>{supporting_count}</strong> supporting clips</div>
+    </div>
+  </header>
+  <main>
+    <section>
+      {cards}
+    </section>
+    <aside>
+      <h2>Finish Flow</h2>
+      <p class="notice">Use the buttons to update the TSV below, then save it over the decision slate or pass it to <code>apply-decision-slate</code>. Keyboard: <strong>A</strong> approve, <strong>R</strong> reject, <strong>P</strong> pending, <strong>J/K</strong> move.</p>
+      <div class="commands">pavo batch apply-decision-slate {escape(str(proof_report_path))} {escape(str(decision_slate_path))} --out {escape(str(proof_slate_path))}
+
+pavo batch finalize-reviewed-proof {escape(str(proof_report_path))}</div>
+      <h2 style="margin-top:16px;">Generated Decision TSV</h2>
+      <textarea id="tsv" spellcheck="false"></textarea>
+      <button class="approve" style="margin-top:8px;" onclick="downloadTsv()">Download TSV</button>
+      <p class="notice">Batch root: <code>{escape(batch_root)}</code></p>
+    </aside>
+  </main>
+  <script>
+    const rows = {rows_json};
+    const headers = ["decision_group","decision","speaker","cluster_id","question","row_indices","clip_count","priority_tier","priority_score","priority_reason","acoustic_verdict","clip_paths","transcript_samples"];
+    let activeIndex = 0;
+    function clean(value) {{ return String(value ?? "").replace(/[\\t\\r\\n]+/g, " ").trim(); }}
+    function setDecision(group, decision) {{
+      const row = rows.find(item => item.decision_group === group);
+      if (!row) return;
+      row.decision = decision;
+      const card = document.querySelector(`[data-group="${{CSS.escape(group)}}"]`);
+      if (card) {{
+        card.querySelector("[data-status]").textContent = decision;
+        card.querySelector("[data-status]").className = "pill " + decision;
+      }}
+      renderTsv();
+    }}
+    function updateSpeaker(group, value) {{
+      const row = rows.find(item => item.decision_group === group);
+      if (row) row.speaker = value;
+      renderTsv();
+    }}
+    function renderTsv() {{
+      const lines = [headers.join("\\t")];
+      for (const row of rows) lines.push(headers.map(key => clean(row[key])).join("\\t"));
+      document.getElementById("tsv").value = lines.join("\\n") + "\\n";
+    }}
+    function focusCard(index) {{
+      const cards = Array.from(document.querySelectorAll("[data-group]"));
+      if (!cards.length) return;
+      activeIndex = Math.max(0, Math.min(index, cards.length - 1));
+      cards[activeIndex].scrollIntoView({{ block: "center" }});
+      cards[activeIndex].querySelector("button").focus();
+    }}
+    function downloadTsv() {{
+      const blob = new Blob([document.getElementById("tsv").value], {{ type: "text/tab-separated-values" }});
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "pavo-batch-proof.decision-slate.reviewed.tsv";
+      link.click();
+      URL.revokeObjectURL(url);
+    }}
+    document.addEventListener("keydown", event => {{
+      if (["INPUT","TEXTAREA"].includes(document.activeElement.tagName)) return;
+      const cards = Array.from(document.querySelectorAll("[data-group]"));
+      const group = cards[activeIndex]?.dataset.group;
+      if (event.key.toLowerCase() === "j") {{ focusCard(activeIndex + 1); event.preventDefault(); }}
+      if (event.key.toLowerCase() === "k") {{ focusCard(activeIndex - 1); event.preventDefault(); }}
+      if (group && event.key.toLowerCase() === "a") {{ setDecision(group, "approved"); event.preventDefault(); }}
+      if (group && event.key.toLowerCase() === "r") {{ setDecision(group, "rejected"); event.preventDefault(); }}
+      if (group && event.key.toLowerCase() === "p") {{ setDecision(group, "pending"); event.preventDefault(); }}
+    }});
+    renderTsv();
+  </script>
+</body>
+</html>
+"""
+
+
+def _render_batch_decision_card(decision: dict[str, str], proof_rows: list[dict[str, str]]) -> str:
+    group = str(decision.get("decision_group") or "")
+    current = str(decision.get("decision") or "pending").strip().lower() or "pending"
+    speaker = str(decision.get("speaker") or "")
+    samples = "\n".join(_render_batch_decision_sample(row) for row in proof_rows)
+    if not samples:
+        samples = '<div class="sample"><p class="notice">No supporting proof rows found for this decision group.</p></div>'
+    return f"""<article class="card" data-group="{escape(group)}">
+  <div class="card-head">
+    <div>
+      <h2>{escape(group)} · {escape(str(decision.get('cluster_id') or 'unknown cluster'))}</h2>
+      <div>{escape(str(decision.get('question') or 'Review this speaker decision'))}</div>
+      <div class="meta">
+        <span class="pill" data-status>{escape(current)}</span>
+        <span class="pill">{escape(str(decision.get('priority_tier') or 'priority unknown'))}</span>
+        <span class="pill">score {escape(str(decision.get('priority_score') or ''))}</span>
+        <span class="pill">{len(proof_rows)} clips</span>
+      </div>
+    </div>
+    <div class="decision">
+      <label>Speaker</label>
+      <input value="{escape(speaker)}" oninput="updateSpeaker('{escape(group)}', this.value)">
+      <button class="approve" onclick="setDecision('{escape(group)}','approved')">Approve</button>
+      <button class="reject" onclick="setDecision('{escape(group)}','rejected')">Reject</button>
+      <button class="pending" onclick="setDecision('{escape(group)}','pending')">Pending</button>
+    </div>
+  </div>
+  <div class="body">
+    <div class="meta">
+      <span class="pill">Acoustic: {escape(str(decision.get('acoustic_verdict') or 'unknown'))}</span>
+      <span class="pill">Rows: {escape(str(decision.get('row_indices') or ''))}</span>
+    </div>
+    {samples}
+  </div>
+</article>"""
+
+
+def _render_batch_decision_sample(row: dict[str, str]) -> str:
+    clip = str(row.get("clip_path") or "")
+    clip_uri = Path(clip).absolute().as_uri() if clip and Path(clip).exists() else clip
+    audio = f'<audio controls preload="none" src="{escape(clip_uri)}"></audio>' if clip else ""
+    return f"""<div class="sample">
+  <div class="meta">
+    <span class="pill">row {escape(str(row.get('row_index') or ''))}</span>
+    <span class="pill">{escape(str(row.get('acoustic_verdict') or ''))}</span>
+    <span class="pill">{escape(str(row.get('clip_path') or 'no clip path'))}</span>
+  </div>
+  {audio}
+  <div class="transcript">{escape(str(row.get('transcript') or ''))}</div>
+</div>"""
 
 
 def _speaker_slug(value: str) -> str:

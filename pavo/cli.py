@@ -20,6 +20,7 @@ from .batch import (
     operator_handoff_ready_to_finish,
     prove_batch,
     verify_batch_manifest,
+    write_batch_decision_board,
 )
 from .brief import (
     build_brief_improvement_report,
@@ -119,6 +120,13 @@ def build_parser() -> argparse.ArgumentParser:
     batch_handoff.add_argument("--check-validation", action="store_true", help="Include current proof-slate validation report status when present")
     batch_handoff.add_argument("--strict-ready", action="store_true", help="Exit nonzero unless validation is fresh and ready to finish")
     batch_handoff.add_argument("--json", action="store_true", help="Print machine-readable handoff JSON")
+    batch_decision_board = batch_sub.add_parser(
+        "decision-board",
+        help="Write a browser-friendly board for grouped proof speaker decisions",
+    )
+    batch_decision_board.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_decision_board.add_argument("--out", type=Path, help="Output HTML path; defaults beside the proof report")
+    batch_decision_board.add_argument("--json", action="store_true", help="Print machine-readable board report")
     batch_apply_decision_slate = batch_sub.add_parser(
         "apply-decision-slate",
         help="Apply grouped proof decisions to the row-level proof review slate",
@@ -610,6 +618,20 @@ def main(argv: list[str] | None = None) -> int:
                 print(format_operator_handoff(handoff), end="")
             if args.strict_ready:
                 return 0 if operator_handoff_ready_to_finish(handoff) else 3
+            return 0
+        if args.batch_command == "decision-board":
+            try:
+                result = write_batch_decision_board(args.proof_report, out_path=args.out)
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+            else:
+                print(f"out: {result.out_path}")
+                print(f"decision_count: {result.decision_count}")
+                print(f"pending_decision_count: {result.pending_decision_count}")
+                print(f"supporting_row_count: {result.supporting_row_count}")
             return 0
         if args.batch_command == "apply-decision-slate":
             try:

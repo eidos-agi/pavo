@@ -26,6 +26,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --check-validation", readme)
         self.assertIn("pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --strict-ready", readme)
         self.assertIn("pavo batch apply-decision-slate", readme)
+        self.assertIn("pavo batch decision-board", readme)
         self.assertIn("pavo batch finalize-reviewed-proof", readme)
         self.assertIn("stale-validation detection", readme)
         self.assertIn("it exits `0` only when all", readme)
@@ -386,6 +387,40 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(report["candidate_count"], 0)
         self.assertEqual(report["approved_row_count"], 0)
         self.assertEqual(report["pending_row_count"], 2)
+
+    def test_batch_decision_board_cli_writes_review_html(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            out_path = root / "decision-board.html"
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "batch",
+                        "decision-board",
+                        str(result.proof_report_path),
+                        "--out",
+                        str(out_path),
+                        "--json",
+                    ]
+                )
+
+            report = json.loads(stdout.getvalue())
+            html = out_path.read_text()
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(report["decision_count"], 1)
+        self.assertEqual(report["pending_decision_count"], 1)
+        self.assertEqual(report["supporting_row_count"], 2)
+        self.assertIn("Pavo Batch Decision Board", html)
+        self.assertIn("Can cluster S1 be confirmed as Daniel?", html)
+        self.assertIn("hello from the sample", html)
+        self.assertIn("Generated Decision TSV", html)
+        self.assertIn("Keyboard", html)
+        self.assertIn("pavo batch finalize-reviewed-proof", html)
 
     def test_batch_finalize_reviewed_proof_fails_closed_when_pending(self):
         with tempfile.TemporaryDirectory() as tmp:

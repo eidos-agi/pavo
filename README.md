@@ -93,6 +93,7 @@ pavo batch verify-manifest /path/to/meeting-batch/pavo-batch-doctor.json --json 
 
 pavo batch prove /path/to/meeting-batch --json
 pavo batch prove /path/to/meeting-batch --strict-complete
+pavo batch decision-board /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch apply-decision-slate \
   /path/to/meeting-batch/pavo-batch-proof.json \
   /path/to/meeting-batch/pavo-batch-proof.decision-slate.tsv \
@@ -138,6 +139,11 @@ the smallest pending speaker decisions, with clips and transcript samples, so
 the reviewer can work top-to-bottom without reverse-engineering the TSV. By
 default it exits zero when machine proof passes. With `--strict-complete`, it
 exits nonzero until the human speaker review gate is complete.
+
+Use `pavo batch decision-board` to write a self-contained browser board for the
+grouped speaker decisions. It shows each decision, supporting clips and
+transcript samples, keyboard shortcuts, and a generated decision TSV surface for
+the reviewer. It does not write reviewed decisions by itself.
 
 Use `pavo batch apply-decision-slate` after editing the compact decision slate.
 It expands each grouped `approved` / `rejected` / `pending` decision back onto
