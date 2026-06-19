@@ -719,6 +719,7 @@ class ReviewTests(unittest.TestCase):
 
             prepare_cluster_review(root, min_strong_coverage=0.0, min_dominant_share=0.5)
             result = status_cluster_review(root)
+            markdown = result.as_markdown()
 
         self.assertEqual(result.state, "review_pending")
         self.assertEqual(result.candidate_count, 1)
@@ -737,6 +738,12 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.review_effort["minimum_reviews"], 1)
         self.assertTrue(result.page_verified)
         self.assertIn("open", result.next_command)
+        self.assertIn("### Cluster `S1` row `1`", markdown)
+        self.assertIn("Approve effect:", markdown)
+        self.assertIn("Reject effect:", markdown)
+        self.assertIn("Terminal decision rule:", markdown)
+        self.assertIn("Transcript excerpt: Review me.", markdown)
+        self.assertIn("Clip:", markdown)
 
     def test_cluster_review_advance_stops_at_human_review_boundary(self):
         with tempfile.TemporaryDirectory() as tmp:

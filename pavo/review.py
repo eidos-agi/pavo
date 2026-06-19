@@ -430,8 +430,25 @@ class ClusterReviewStatusResult:
         ]
         if self.next_review_plan:
             for item in self.next_review_plan:
-                lines.append(
-                    f"- Cluster `{item.get('cluster_id')}` row `{item.get('row_index')}`: {item.get('closure_rule')}"
+                transcript = str(item.get("text") or "").strip()
+                if len(transcript) > 220:
+                    transcript = transcript[:217].rstrip() + "..."
+                lines.extend(
+                    [
+                        f"### Cluster `{item.get('cluster_id')}` row `{item.get('row_index')}`",
+                        "",
+                        f"- Target speaker: `{item.get('target_speaker')}`",
+                        f"- Question: {item.get('question')}",
+                        f"- Expected impact: {item.get('expected_impact')}",
+                        f"- Closure rule: {item.get('closure_rule')}",
+                        f"- Approve effect: {item.get('approve_effect')}",
+                        f"- Reject effect: {item.get('reject_effect')}",
+                        f"- Terminal decision rule: {item.get('terminal_decision_rule')}",
+                        f"- Recommended action: {item.get('recommended_action')}",
+                        f"- Clip: `{item.get('clip_path')}`",
+                        f"- Transcript excerpt: {transcript or 'None'}",
+                        "",
+                    ]
                 )
         else:
             lines.append("- None")
