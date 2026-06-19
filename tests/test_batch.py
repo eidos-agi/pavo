@@ -496,6 +496,8 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("Generated Decision TSV", html)
         self.assertIn("Keyboard", html)
         self.assertIn("Download Audit JSON", html)
+        self.assertIn("pavo batch apply-decision-board-audit", html)
+        self.assertIn("pavo-batch-proof.decision-board.audit.json", html)
         self.assertIn("localStorage", html)
         self.assertIn("auditEvents", html)
         self.assertIn("Autosaved locally", html)
@@ -539,6 +541,8 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("review_pack_readme", artifact_names)
         self.assertNotIn("audio", "\n".join(artifact_names))
         self.assertIn("Raw audio copied: `false`", readme)
+        self.assertIn("pavo batch apply-decision-board-audit", readme)
+        self.assertIn("pavo-batch-proof.decision-board.audit.json", readme)
         self.assertIn("pavo batch prove", readme)
         self.assertRegex(report["artifact_manifest_sha256"], r"^[0-9a-f]{64}$")
 

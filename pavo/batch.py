@@ -2088,6 +2088,17 @@ def _review_pack_artifact_filename(name: str, source: Path) -> str:
 def _render_batch_review_pack_readme(manifest: dict[str, Any]) -> str:
     handoff = manifest.get("operator_handoff") if isinstance(manifest.get("operator_handoff"), dict) else {}
     validation = manifest.get("validation") if isinstance(manifest.get("validation"), dict) else {}
+    proof_report = str(manifest.get("proof_report_path") or "")
+    batch_root = str(manifest.get("batch_root") or "")
+    proof_review_slate = str(handoff.get("proof_review_slate_tsv") or "")
+    reviewed_decision_slate = str(Path(batch_root) / "pavo-batch-proof.decision-slate.reviewed.tsv") if batch_root else "pavo-batch-proof.decision-slate.reviewed.tsv"
+    audit_import_command = (
+        "pavo batch apply-decision-board-audit "
+        f"{shlex.quote(proof_report)} "
+        "pavo-batch-proof.decision-board.audit.json "
+        f"--out {shlex.quote(proof_review_slate)} "
+        f"--decision-slate-out {shlex.quote(reviewed_decision_slate)}"
+    )
     lines = [
         "# Pavo Batch Review Pack",
         "",
@@ -2115,7 +2126,9 @@ def _render_batch_review_pack_readme(manifest: dict[str, Any]) -> str:
         "",
         "## Commands",
         "",
-        f"```bash\n{handoff.get('validate_command')}\n{handoff.get('finish_command')}\n{handoff.get('strict_proof_command')}\n```",
+        "After reviewing the board, download `pavo-batch-proof.decision-board.audit.json`, place it beside this README or run from your download directory, then import it before validation.",
+        "",
+        f"```bash\n{audit_import_command}\n{handoff.get('validate_command')}\n{handoff.get('finish_command')}\n{handoff.get('strict_proof_command')}\n```",
         "",
         "## Safety Boundary",
         "",
@@ -2263,8 +2276,10 @@ def _render_batch_decision_board_html(
     </section>
     <aside>
       <h2>Finish Flow</h2>
-      <p class="notice">Use the buttons to update the TSV below, then save it over the decision slate or pass it to <code>apply-decision-slate</code>. Keyboard: <strong>A</strong> approve, <strong>R</strong> reject, <strong>P</strong> pending, <strong>J/K</strong> move.</p>
-      <div class="commands">pavo batch apply-decision-slate {escape(str(proof_report_path))} {escape(str(decision_slate_path))} --out {escape(str(proof_slate_path))}
+      <p class="notice">Use the buttons to update the TSV below. Fastest safe path: download the audit JSON, then import it with <code>apply-decision-board-audit</code>. Keyboard: <strong>A</strong> approve, <strong>R</strong> reject, <strong>P</strong> pending, <strong>J/K</strong> move.</p>
+      <div class="commands">pavo batch apply-decision-board-audit {escape(str(proof_report_path))} pavo-batch-proof.decision-board.audit.json --out {escape(str(proof_slate_path))} --decision-slate-out {escape(str(decision_slate_path.with_name("pavo-batch-proof.decision-slate.reviewed.tsv")))}
+
+pavo batch apply-decision-slate {escape(str(proof_report_path))} {escape(str(decision_slate_path))} --out {escape(str(proof_slate_path))}
 
 pavo batch finalize-reviewed-proof {escape(str(proof_report_path))}</div>
       <h2 style="margin-top:16px;">Generated Decision TSV</h2>
