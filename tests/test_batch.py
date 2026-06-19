@@ -365,6 +365,19 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(json_report["validation"]["total_count"], 2)
         self.assertEqual(json_report["validation"]["progress_percent"], 0.0)
         self.assertEqual(json_report["validation"]["pending_decision_count"], 1)
+        self.assertIn("decision_progress:", checked_stdout.getvalue())
+        self.assertIn("total_decision_count: 1", checked_stdout.getvalue())
+        self.assertIn("reviewed_decision_count: 0", checked_stdout.getvalue())
+        self.assertIn("decision_progress_percent: 0.0", checked_stdout.getvalue())
+        self.assertEqual(
+            json_report["validation"]["decision_progress"],
+            {
+                "total_decision_count": 1,
+                "reviewed_decision_count": 0,
+                "pending_decision_count": 1,
+                "progress_percent": 0.0,
+            },
+        )
         self.assertEqual(
             json_report["validation"]["next_action"],
             "review 1 pending speaker decision(s) across 2 proof TSV row(s), then rerun validate_command",
@@ -393,6 +406,9 @@ class BatchDoctorTests(unittest.TestCase):
             root = Path(tmp)
             _write_processed_batch(root, recording_ids=["rec-a"])
             result = prove_batch(root, refresh_cluster_gate=False)
+            result.proof_review_slate_path.write_text(
+                result.proof_review_slate_path.read_text().replace("\tpending\t", "\tapproved\t")
+            )
             result.proof_review_slate_path.with_suffix(".validation.json").write_text(
                 json.dumps(
                     {
@@ -419,6 +435,15 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(report["validation"]["reviewed_count"], 2)
         self.assertEqual(report["validation"]["total_count"], 2)
         self.assertEqual(report["validation"]["progress_percent"], 100.0)
+        self.assertEqual(
+            report["validation"]["decision_progress"],
+            {
+                "total_decision_count": 1,
+                "reviewed_decision_count": 1,
+                "pending_decision_count": 0,
+                "progress_percent": 100.0,
+            },
+        )
         self.assertEqual(report["validation"]["next_action"], "run finish_command, then strict_proof_command")
         self.assertTrue(operator_handoff_ready_to_finish(report))
 

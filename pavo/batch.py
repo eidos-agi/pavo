@@ -610,6 +610,7 @@ def enrich_operator_handoff_with_validation(handoff: dict[str, Any]) -> dict[str
             pending_rows = _handoff_pending_rows(slate)
             pending_review_questions = _handoff_pending_review_questions(pending_rows)
             pending_decision_count = len(pending_review_questions)
+            decision_progress = _handoff_decision_progress(slate)
             slate_mtime = Path(slate).stat().st_mtime if slate and Path(slate).exists() else None
             validation_mtime = validation_path.stat().st_mtime
             fresh = slate_mtime is None or validation_mtime >= slate_mtime
@@ -625,6 +626,7 @@ def enrich_operator_handoff_with_validation(handoff: dict[str, Any]) -> dict[str
                     "progress_percent": progress_percent,
                     "pending_rows": pending_rows,
                     "pending_decision_count": pending_decision_count,
+                    "decision_progress": decision_progress,
                     "pending_review_questions": pending_review_questions,
                     "next_action": _handoff_validation_next_action(status, pending, pending_decision_count),
                     "passed": passed,
@@ -700,6 +702,46 @@ def _handoff_pending_rows(slate: str, *, limit: int = 20) -> list[dict[str, Any]
     except (OSError, csv.Error):
         return []
     return rows
+
+
+def _handoff_decision_progress(slate: str) -> dict[str, Any]:
+    path = Path(slate) if slate else None
+    if not path or not path.exists():
+        return {
+            "total_decision_count": 0,
+            "reviewed_decision_count": 0,
+            "pending_decision_count": 0,
+            "progress_percent": 100.0,
+        }
+    grouped: dict[tuple[str, str, str], set[str]] = {}
+    try:
+        with path.open(newline="", encoding="utf-8") as handle:
+            reader = csv.DictReader(handle, delimiter="\t")
+            for row in reader:
+                key = (
+                    str(row.get("cluster_id") or ""),
+                    str(row.get("speaker") or ""),
+                    str(row.get("question") or ""),
+                )
+                grouped.setdefault(key, set()).add(str(row.get("decision") or "").strip().lower() or "pending")
+    except (OSError, csv.Error):
+        return {
+            "total_decision_count": 0,
+            "reviewed_decision_count": 0,
+            "pending_decision_count": 0,
+            "progress_percent": 0.0,
+            "error": "unable to read proof TSV decision progress",
+        }
+    total = len(grouped)
+    pending = sum(1 for decisions in grouped.values() if "pending" in decisions)
+    reviewed = total - pending
+    progress = round((reviewed / total) * 100, 1) if total else 100.0
+    return {
+        "total_decision_count": total,
+        "reviewed_decision_count": reviewed,
+        "pending_decision_count": pending,
+        "progress_percent": progress,
+    }
 
 
 def _handoff_pending_review_questions(pending_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -841,6 +883,17 @@ def format_operator_handoff(handoff: dict[str, Any]) -> str:
                     f"next_action: {validation.get('next_action')}",
                 ]
             )
+            decision_progress = validation.get("decision_progress") or {}
+            if decision_progress:
+                lines.extend(
+                    [
+                        "decision_progress:",
+                        f"total_decision_count: {decision_progress.get('total_decision_count')}",
+                        f"reviewed_decision_count: {decision_progress.get('reviewed_decision_count')}",
+                        f"pending_decision_count: {decision_progress.get('pending_decision_count')}",
+                        f"decision_progress_percent: {decision_progress.get('progress_percent')}",
+                    ]
+                )
             pending_rows = validation.get("pending_rows") or []
             pending_review_questions = validation.get("pending_review_questions") or []
             if pending_review_questions:
