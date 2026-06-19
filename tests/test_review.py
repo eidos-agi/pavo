@@ -1536,6 +1536,11 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("Parse note", html)
         self.assertIn("Keyboard shortcuts:", html)
         self.assertIn("handleReviewShortcut", html)
+        self.assertIn("toggleCurrentAudio", html)
+        self.assertIn("seekCurrentAudio", html)
+        self.assertIn("restartCurrentAudio", html)
+        self.assertIn("<code>Space</code> play/pause", html)
+        self.assertIn("<code>&larr;</code>/<code>&rarr;</code> seek 2s", html)
         self.assertIn('tabindex="0"', html)
         self.assertIn("data-waveform", html)
         self.assertIn('data-approve="1"', html)
@@ -1580,6 +1585,7 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.note_count, 1)
         self.assertTrue(result.shortcut_panel_present)
         self.assertTrue(result.keyboard_handler_present)
+        self.assertTrue(result.audio_shortcuts_present)
         self.assertTrue(result.embedded_sheet_present)
         self.assertTrue(result.import_instruction_present)
         self.assertTrue(result.rerun_instruction_present)
@@ -1660,6 +1666,7 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("approve buttons: expected 1, found 0", result.missing)
         self.assertIn("shortcut panel", result.missing)
         self.assertIn("keyboard shortcuts", result.missing)
+        self.assertIn("audio shortcuts", result.missing)
         self.assertIn("embedded sheet JSON", result.missing)
 
     def test_summary_requires_all_rows_reviewed_before_human_reviewed_is_true(self):

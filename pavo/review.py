@@ -134,6 +134,7 @@ class AnchorReviewPageVerificationResult:
     reset_button_present: bool
     shortcut_panel_present: bool
     keyboard_handler_present: bool
+    audio_shortcuts_present: bool
     embedded_sheet_present: bool
     import_instruction_present: bool
     rerun_instruction_present: bool
@@ -154,6 +155,7 @@ class AnchorReviewPageVerificationResult:
             "reset_button_present": self.reset_button_present,
             "shortcut_panel_present": self.shortcut_panel_present,
             "keyboard_handler_present": self.keyboard_handler_present,
+            "audio_shortcuts_present": self.audio_shortcuts_present,
             "embedded_sheet_present": self.embedded_sheet_present,
             "import_instruction_present": self.import_instruction_present,
             "rerun_instruction_present": self.rerun_instruction_present,
@@ -2148,6 +2150,9 @@ def create_anchor_review_page(
       <code>R</code> reject/contradicts decision,
       <code>U</code> uncertain,
       <code>J</code>/<code>K</code> next/previous clip,
+      <code>Space</code> play/pause,
+      <code>&larr;</code>/<code>&rarr;</code> seek 2s,
+      <code>0</code> restart clip,
       <code>/</code> note,
       <code>S</code> save/export.
     </section>
@@ -2544,6 +2549,43 @@ def create_anchor_review_page(
       focusReviewCard(cards[nextIndex]);
     }}
 
+    function currentAudio() {{
+      const card = currentReviewCard();
+      return card ? card.querySelector("audio") : null;
+    }}
+
+    function pauseOtherAudio(except) {{
+      document.querySelectorAll("audio").forEach((audio) => {{
+        if (audio !== except) audio.pause();
+      }});
+    }}
+
+    function toggleCurrentAudio() {{
+      const audio = currentAudio();
+      if (!audio) return;
+      pauseOtherAudio(audio);
+      if (audio.paused) {{
+        audio.play().catch(() => {{}});
+      }} else {{
+        audio.pause();
+      }}
+    }}
+
+    function seekCurrentAudio(seconds) {{
+      const audio = currentAudio();
+      if (!audio) return;
+      const duration = Number.isFinite(audio.duration) ? audio.duration : Number.POSITIVE_INFINITY;
+      audio.currentTime = Math.max(0, Math.min(duration, audio.currentTime + seconds));
+    }}
+
+    function restartCurrentAudio() {{
+      const audio = currentAudio();
+      if (!audio) return;
+      pauseOtherAudio(audio);
+      audio.currentTime = 0;
+      audio.play().catch(() => {{}});
+    }}
+
     function shortcutTargetIsTyping(event) {{
       const target = event.target;
       if (!target) return false;
@@ -2554,8 +2596,9 @@ def create_anchor_review_page(
     function handleReviewShortcut(event) {{
       if (event.metaKey || event.ctrlKey || event.altKey || shortcutTargetIsTyping(event)) return;
       const key = event.key.toLowerCase();
+      const code = event.code || "";
       const card = currentReviewCard();
-      if (!card && !["j", "k"].includes(key)) return;
+      if (!card && !["j", "k", "arrowleft", "arrowright", "0"].includes(key) && code !== "Space") return;
       if (key === "a") {{
         event.preventDefault();
         setDecision(card.dataset.reviewIndex, "approved");
@@ -2574,6 +2617,18 @@ def create_anchor_review_page(
       }} else if (key === "k") {{
         event.preventDefault();
         moveReviewFocus(-1);
+      }} else if (code === "Space") {{
+        event.preventDefault();
+        toggleCurrentAudio();
+      }} else if (key === "arrowleft") {{
+        event.preventDefault();
+        seekCurrentAudio(-2);
+      }} else if (key === "arrowright") {{
+        event.preventDefault();
+        seekCurrentAudio(2);
+      }} else if (key === "0") {{
+        event.preventDefault();
+        restartCurrentAudio();
       }} else if (key === "/") {{
         event.preventDefault();
         const note = card.querySelector("[data-note]");
@@ -3044,6 +3099,7 @@ def verify_anchor_review_page(
         "reset button": parser.reset_button_present,
         "shortcut panel": parser.shortcut_panel_present,
         "keyboard shortcuts": "handleReviewShortcut" in html and 'addEventListener("keydown", handleReviewShortcut)' in html,
+        "audio shortcuts": "toggleCurrentAudio" in html and "seekCurrentAudio" in html and "restartCurrentAudio" in html,
         "embedded sheet JSON": embedded_sheet_present,
         "import instruction": (not requires_import) or "pavo review anchors import" in html,
         "rerun instruction": (not requires_rerun) or "pavo review anchors rerun-command" in html,
@@ -3065,6 +3121,7 @@ def verify_anchor_review_page(
         reset_button_present=parser.reset_button_present,
         shortcut_panel_present=checks["shortcut panel"],
         keyboard_handler_present=checks["keyboard shortcuts"],
+        audio_shortcuts_present=checks["audio shortcuts"],
         embedded_sheet_present=embedded_sheet_present,
         import_instruction_present=checks["import instruction"],
         rerun_instruction_present=checks["rerun instruction"],
