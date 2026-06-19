@@ -2509,6 +2509,7 @@ def write_batch_review_pack(
     write_batch_decision_board(proof_path)
     write_batch_review_sprint(proof_path, out_dir=proof_path.parent)
     write_batch_speaker_answer_sheet(proof_path, out_dir=proof_path.parent)
+    write_batch_speaker_calibration(proof_path, out_dir=proof_path.parent)
     artifacts_to_copy = _batch_review_pack_artifacts(proof_path, proof_report, handoff, review_packet)
     copied: dict[str, dict[str, Any]] = {}
     missing: list[dict[str, Any]] = []
@@ -2624,7 +2625,11 @@ def verify_batch_review_pack(
         _check("raw_audio_copied_false", manifest.get("raw_audio_copied") is False, str(manifest.get("raw_audio_copied"))),
         _check("readme_has_finalize_board_audit", "pavo batch finalize-board-audit" in readme_text, "finalize-board-audit"),
         _check("readme_has_readiness", "pavo batch readiness" in readme_text, "readiness"),
+        _check("readme_has_speaker_calibration", "pavo batch speaker-calibration" in readme_text, "speaker calibration"),
         _check("readme_has_safety_boundary", "excludes raw audio" in readme_text, "raw-audio boundary"),
+        _check("has_speaker_calibration_json", "speaker_calibration_json" in artifacts, "speaker_calibration_json"),
+        _check("has_speaker_calibration_markdown", "speaker_calibration_markdown" in artifacts, "speaker_calibration_markdown"),
+        _check("has_speaker_calibration_tsv", "speaker_calibration_tsv" in artifacts, "speaker_calibration_tsv"),
         _check("zip_exists", zip_path.exists() and zip_path.is_file(), str(zip_path)),
     ]
     artifact_checks, artifact_manifest_sha256 = _verify_review_pack_artifacts(resolved_pack_dir, artifacts)
@@ -3224,6 +3229,7 @@ def write_batch_review_rehearsal(
     board_result = write_batch_decision_board(proof_path)
     sprint_result = write_batch_review_sprint(proof_path)
     answer_result = write_batch_speaker_answer_sheet(proof_path)
+    calibration_result = write_batch_speaker_calibration(proof_path)
     pack_result = write_batch_review_pack(proof_path, out_dir=pack_dir)
 
     board_verification = verify_batch_decision_board(proof_path)
@@ -3272,6 +3278,8 @@ def write_batch_review_rehearsal(
             "review_sprint_markdown": str(sprint_result.markdown_path),
             "speaker_answer_sheet_markdown": str(answer_result.markdown_path),
             "speaker_answer_sheet_tsv": str(answer_result.tsv_path),
+            "speaker_calibration_markdown": str(calibration_result["markdown_path"]),
+            "speaker_calibration_tsv": str(calibration_result["tsv_path"]),
             "review_pack": str(pack_result.out_dir),
             "review_pack_zip": str(pack_result.zip_path) if pack_result.zip_path else None,
         },
@@ -3347,6 +3355,11 @@ def verify_batch_review_rehearsal(
         _check("proof_report_matches", str(payload.get("proof_report_path") or "") == str(proof_path), str(payload.get("proof_report_path") or "")),
         _check("payload_passed", bool(payload.get("passed")), str(payload.get("state") or "")),
         _check("has_first_decision", bool(first_decision and first_decision.get("decision_group") and first_decision.get("clip_paths")), str(first_decision or {})),
+        _check(
+            "has_speaker_calibration_artifact",
+            bool((payload.get("artifacts") or {}).get("speaker_calibration_tsv")),
+            str((payload.get("artifacts") or {}).get("speaker_calibration_tsv") or ""),
+        ),
         _check("markdown_has_rehearsal_title", "Pavo Batch Review Rehearsal" in markdown, "title"),
         _check("markdown_has_first_decision", "First Decision" in markdown and "decision group" in markdown.lower(), "first decision"),
         _check("markdown_has_finalize_command", "pavo batch finalize-board-audit" in markdown, "finalize command"),
@@ -4058,6 +4071,9 @@ def _batch_review_pack_artifacts(
         "proof_review_sprint_markdown": proof_path.with_name("pavo-batch-review-sprint.md"),
         "speaker_answer_sheet_markdown": proof_path.with_name("pavo-batch-speaker-answer-sheet.md"),
         "speaker_answer_sheet_tsv": proof_path.with_name("pavo-batch-speaker-answer-sheet.tsv"),
+        "speaker_calibration_json": proof_path.with_name("pavo-batch-speaker-calibration.json"),
+        "speaker_calibration_markdown": proof_path.with_name("pavo-batch-speaker-calibration.md"),
+        "speaker_calibration_tsv": proof_path.with_name("pavo-batch-speaker-calibration.tsv"),
         "proof_review_checklist_markdown": _path_from_report(handoff.get("proof_review_checklist_markdown")),
         "proof_review_validation_json": validation_report,
         "cluster_review_page_html": _path_from_report(review_packet.get("review_page")),
@@ -4099,6 +4115,8 @@ def _render_batch_review_pack_readme(manifest: dict[str, Any]) -> str:
         f"--decision-slate-out {shlex.quote(reviewed_decision_slate)}"
     )
     readiness_command = f"pavo batch readiness {shlex.quote(proof_report)}"
+    calibration_command = f"pavo batch speaker-calibration {shlex.quote(proof_report)}"
+    agreement_command = "pavo batch score-speaker-agreement pavo-batch-speaker-calibration.tsv pavo-batch-speaker-calibration.tsv"
     lines = [
         "# Pavo Batch Review Pack",
         "",
@@ -4128,7 +4146,7 @@ def _render_batch_review_pack_readme(manifest: dict[str, Any]) -> str:
         "",
         "Run readiness before and after review to prove whether this pack is machine-clean, human-pending, or complete. After reviewing the board, download `pavo-batch-proof.decision-board.audit.json`, place it beside this README or run from your download directory, then use the one-command finalize path. The lower-level import command is included as a fallback.",
         "",
-        f"```bash\n{readiness_command}\n{audit_finalize_command}\n{readiness_command}\n\n# Fallback/manual path:\n{audit_import_command}\n{handoff.get('validate_command')}\n{handoff.get('finish_command')}\n{handoff.get('strict_proof_command')}\n```",
+        f"```bash\n{readiness_command}\n{calibration_command}\n{audit_finalize_command}\n{readiness_command}\n\n# Optional second-listener agreement scoring after calibration TSV is filled:\n{agreement_command}\n\n# Fallback/manual path:\n{audit_import_command}\n{handoff.get('validate_command')}\n{handoff.get('finish_command')}\n{handoff.get('strict_proof_command')}\n```",
         "",
         "## Safety Boundary",
         "",
