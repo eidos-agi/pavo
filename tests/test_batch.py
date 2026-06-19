@@ -1075,6 +1075,8 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("Machine suggestion", html)
         self.assertIn("Human required", html)
         self.assertIn("Must-listen decisions", html)
+        self.assertIn("Review bundle", html)
+        self.assertIn("pavo-batch-review-bundle.md", html)
         self.assertIn("Calibration", html)
         self.assertIn("finalize-board-audit", html)
 
