@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -27,6 +28,7 @@ class BatchDoctorResult:
     state: str
     source_recording_count: int
     source_recordings: list[dict[str, Any]]
+    source_manifest_sha256: str | None
     checks: list[dict[str, Any]]
     blockers: list[str]
     next_command: str
@@ -39,6 +41,7 @@ class BatchDoctorResult:
             "complete": self.complete,
             "state": self.state,
             "source_recording_count": self.source_recording_count,
+            "source_manifest_sha256": self.source_manifest_sha256,
             "source_recordings": self.source_recordings,
             "checks": self.checks,
             "blockers": self.blockers,
@@ -56,6 +59,7 @@ class BatchDoctorResult:
             f"- Machine plumbing passed: `{str(self.passed).lower()}`",
             f"- Complete: `{str(self.complete).lower()}`",
             f"- Source recordings: {self.source_recording_count}",
+            f"- Source manifest SHA-256: `{self.source_manifest_sha256}`",
             f"- Next command: `{self.next_command}`",
             "",
             "## Checks",
@@ -71,7 +75,8 @@ class BatchDoctorResult:
                 lines.append(
                     f"- `{item.get('recording_id')}`: audio `{item.get('audio_present')}`, "
                     f"transcript `{item.get('transcript_json_present')}`, diarized `{item.get('diarized_markdown_present')}`, "
-                    f"attributed `{item.get('speaker_attributed_markdown_present')}`, missing `{missing}`"
+                    f"attributed `{item.get('speaker_attributed_markdown_present')}`, missing `{missing}`, "
+                    f"manifest `{item.get('recording_manifest_sha256')}`"
                 )
         else:
             lines.append("- None")
@@ -117,6 +122,7 @@ def doctor_batch(batch_root: Path | str, *, refresh_cluster_gate: bool = True) -
         for item in recordings
         if item["missing"]
     }
+    source_manifest_sha256 = _source_manifest_sha256(recordings)
     work_dir = root / "_work"
     checks = [
         _check("batch_root", root.exists(), str(root)),
@@ -141,6 +147,11 @@ def doctor_batch(batch_root: Path | str, *, refresh_cluster_gate: bool = True) -
             "source_speaker_attributed_markdown",
             all(item["speaker_attributed_markdown_present"] for item in recordings) and source_count > 0,
             _coverage_detail(recordings, "speaker_attributed_markdown_present"),
+        ),
+        _check(
+            "source_fingerprints",
+            all(item.get("recording_manifest_sha256") for item in recordings) and source_count > 0,
+            f"{sum(1 for item in recordings if item.get('recording_manifest_sha256'))}/{source_count}",
         ),
         _check("run_report", bool(run_report), str(root / "pavo-run-report.json")),
         _check("meeting_brief", bool(meeting_brief), str(root / "pavo-meeting-brief.json")),
@@ -193,6 +204,7 @@ def doctor_batch(batch_root: Path | str, *, refresh_cluster_gate: bool = True) -
         state=state,
         source_recording_count=source_count,
         source_recordings=recordings,
+        source_manifest_sha256=source_manifest_sha256,
         checks=checks,
         blockers=list(dict.fromkeys(blockers)),
         next_command=next_command,
@@ -215,17 +227,18 @@ def _source_recordings(root: Path) -> list[dict[str, Any]]:
         attributed_markdown_path = child / "transcript-speaker-attributed.md"
         readme_path = child / "README.md"
         fetch_manifest_path = child / "fetch.json"
+        artifact_paths = {
+            "audio": audio_path,
+            "transcript_json": transcript_json_path,
+            "transcript_markdown": transcript_markdown_path,
+            "diarized_markdown": diarized_markdown_path,
+            "speaker_attributed_markdown": attributed_markdown_path,
+            "readme": readme_path,
+            "fetch_manifest": fetch_manifest_path,
+        }
         if not any(
             path.exists()
-            for path in [
-                audio_path,
-                transcript_json_path,
-                transcript_markdown_path,
-                diarized_markdown_path,
-                attributed_markdown_path,
-                readme_path,
-                fetch_manifest_path,
-            ]
+            for path in artifact_paths.values()
         ):
             continue
         item = {
@@ -259,6 +272,12 @@ def _source_recordings(root: Path) -> list[dict[str, Any]]:
             ]
             if not item[present_key]
         ]
+        item["artifacts"] = {
+            name: _file_fingerprint(path)
+            for name, path in artifact_paths.items()
+            if path.exists()
+        }
+        item["recording_manifest_sha256"] = _recording_manifest_sha256(item["artifacts"])
         recordings.append(item)
     return recordings
 
@@ -278,3 +297,52 @@ def _coverage_detail(recordings: list[dict[str, Any]], key: str) -> str:
     total = len(recordings)
     covered = sum(1 for item in recordings if item.get(key))
     return f"{covered}/{total}"
+
+
+def _file_fingerprint(path: Path) -> dict[str, Any]:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return {
+        "path": str(path),
+        "bytes": path.stat().st_size,
+        "sha256": digest.hexdigest(),
+    }
+
+
+def _recording_manifest_sha256(artifacts: dict[str, dict[str, Any]]) -> str | None:
+    if not artifacts:
+        return None
+    manifest = [
+        {
+            "name": name,
+            "bytes": payload.get("bytes"),
+            "sha256": payload.get("sha256"),
+        }
+        for name, payload in sorted(artifacts.items())
+    ]
+    encoded = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _source_manifest_sha256(recordings: list[dict[str, Any]]) -> str | None:
+    if not recordings:
+        return None
+    manifest = [
+        {
+            "recording_id": item.get("recording_id"),
+            "recording_manifest_sha256": item.get("recording_manifest_sha256"),
+            "artifacts": [
+                {
+                    "name": name,
+                    "bytes": payload.get("bytes"),
+                    "sha256": payload.get("sha256"),
+                }
+                for name, payload in sorted((item.get("artifacts") or {}).items())
+            ],
+        }
+        for item in recordings
+    ]
+    encoded = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()

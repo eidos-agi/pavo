@@ -26,6 +26,11 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("Pavo Batch Doctor", markdown)
         self.assertIn("Source Recordings", markdown)
         self.assertEqual(report["source_recording_count"], 2)
+        self.assertRegex(report["source_manifest_sha256"], r"^[0-9a-f]{64}$")
+        first = report["source_recordings"][0]
+        self.assertRegex(first["recording_manifest_sha256"], r"^[0-9a-f]{64}$")
+        self.assertEqual(first["artifacts"]["audio"]["bytes"], len(b"fake audio"))
+        self.assertEqual(first["artifacts"]["audio"]["sha256"], "72401f193251f177a310936253acb57e91e29d2aa582093974351e65e267bb32")
         self.assertFalse(report["complete"])
         self.assertIn("required human listening", report["safety_boundary"])
 
@@ -41,6 +46,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertFalse(result.passed)
         self.assertEqual(result.state, "needs_machine_repair")
         self.assertIn("source_diarized_markdown", failed)
+        self.assertIn("source_fingerprints", {check["name"] for check in result.checks})
         self.assertIn("rec-a missing: diarized_markdown", result.blockers)
 
     def test_batch_doctor_cli_writes_reports(self):
