@@ -121,6 +121,8 @@ pavo batch review-rehearsal /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch verify-review-rehearsal /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch speaker-calibration /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch score-speaker-agreement primary.tsv secondary.tsv
+pavo batch review-cockpit /path/to/meeting-batch/pavo-batch-proof.json
+pavo batch verify-review-cockpit /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch review-now /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch finalize-reviewed-proof /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --check-validation
@@ -273,6 +275,13 @@ After a second listener fills those columns, run
 decision count, agreement rate, Cohen's kappa for categorical decisions, and
 the exact disagreement rows to resolve. This measures reviewer consistency; it
 does not decide which speaker label is true.
+
+Use `pavo batch review-cockpit` to render a browser-friendly one-page operator
+surface for the current handoff. It shows machine readiness, human gate state,
+pending decision/clip counts, the first decision to review, calibration path,
+artifact links, finish commands, and the rehearsal checks. Use
+`pavo batch verify-review-cockpit` before sending the page as the human-review
+front door.
 
 Use `pavo batch review-now` as the fastest safe human-review launch path. It
 regenerates the sprint, speaker answer sheet, and decision board, verifies the

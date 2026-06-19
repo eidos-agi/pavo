@@ -28,11 +28,13 @@ from .batch import (
     verify_batch_decision_board,
     verify_batch_manifest,
     verify_batch_review_pack,
+    verify_batch_review_cockpit,
     verify_batch_review_rehearsal,
     verify_batch_review_sprint,
     verify_batch_speaker_answer_sheet,
     write_batch_decision_board,
     write_batch_review_pack,
+    write_batch_review_cockpit,
     write_batch_review_rehearsal,
     write_batch_review_sprint,
     write_batch_speaker_answer_sheet,
@@ -263,6 +265,20 @@ def build_parser() -> argparse.ArgumentParser:
     batch_score_speaker_agreement.add_argument("secondary_tsv", type=Path)
     batch_score_speaker_agreement.add_argument("--out", type=Path, help="Optional JSON report path")
     batch_score_speaker_agreement.add_argument("--json", action="store_true", help="Print machine-readable agreement report")
+    batch_review_cockpit = batch_sub.add_parser(
+        "review-cockpit",
+        help="Write a browser-friendly one-page cockpit for the human speaker review handoff",
+    )
+    batch_review_cockpit.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_review_cockpit.add_argument("--out", type=Path, help="Output HTML path; defaults beside the proof report")
+    batch_review_cockpit.add_argument("--json", action="store_true", help="Print machine-readable cockpit report")
+    batch_verify_review_cockpit = batch_sub.add_parser(
+        "verify-review-cockpit",
+        help="Verify the review cockpit page exists and contains the required operator controls",
+    )
+    batch_verify_review_cockpit.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_verify_review_cockpit.add_argument("--cockpit", type=Path, help="Override pavo-batch-review-cockpit.html path")
+    batch_verify_review_cockpit.add_argument("--json", action="store_true", help="Print machine-readable cockpit verification report")
     batch_review_now = batch_sub.add_parser(
         "review-now",
         help="Regenerate and verify the review sprint, then print launch instructions for human speaker review",
@@ -1027,6 +1043,38 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"cohen_kappa: {result.get('cohen_kappa')}")
                 if result.get("disagreements"):
                     print("disagreements: " + "; ".join(item["decision_group"] for item in result["disagreements"]))
+                if result.get("blockers"):
+                    print("blockers: " + "; ".join(result["blockers"]))
+            return 0 if result.get("passed") else 3
+        if args.batch_command == "review-cockpit":
+            try:
+                result = write_batch_review_cockpit(args.proof_report, out_path=args.out)
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result, indent=2, sort_keys=True))
+            else:
+                print(f"passed: {str(bool(result.get('passed'))).lower()}")
+                print(f"state: {result.get('state')}")
+                print(f"out_path: {result.get('out_path')}")
+                if result.get("first_decision"):
+                    first = result["first_decision"]
+                    print(f"first_decision: {first.get('decision_group')}/{first.get('cluster_id')}/{first.get('decision_risk')}")
+                if result.get("blockers"):
+                    print("blockers: " + "; ".join(result["blockers"]))
+            return 0 if result.get("passed") else 3
+        if args.batch_command == "verify-review-cockpit":
+            try:
+                result = verify_batch_review_cockpit(args.proof_report, cockpit_path=args.cockpit)
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result, indent=2, sort_keys=True))
+            else:
+                print(f"passed: {str(bool(result.get('passed'))).lower()}")
+                print(f"cockpit_path: {result.get('cockpit_path')}")
                 if result.get("blockers"):
                     print("blockers: " + "; ".join(result["blockers"]))
             return 0 if result.get("passed") else 3

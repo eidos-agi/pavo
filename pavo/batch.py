@@ -3425,6 +3425,133 @@ def _render_batch_review_rehearsal_markdown(payload: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def write_batch_review_cockpit(
+    proof_report_path: Path | str,
+    *,
+    out_path: Path | str | None = None,
+) -> dict[str, Any]:
+    proof_path = Path(proof_report_path)
+    rehearsal = write_batch_review_rehearsal(proof_path)
+    target = Path(out_path) if out_path else proof_path.with_name("pavo-batch-review-cockpit.html")
+    target.write_text(_render_batch_review_cockpit_html(rehearsal.payload), encoding="utf-8")
+    return {
+        "proof_report_path": str(proof_path),
+        "out_path": str(target),
+        "passed": rehearsal.passed,
+        "state": rehearsal.state,
+        "pending_decision_count": rehearsal.pending_decision_count,
+        "pending_clip_count": rehearsal.pending_clip_count,
+        "first_decision": rehearsal.first_decision,
+        "blockers": rehearsal.blockers,
+        "safety_boundary": "Review cockpit is an operator surface for human review. It does not approve speaker identity.",
+    }
+
+
+def verify_batch_review_cockpit(
+    proof_report_path: Path | str,
+    *,
+    cockpit_path: Path | str | None = None,
+) -> dict[str, Any]:
+    proof_path = Path(proof_report_path)
+    target = Path(cockpit_path) if cockpit_path else proof_path.with_name("pavo-batch-review-cockpit.html")
+    html = target.read_text(encoding="utf-8") if target.exists() else ""
+    checks = [
+        _check("review_cockpit_exists", target.exists() and target.is_file(), str(target)),
+        _check("has_title", "Pavo Review Cockpit" in html, "title"),
+        _check("has_readiness", "Machine ready" in html and "Human gate" in html, "readiness cards"),
+        _check("has_first_decision", "First decision" in html and "Decision group" in html, "first decision"),
+        _check("has_calibration", "Calibration" in html and "speaker-calibration" in html, "calibration"),
+        _check("has_finish_command", "finalize-board-audit" in html, "finish command"),
+        _check("has_safety_boundary", "does not approve speaker identity" in html, "safety boundary"),
+    ]
+    blockers = [f"{check['name']}: {check['detail']}" for check in checks if not check.get("passed")]
+    return {
+        "proof_report_path": str(proof_path),
+        "cockpit_path": str(target),
+        "passed": not blockers,
+        "checks": checks,
+        "blockers": blockers,
+        "safety_boundary": "Review-cockpit verification proves the operator page is present and wired. It does not approve speaker identity.",
+    }
+
+
+def _render_batch_review_cockpit_html(payload: dict[str, Any]) -> str:
+    first = payload.get("first_decision") if isinstance(payload.get("first_decision"), dict) else {}
+    artifacts = payload.get("artifacts") if isinstance(payload.get("artifacts"), dict) else {}
+    commands = payload.get("commands") if isinstance(payload.get("commands"), dict) else {}
+    checks = payload.get("checks") if isinstance(payload.get("checks"), list) else []
+    artifact_cards = "\n".join(
+        f'<li><strong>{escape(str(name))}</strong><br><code>{escape(str(value))}</code></li>'
+        for name, value in artifacts.items()
+    )
+    command_cards = "\n".join(f"<pre>{escape(str(command or ''))}</pre>" for command in commands.values())
+    check_rows = "\n".join(
+        f"<tr><td>{'pass' if check.get('passed') else 'fail'}</td><td>{escape(str(check.get('name') or ''))}</td><td>{escape(str(check.get('detail') or ''))}</td></tr>"
+        for check in checks
+        if isinstance(check, dict)
+    )
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pavo Review Cockpit</title>
+  <style>
+    body {{ margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f4f7fb; color: #172033; }}
+    header {{ padding: 28px 32px; background: #111827; color: #fff; }}
+    main {{ padding: 24px 32px; display: grid; gap: 18px; }}
+    .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }}
+    .card {{ background: #fff; border: 1px solid #d9e1ef; border-radius: 16px; padding: 16px; box-shadow: 0 8px 22px rgba(23,32,51,.06); }}
+    .big {{ font-size: 30px; font-weight: 800; }}
+    code, pre {{ background: #eef3fb; border-radius: 10px; padding: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }}
+    table {{ width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; }}
+    th, td {{ border-bottom: 1px solid #e5eaf3; padding: 10px; text-align: left; vertical-align: top; }}
+    ul {{ padding-left: 20px; }}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Pavo Review Cockpit</h1>
+    <p>One-page operator surface for the current speaker-review handoff. This page does not approve speaker identity.</p>
+  </header>
+  <main>
+    <section class="grid">
+      <div class="card"><div>Machine ready</div><div class="big">{escape(str(bool(payload.get('machine_ready'))).lower())}</div></div>
+      <div class="card"><div>Human gate</div><div class="big">{escape(str(payload.get('human_gate') or 'pending'))}</div></div>
+      <div class="card"><div>Pending decisions</div><div class="big">{escape(str(payload.get('pending_decision_count') or 0))}</div></div>
+      <div class="card"><div>Pending clips</div><div class="big">{escape(str(payload.get('pending_clip_count') or 0))}</div></div>
+    </section>
+    <section class="card">
+      <h2>First decision</h2>
+      <p><strong>Decision group:</strong> {escape(str(first.get('decision_group') or ''))}</p>
+      <p><strong>Cluster:</strong> {escape(str(first.get('cluster_id') or ''))}</p>
+      <p><strong>Risk:</strong> {escape(str(first.get('decision_risk') or ''))}</p>
+      <p><strong>Question:</strong> {escape(str(first.get('question') or ''))}</p>
+      <p><strong>Suggested action:</strong> {escape(str(first.get('suggested_review_action') or ''))}</p>
+    </section>
+    <section class="card">
+      <h2>Calibration</h2>
+      <p>Second-listener calibration is included in this handoff. Run <code>pavo batch speaker-calibration</code> before review if you need to refresh it.</p>
+      <p><code>{escape(str(artifacts.get('speaker_calibration_tsv') or ''))}</code></p>
+    </section>
+    <section class="card">
+      <h2>Artifacts</h2>
+      <ul>{artifact_cards}</ul>
+    </section>
+    <section class="card">
+      <h2>Finish commands</h2>
+      {command_cards}
+    </section>
+    <section class="card">
+      <h2>Checks</h2>
+      <table><thead><tr><th>Status</th><th>Check</th><th>Detail</th></tr></thead><tbody>{check_rows}</tbody></table>
+    </section>
+  </main>
+</body>
+</html>
+"""
+
+
 def write_batch_speaker_calibration(
     proof_report_path: Path | str,
     *,

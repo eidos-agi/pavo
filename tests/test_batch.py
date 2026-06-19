@@ -42,6 +42,8 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("pavo batch verify-review-rehearsal", readme)
         self.assertIn("pavo batch speaker-calibration", readme)
         self.assertIn("pavo batch score-speaker-agreement", readme)
+        self.assertIn("pavo batch review-cockpit", readme)
+        self.assertIn("pavo batch verify-review-cockpit", readme)
         self.assertIn("pavo batch review-now", readme)
         self.assertIn("decision_shape", readme)
         self.assertIn("evidence_hints", readme)
@@ -934,6 +936,34 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertFalse(report["passed"])
         self.assertEqual(report["agreement_rate"], 0.0)
         self.assertEqual(report["disagreements"][0]["decision_group"], "D01")
+
+    def test_batch_review_cockpit_cli_writes_and_verifies_html(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            main(["batch", "finalize-reviewed-proof", str(result.proof_report_path), "--json"])
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(["batch", "review-cockpit", str(result.proof_report_path), "--json"])
+
+            report = json.loads(stdout.getvalue())
+            html = Path(report["out_path"]).read_text()
+            verify_stdout = io.StringIO()
+            with redirect_stdout(verify_stdout):
+                verify_exit_code = main(["batch", "verify-review-cockpit", str(result.proof_report_path), "--json"])
+            verify_report = json.loads(verify_stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(verify_exit_code, 0)
+        self.assertTrue(report["passed"])
+        self.assertTrue(verify_report["passed"])
+        self.assertIn("Pavo Review Cockpit", html)
+        self.assertIn("Machine ready", html)
+        self.assertIn("First decision", html)
+        self.assertIn("Calibration", html)
+        self.assertIn("finalize-board-audit", html)
 
     def test_batch_review_sprint_cli_writes_json_and_markdown_packet(self):
         with tempfile.TemporaryDirectory() as tmp:
