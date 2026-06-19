@@ -189,6 +189,7 @@ class BatchProofResult:
     proof_report_path: Path
     proof_markdown_path: Path
     proof_review_slate_path: Path
+    proof_decision_slate_path: Path
     proof_review_checklist_path: Path
     doctor_report_path: Path
     doctor_markdown_path: Path
@@ -204,6 +205,7 @@ class BatchProofResult:
             "proof_report_path": str(self.proof_report_path),
             "proof_markdown_path": str(self.proof_markdown_path),
             "proof_review_slate_path": str(self.proof_review_slate_path),
+            "proof_decision_slate_path": str(self.proof_decision_slate_path),
             "proof_review_checklist_path": str(self.proof_review_checklist_path),
             "doctor_report_path": str(self.doctor_report_path),
             "doctor_markdown_path": str(self.doctor_markdown_path),
@@ -246,6 +248,7 @@ class BatchProofResult:
             f"- Proof JSON: `{self.proof_report_path}`",
             f"- Proof Markdown: `{self.proof_markdown_path}`",
             f"- Proof review slate TSV: `{self.proof_review_slate_path}`",
+            f"- Proof decision slate TSV: `{self.proof_decision_slate_path}`",
             f"- Proof review checklist: `{self.proof_review_checklist_path}`",
             f"- Doctor JSON: `{self.doctor_report_path}`",
             f"- Doctor Markdown: `{self.doctor_markdown_path}`",
@@ -473,6 +476,7 @@ def prove_batch(
     proof_report_path = target_dir / "pavo-batch-proof.json"
     proof_markdown_path = target_dir / "pavo-batch-proof.md"
     proof_review_slate_path = target_dir / "pavo-batch-proof.review-slate.tsv"
+    proof_decision_slate_path = target_dir / "pavo-batch-proof.decision-slate.tsv"
     proof_review_checklist_path = target_dir / "pavo-batch-proof.review-checklist.md"
 
     doctor = doctor_batch(root, refresh_cluster_gate=refresh_cluster_gate)
@@ -499,6 +503,14 @@ def prove_batch(
         )
         + "\n"
     )
+    proof_decision_slate_path.write_text(
+        "\n".join(
+            _review_packet_decision_slate_tsv_lines(
+                review_packet.get("proof_slate_items") or review_packet.get("top_items") or []
+            )
+        )
+        + "\n"
+    )
     _add_proof_slate_commands(
         review_packet,
         batch_root=root,
@@ -518,6 +530,7 @@ def prove_batch(
         )
     )
     review_packet["proof_review_checklist_markdown"] = str(proof_review_checklist_path)
+    review_packet["proof_decision_slate_tsv"] = str(proof_decision_slate_path)
 
     result = BatchProofResult(
         batch_root=root,
@@ -529,6 +542,7 @@ def prove_batch(
         proof_report_path=proof_report_path,
         proof_markdown_path=proof_markdown_path,
         proof_review_slate_path=proof_review_slate_path,
+        proof_decision_slate_path=proof_decision_slate_path,
         proof_review_checklist_path=proof_review_checklist_path,
         doctor_report_path=doctor_report_path,
         doctor_markdown_path=doctor_markdown_path,
@@ -550,6 +564,8 @@ def _operator_handoff(result: BatchProofResult) -> dict[str, Any]:
         "complete": result.complete,
         "review_page": result.review_packet.get("review_page"),
         "proof_review_slate_tsv": proof_slate,
+        "proof_decision_slate_tsv": result.review_packet.get("proof_decision_slate_tsv")
+        or str(result.proof_decision_slate_path),
         "proof_review_checklist_markdown": result.review_packet.get("proof_review_checklist_markdown")
         or str(result.proof_review_checklist_path),
         "proof_slate_item_count": result.review_packet.get("proof_slate_item_count"),
@@ -582,10 +598,12 @@ def enrich_operator_handoff_with_validation(handoff: dict[str, Any]) -> dict[str
     enriched = dict(handoff)
     review_page = str(enriched.get("review_page") or "").strip()
     slate = str(enriched.get("proof_review_slate_tsv") or "").strip()
+    decision_slate = str(enriched.get("proof_decision_slate_tsv") or "").strip()
     checklist = str(enriched.get("proof_review_checklist_markdown") or "").strip()
     artifact_checks = {
         "review_page": _handoff_artifact_check(review_page),
         "proof_review_slate_tsv": _handoff_artifact_check(slate),
+        "proof_decision_slate_tsv": _handoff_artifact_check(decision_slate),
         "proof_review_checklist_markdown": _handoff_artifact_check(checklist),
     }
     validation_path = Path(slate).with_suffix(".validation.json") if slate else None
@@ -870,6 +888,7 @@ def format_operator_handoff(handoff: dict[str, Any]) -> str:
         f"complete: {str(bool(handoff.get('complete'))).lower()}",
         f"review_page: {handoff.get('review_page')}",
         f"proof_review_slate_tsv: {handoff.get('proof_review_slate_tsv')}",
+        f"proof_decision_slate_tsv: {handoff.get('proof_decision_slate_tsv')}",
         f"proof_review_checklist_markdown: {handoff.get('proof_review_checklist_markdown')}",
         f"proof_slate_item_count: {handoff.get('proof_slate_item_count')}",
         f"validate_command: {handoff.get('validate_command')}",
@@ -1274,6 +1293,79 @@ def _review_packet_slate_tsv_lines(items: list[dict[str, Any]]) -> list[str]:
                     f"D{meta['index']:02d}",
                     str(meta["row_count"]),
                     str(meta["row_count"]),
+                ]
+            )
+        )
+    return lines
+
+
+def _review_packet_decision_slate_tsv_lines(items: list[dict[str, Any]]) -> list[str]:
+    grouped: dict[tuple[str, str, str], dict[str, Any]] = {}
+    order: list[tuple[str, str, str]] = []
+    for item in items:
+        key = (
+            str(item.get("cluster_id") or ""),
+            str(item.get("target_speaker") or ""),
+            str(item.get("question") or ""),
+        )
+        if key not in grouped:
+            grouped[key] = {
+                "cluster_id": item.get("cluster_id"),
+                "speaker": item.get("target_speaker"),
+                "question": item.get("question"),
+                "row_indices": [],
+                "clip_paths": [],
+                "transcript_samples": [],
+                "priority_tier": item.get("priority_tier"),
+                "priority_score": item.get("priority_score"),
+                "priority_reason": item.get("priority_reason"),
+                "acoustic_verdict": item.get("acoustic_verdict"),
+            }
+            order.append(key)
+        group = grouped[key]
+        if item.get("row_index") is not None:
+            group["row_indices"].append(str(item.get("row_index")))
+        if item.get("clip_path"):
+            group["clip_paths"].append(str(item.get("clip_path")))
+        if item.get("transcript_excerpt"):
+            group["transcript_samples"].append(str(item.get("transcript_excerpt")))
+    lines = [
+        "\t".join(
+            [
+                "decision_group",
+                "decision",
+                "speaker",
+                "cluster_id",
+                "question",
+                "row_indices",
+                "clip_count",
+                "priority_tier",
+                "priority_score",
+                "priority_reason",
+                "acoustic_verdict",
+                "clip_paths",
+                "transcript_samples",
+            ]
+        )
+    ]
+    for index, key in enumerate(order, start=1):
+        group = grouped[key]
+        lines.append(
+            "\t".join(
+                [
+                    f"D{index:02d}",
+                    "pending",
+                    _tsv_safe(str(group.get("speaker") or "")),
+                    _tsv_safe(str(group.get("cluster_id") or "")),
+                    _tsv_safe(str(group.get("question") or "")),
+                    _tsv_safe(",".join(group.get("row_indices") or [])),
+                    str(len(group.get("clip_paths") or [])),
+                    _tsv_safe(str(group.get("priority_tier") or "")),
+                    _tsv_safe(str(group.get("priority_score") or "")),
+                    _tsv_safe(str(group.get("priority_reason") or "")),
+                    _tsv_safe(str(group.get("acoustic_verdict") or "")),
+                    _tsv_safe(" | ".join(group.get("clip_paths") or [])),
+                    _tsv_safe(" | ".join(group.get("transcript_samples") or [])),
                 ]
             )
         )
