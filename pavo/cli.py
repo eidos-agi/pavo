@@ -693,6 +693,8 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"validation_ready: {str(result.validation_ready).lower()}")
                 print(f"pending_decision_count: {result.pending_decision_count}")
                 print(f"pending_row_count: {result.pending_row_count}")
+                print(f"review_sprint_estimated_minutes: {result.review_sprint.get('estimated_minutes')}")
+                print(f"review_sprint_pending_clip_count: {result.review_sprint.get('pending_clip_count')}")
                 print(f"next_action: {result.next_action}")
                 if result.blockers:
                     print("blockers: " + "; ".join(result.blockers))

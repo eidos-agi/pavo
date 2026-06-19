@@ -579,6 +579,7 @@ class BatchReadinessResult:
     validation_ready: bool
     pending_decision_count: int | None
     pending_row_count: int | None
+    review_sprint: dict[str, Any]
     next_action: str
     blockers: list[str]
     proof: dict[str, Any]
@@ -599,6 +600,7 @@ class BatchReadinessResult:
             "validation_ready": self.validation_ready,
             "pending_decision_count": self.pending_decision_count,
             "pending_row_count": self.pending_row_count,
+            "review_sprint": self.review_sprint,
             "next_action": self.next_action,
             "blockers": self.blockers,
             "proof": self.proof,
@@ -2164,6 +2166,7 @@ def verify_batch_decision_board(
         _check("has_decision_cards", card_count >= len(decisions), f"{card_count}/{len(decisions)}"),
         _check("has_download_tsv", "Download TSV" in html and "downloadTsv" in html, "Download TSV control"),
         _check("has_download_audit_json", "Download Audit JSON" in html and "downloadAudit" in html, "Download Audit JSON control"),
+        _check("has_review_sprint", "Review Sprint" in html and "focusNextPending" in html, "guided review sprint"),
         _check("has_autosave", "localStorage" in html and "Autosaved locally" in html, "localStorage autosave"),
         _check("has_audit_events", "auditEvents" in html and "auditPayload" in html, "audit event export"),
         _check("has_finalize_board_audit_command", "pavo batch finalize-board-audit" in html, "finalize-board-audit command"),
@@ -2459,6 +2462,7 @@ def summarize_batch_readiness(
     validation_ready = bool(validation.get("status") == "ready_to_finish" and validation.get("decision_ready"))
     pending_decision_count = _optional_int(validation.get("pending_decision_count"))
     pending_row_count = _optional_int(validation.get("pending_count"))
+    review_sprint = _batch_review_sprint_from_validation(validation)
     board_ready = bool(board_report and board_report.get("passed"))
     review_pack_ready = bool(pack_report and pack_report.get("passed"))
     if complete:
@@ -2488,6 +2492,7 @@ def summarize_batch_readiness(
         validation_ready=validation_ready,
         pending_decision_count=pending_decision_count,
         pending_row_count=pending_row_count,
+        review_sprint=review_sprint,
         next_action=next_action,
         blockers=list(dict.fromkeys(blockers)),
         proof=proof_report,
@@ -2502,6 +2507,56 @@ def _optional_int(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _batch_review_sprint_from_validation(validation: dict[str, Any]) -> dict[str, Any]:
+    questions = validation.get("pending_review_questions")
+    if not isinstance(questions, list):
+        questions = []
+    items = [_batch_review_sprint_item(item, index) for index, item in enumerate(questions, start=1) if isinstance(item, dict)]
+    total_clips = sum(int(item.get("clip_count") or 0) for item in items)
+    estimated_seconds = sum(int(item.get("estimated_seconds") or 0) for item in items)
+    return {
+        "pending_decision_count": len(items),
+        "pending_clip_count": total_clips,
+        "estimated_seconds": estimated_seconds,
+        "estimated_minutes": round(estimated_seconds / 60, 1) if estimated_seconds else 0,
+        "focus_order": items,
+        "review_rule": "Listen to every supporting clip before approving or rejecting a speaker identity decision.",
+    }
+
+
+def _batch_review_sprint_item(item: dict[str, Any], index: int) -> dict[str, Any]:
+    clip_count = _optional_int(item.get("clip_count")) or len(item.get("clip_paths") or [])
+    tier = str(item.get("priority_tier") or "standard")
+    estimated_seconds = max(1, clip_count) * 45 + 20
+    return {
+        "order": index,
+        "cluster_id": item.get("cluster_id"),
+        "speaker": item.get("speaker"),
+        "question": item.get("question"),
+        "priority_tier": tier,
+        "priority_score": item.get("priority_score"),
+        "acoustic_verdict": item.get("acoustic_verdict"),
+        "clip_count": clip_count,
+        "estimated_seconds": estimated_seconds,
+        "estimated_minutes": round(estimated_seconds / 60, 1),
+        "why_first": _batch_review_sprint_reason(item),
+    }
+
+
+def _batch_review_sprint_reason(item: dict[str, Any]) -> str:
+    tier = str(item.get("priority_tier") or "").replace("_", " ")
+    acoustic = str(item.get("acoustic_verdict") or "").replace("_", " ")
+    score = str(item.get("priority_score") or "").strip()
+    parts = []
+    if tier:
+        parts.append(tier)
+    if acoustic:
+        parts.append(acoustic)
+    if score:
+        parts.append(f"score {score}")
+    return "; ".join(parts) or "pending speaker decision"
 
 
 def _batch_review_pack_artifacts(
@@ -2674,6 +2729,8 @@ def _render_batch_decision_board_html(
     batch_root = str(proof_report.get("batch_root") or "")
     pending_count = sum(1 for row in decisions if str(row.get("decision") or "").strip().lower() == "pending")
     supporting_count = sum(len(rows_by_group.get(str(row.get("decision_group") or ""), [])) for row in decisions)
+    estimated_seconds = sum(_batch_decision_review_seconds(row, rows_by_group.get(str(row.get("decision_group") or ""), [])) for row in decisions)
+    estimated_minutes = round(estimated_seconds / 60, 1) if estimated_seconds else 0
     rows_json = json.dumps(decisions, sort_keys=True)
     storage_key = json.dumps(f"pavo-decision-board:{proof_report_path}:{decision_slate_path}")
     cards = "\n".join(
@@ -2696,6 +2753,9 @@ def _render_batch_decision_board_html(
     .scorebar {{ display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; }}
     .score {{ background:var(--soft); border:1px solid var(--line); border-radius:12px; padding:9px 12px; min-width:130px; }}
     .score strong {{ display:block; font-size:20px; }}
+    .sprint {{ margin-top:14px; border:1px solid #c7d7fe; background:#eff5ff; border-radius:14px; padding:12px; display:flex; gap:12px; align-items:center; justify-content:space-between; }}
+    .sprint strong {{ display:block; font-size:15px; }}
+    .sprint button {{ background:var(--brand); }}
     main {{ display:grid; grid-template-columns:minmax(0,1fr) 360px; gap:18px; padding:18px 24px 32px; }}
     .card {{ background:#fff; border:1px solid var(--line); border-radius:16px; box-shadow:0 8px 24px rgba(23,32,51,.06); margin-bottom:14px; overflow:hidden; }}
     .card-head {{ display:flex; gap:12px; align-items:flex-start; justify-content:space-between; padding:16px; border-bottom:1px solid var(--line); }}
@@ -2732,6 +2792,14 @@ def _render_batch_decision_board_html(
       <div class="score"><strong id="pending-count">{pending_count}</strong> pending</div>
       <div class="score"><strong id="reviewed-count">0</strong> reviewed</div>
       <div class="score"><strong>{supporting_count}</strong> supporting clips</div>
+      <div class="score"><strong id="sprint-minutes">{estimated_minutes}</strong> est. minutes</div>
+    </div>
+    <div class="sprint" id="review-sprint">
+      <div>
+        <strong>Review Sprint</strong>
+        <div class="sub">Listen to every supporting clip, decide the grouped speaker question, then download the audit JSON. Pavo will not approve identity by itself.</div>
+      </div>
+      <button onclick="focusNextPending()">Focus next pending</button>
     </div>
   </header>
   <main>
@@ -2846,6 +2914,15 @@ pavo batch finalize-reviewed-proof {escape(str(proof_report_path))}</div>
       cards[activeIndex].scrollIntoView({{ block: "center" }});
       cards[activeIndex].querySelector("button").focus();
     }}
+    function focusNextPending() {{
+      const cards = Array.from(document.querySelectorAll("[data-group]"));
+      const index = cards.findIndex(card => {{
+        const group = card.dataset.group;
+        const row = rows.find(item => item.decision_group === group);
+        return row && row.decision === "pending";
+      }});
+      focusCard(index >= 0 ? index : 0);
+    }}
     function downloadTsv() {{
       const blob = new Blob([document.getElementById("tsv").value], {{ type: "text/tab-separated-values" }});
       const url = URL.createObjectURL(blob);
@@ -2895,6 +2972,7 @@ pavo batch finalize-reviewed-proof {escape(str(proof_report_path))}</div>
     }});
     loadState();
     renderTsv();
+    focusNextPending();
   </script>
 </body>
 </html>
@@ -2936,6 +3014,10 @@ def _render_batch_decision_card(decision: dict[str, str], proof_rows: list[dict[
     {samples}
   </div>
 </article>"""
+
+
+def _batch_decision_review_seconds(_decision: dict[str, str], proof_rows: list[dict[str, str]]) -> int:
+    return max(1, len(proof_rows)) * 45 + 20
 
 
 def _render_batch_decision_sample(row: dict[str, str]) -> str:

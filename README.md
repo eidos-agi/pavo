@@ -149,7 +149,9 @@ writes `pavo-batch-proof.json`, `pavo-batch-proof.md`,
 `pavo-batch-proof.decision-board.html`, a browser review board for the grouped
 decisions. The checklist and board group proof rows into the smallest pending
 speaker decisions, with clips and transcript samples, so the reviewer can work
-top-to-bottom without reverse-engineering the TSV. By default it exits zero
+top-to-bottom without reverse-engineering the TSV. The board includes a Review
+Sprint summary with estimated minutes and a focus-next-pending control for fast
+auditable review. By default it exits zero
 when machine proof passes. With `--strict-complete`, it exits nonzero until the
 human speaker review gate is complete.
 
@@ -206,7 +208,9 @@ Use `pavo batch readiness` as the concise operator rollup across proof, board,
 review pack, validation, and human-review gates. It exits `0` only when strict
 proof is complete, exits `3` when the machine surfaces are healthy but human
 speaker review is still pending or ready to finalize, and exits `2` when a
-machine artifact needs repair.
+machine artifact needs repair. Its JSON report includes a `review_sprint`
+object with pending decisions, pending clips, estimated minutes, focus order,
+and the rule that every supporting clip must be heard before identity approval.
 
 Use `pavo batch finalize-reviewed-proof` when the proof slate has been reviewed.
 It validates the proof slate, materializes the cluster decisions, writes speaker
