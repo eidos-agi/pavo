@@ -48,6 +48,7 @@ from .review import (
     finish_cluster_review_from_slate,
     finalize_cluster_review,
     gate_anchor_review,
+    gate_cluster_review,
     import_anchor_review_sheet,
     import_cluster_review_slate,
     materialize_anchor_review_decisions,
@@ -239,6 +240,14 @@ def build_parser() -> argparse.ArgumentParser:
     review_clusters_doctor.add_argument("--json", action="store_true", help="Print full machine-readable doctor JSON")
     review_clusters_doctor.add_argument("--report", type=Path, help="Write machine-readable doctor JSON report")
     review_clusters_doctor.add_argument("--markdown-report", type=Path, help="Write human-readable doctor Markdown report")
+    review_clusters_gate = review_clusters_sub.add_parser("gate", help="Refresh validation and emit one cluster-review readiness gate")
+    review_clusters_gate.add_argument("batch_root", type=Path)
+    review_clusters_gate.add_argument("--review-sheet", type=Path, help="Override cluster question review sheet")
+    review_clusters_gate.add_argument("--slate", type=Path, help="Override filled decision slate TSV")
+    review_clusters_gate.add_argument("--no-refresh-validation", action="store_true", help="Use the existing validation report instead of refreshing it")
+    review_clusters_gate.add_argument("--json", action="store_true", help="Print full machine-readable gate JSON")
+    review_clusters_gate.add_argument("--report", type=Path, help="Write machine-readable gate JSON report")
+    review_clusters_gate.add_argument("--markdown-report", type=Path, help="Write human-readable gate Markdown report")
     review_clusters_slate = review_clusters_sub.add_parser("slate", help="Export a compact human decision slate for the minimal cluster queue")
     review_clusters_slate.add_argument("batch_root", type=Path)
     review_clusters_slate.add_argument("--review-sheet", type=Path, help="Override cluster question review sheet")
@@ -855,6 +864,35 @@ def main(argv: list[str] | None = None) -> int:
                 if result.blockers:
                     print("blockers: " + "; ".join(result.blockers))
                 return 0 if result.passed else 2
+            if args.review_clusters_command == "gate":
+                result = gate_cluster_review(
+                    args.batch_root,
+                    review_sheet_path=args.review_sheet,
+                    slate_path=args.slate,
+                    refresh_validation=not args.no_refresh_validation,
+                )
+                if args.report:
+                    args.report.parent.mkdir(parents=True, exist_ok=True)
+                    args.report.write_text(json.dumps(result.as_report(), indent=2, sort_keys=True) + "\n")
+                if args.markdown_report:
+                    args.markdown_report.parent.mkdir(parents=True, exist_ok=True)
+                    args.markdown_report.write_text(result.as_markdown())
+                if args.json:
+                    print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+                    return 0 if result.ready_to_finalize or result.complete else 2
+                print(f"passed: {str(result.passed).lower()}")
+                print(f"ready_to_finalize: {str(result.ready_to_finalize).lower()}")
+                print(f"complete: {str(result.complete).lower()}")
+                print(f"state: {result.state}")
+                print(f"review_sheet: {result.review_sheet_path}")
+                print(f"slate: {result.slate_path}")
+                print(f"validation_report: {result.validation_report_path}")
+                print(f"next_command: {result.next_command}")
+                if result.finish_command:
+                    print(f"finish_command: {result.finish_command}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+                return 0 if result.ready_to_finalize or result.complete else 2
             if args.review_clusters_command == "slate":
                 result = export_cluster_review_slate(args.batch_root, review_sheet_path=args.review_sheet, out_dir=args.out_dir)
                 print(f"state: {result.state}")

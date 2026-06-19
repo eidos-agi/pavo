@@ -624,6 +624,72 @@ class ClusterReviewDoctorResult:
 
 
 @dataclass(frozen=True)
+class ClusterReviewGateResult:
+    batch_root: Path
+    review_sheet_path: Path | None
+    slate_path: Path | None
+    validation_report_path: Path | None
+    passed: bool
+    ready_to_finalize: bool
+    complete: bool
+    state: str
+    doctor: ClusterReviewDoctorResult
+    validation: ClusterReviewSlateValidationResult | None
+    blockers: list[str]
+    next_command: str
+    finish_command: str | None
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "batch_root": str(self.batch_root),
+            "review_sheet": str(self.review_sheet_path) if self.review_sheet_path else None,
+            "slate": str(self.slate_path) if self.slate_path else None,
+            "validation_report": str(self.validation_report_path) if self.validation_report_path else None,
+            "passed": self.passed,
+            "ready_to_finalize": self.ready_to_finalize,
+            "complete": self.complete,
+            "state": self.state,
+            "blockers": self.blockers,
+            "next_command": self.next_command,
+            "finish_command": self.finish_command,
+            "doctor": self.doctor.as_report(),
+            "validation": self.validation.as_report() if self.validation else None,
+            "safety_boundary": "The gate may refresh machine validation, but it never approves speaker identity or bypasses required human listening.",
+        }
+
+    def as_markdown(self) -> str:
+        lines = [
+            "# Pavo Cluster Review Gate",
+            "",
+            f"- Batch root: `{self.batch_root}`",
+            f"- State: `{self.state}`",
+            f"- Passed: `{str(self.passed).lower()}`",
+            f"- Ready to finalize: `{str(self.ready_to_finalize).lower()}`",
+            f"- Complete: `{str(self.complete).lower()}`",
+            f"- Review sheet: `{self.review_sheet_path}`",
+            f"- Slate: `{self.slate_path}`",
+            f"- Validation report: `{self.validation_report_path}`",
+            f"- Next command: `{self.next_command}`",
+        ]
+        if self.finish_command:
+            lines.append(f"- Finish command: `{self.finish_command}`")
+        lines.extend(["", "## Blockers", ""])
+        if self.blockers:
+            lines.extend(f"- {blocker}" for blocker in self.blockers)
+        else:
+            lines.append("- None")
+        lines.extend(
+            [
+                "",
+                "## Safety Boundary",
+                "",
+                "Pavo can verify artifacts, dry-run a filled slate, and prove whether finalization is safe. It cannot approve voice identity without the human listening decisions represented in the slate.",
+            ]
+        )
+        return "\n".join(lines).rstrip() + "\n"
+
+
+@dataclass(frozen=True)
 class ClusterReviewAdvanceResult:
     batch_root: Path
     before_state: str
@@ -2292,6 +2358,79 @@ def doctor_cluster_review(
         blockers=list(dict.fromkeys(blockers)),
         next_command=status.next_command,
         status=status,
+    )
+
+
+def gate_cluster_review(
+    batch_root: Path | str,
+    *,
+    review_sheet_path: Path | str | None = None,
+    slate_path: Path | str | None = None,
+    refresh_validation: bool = True,
+) -> ClusterReviewGateResult:
+    root = Path(batch_root)
+    first_doctor = doctor_cluster_review(root, review_sheet_path=review_sheet_path)
+    sheet_path = first_doctor.review_sheet_path
+    bundle_dir = sheet_path.parent if sheet_path else root / "pavo-cluster-question-bundle"
+    resolved_slate = Path(slate_path) if slate_path else bundle_dir / "pavo-cluster-review-decision-slate.tsv"
+    validation_report_path = bundle_dir / "pavo-cluster-review-validation.json"
+    validation: ClusterReviewSlateValidationResult | None = None
+    blockers: list[str] = []
+
+    if sheet_path and sheet_path.exists() and resolved_slate.exists() and refresh_validation:
+        validation = validate_cluster_review_slate(sheet_path, resolved_slate)
+        validation_report_path.write_text(json.dumps(validation.as_report(), indent=2, sort_keys=True) + "\n")
+        blockers.extend(validation.blockers)
+    elif not sheet_path or not sheet_path.exists():
+        blockers.append("review sheet is missing; run pavo review clusters prepare first")
+    elif not resolved_slate.exists():
+        blockers.append(f"decision slate is missing: {resolved_slate}")
+    elif validation_report_path.exists():
+        try:
+            payload = json.loads(validation_report_path.read_text())
+            validation = ClusterReviewSlateValidationResult(
+                review_sheet_path=Path(payload.get("review_sheet") or sheet_path),
+                slate_path=Path(payload.get("slate") or resolved_slate),
+                passed=bool(payload.get("passed")),
+                ready_to_finalize=bool(payload.get("ready_to_finalize")),
+                applied_count=int(payload.get("applied_count") or 0),
+                approved_count=int(payload.get("approved_count") or 0),
+                rejected_count=int(payload.get("rejected_count") or 0),
+                pending_count=int(payload.get("pending_count") or 0),
+                blockers=list(payload.get("blockers") or []),
+            )
+            blockers.extend(validation.blockers)
+        except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+            blockers.append(f"validation report is unreadable: {exc}")
+    else:
+        blockers.append("validation report is missing; rerun the gate with validation refresh enabled")
+
+    doctor = doctor_cluster_review(root, review_sheet_path=sheet_path)
+    blockers.extend(doctor.blockers)
+    blockers = list(dict.fromkeys(blockers))
+    validation_passed = bool(validation and validation.passed)
+    ready_to_finalize = bool(validation and validation.ready_to_finalize and doctor.passed)
+    passed = doctor.passed and validation_passed
+    finish_command = doctor.status.completion_commands.get("finish_from_slate")
+    if ready_to_finalize and finish_command:
+        next_command = finish_command
+    else:
+        next_command = doctor.next_command
+
+    return ClusterReviewGateResult(
+        batch_root=root,
+        review_sheet_path=sheet_path,
+        slate_path=resolved_slate if resolved_slate.exists() else None,
+        validation_report_path=validation_report_path if validation_report_path.exists() else None,
+        passed=passed,
+        ready_to_finalize=ready_to_finalize,
+        complete=doctor.complete,
+        state=doctor.state,
+        doctor=doctor,
+        validation=validation,
+        blockers=blockers,
+        next_command=next_command,
+        finish_command=finish_command,
     )
 
 

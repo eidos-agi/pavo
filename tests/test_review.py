@@ -30,6 +30,7 @@ from pavo.review import (
     finalize_cluster_review,
     finish_cluster_review_from_slate,
     gate_anchor_review,
+    gate_cluster_review,
     import_anchor_review_sheet,
     import_cluster_review_slate,
     materialize_anchor_review_decisions,
@@ -951,6 +952,135 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("review_sheet failed", result.blockers)
         self.assertIn("Pavo Cluster Review Doctor", markdown)
         self.assertIn("Non-human plumbing passed: `false`", markdown)
+
+    def test_cluster_review_gate_refreshes_validation_and_reports_pending_review(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            recording = root / "rec-1"
+            recording.mkdir()
+            _write_test_wav(recording / "rec-1.wav")
+            work = root / "_work"
+            work.mkdir()
+            (work / "diarization-segments.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "recording_id": "rec-1",
+                            "start": 1.0,
+                            "end": 5.0,
+                            "speaker": "S1",
+                            "candidate_name": "Daniel",
+                            "text": "Review me.",
+                        }
+                    ]
+                )
+            )
+            (work / "named-speaker-evidence.json").write_text(
+                json.dumps(
+                    {
+                        "segments": [
+                            {
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 5.0,
+                                "speaker": "Daniel",
+                                "confidence": "medium",
+                                "text": "Review me.",
+                            }
+                        ]
+                    }
+                )
+            )
+
+            prepare_cluster_review(root, min_strong_coverage=0.0, min_dominant_share=0.5)
+            slate = export_cluster_review_slate(root)
+            report_path = slate.tsv_path.with_name("pavo-cluster-review-validation.json")
+            result = gate_cluster_review(root)
+            report = result.as_report()
+            markdown = result.as_markdown()
+            report_exists = report_path.exists()
+
+        self.assertFalse(result.passed)
+        self.assertFalse(result.ready_to_finalize)
+        self.assertFalse(result.complete)
+        self.assertEqual(result.state, "review_pending")
+        self.assertTrue(report_exists)
+        self.assertEqual(result.validation_report_path, report_path)
+        self.assertIn("decision gate did not pass", "; ".join(result.blockers))
+        self.assertIn("Pavo Cluster Review Gate", markdown)
+        self.assertEqual(report["validation"]["pending_count"], 1)
+        self.assertIn("Safety Boundary", markdown)
+
+    def test_cluster_review_gate_cli_writes_machine_report(self):
+        from pavo.cli import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            recording = root / "rec-1"
+            recording.mkdir()
+            _write_test_wav(recording / "rec-1.wav")
+            work = root / "_work"
+            work.mkdir()
+            (work / "diarization-segments.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "recording_id": "rec-1",
+                            "start": 1.0,
+                            "end": 5.0,
+                            "speaker": "S1",
+                            "candidate_name": "Daniel",
+                            "text": "Review me.",
+                        }
+                    ]
+                )
+            )
+            (work / "named-speaker-evidence.json").write_text(
+                json.dumps(
+                    {
+                        "segments": [
+                            {
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 5.0,
+                                "speaker": "Daniel",
+                                "confidence": "medium",
+                                "text": "Review me.",
+                            }
+                        ]
+                    }
+                )
+            )
+            prepare_cluster_review(root, min_strong_coverage=0.0, min_dominant_share=0.5)
+            export_cluster_review_slate(root)
+            report_path = root / "gate.json"
+            markdown_path = root / "gate.md"
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                exit_code = main(
+                    [
+                        "review",
+                        "clusters",
+                        "gate",
+                        str(root),
+                        "--json",
+                        "--report",
+                        str(report_path),
+                        "--markdown-report",
+                        str(markdown_path),
+                    ]
+                )
+            payload = json.loads(output.getvalue())
+            written_payload = json.loads(report_path.read_text())
+            markdown_exists = markdown_path.exists()
+
+        self.assertEqual(exit_code, 2)
+        self.assertFalse(payload["ready_to_finalize"])
+        self.assertEqual(payload["state"], "review_pending")
+        self.assertEqual(written_payload["state"], "review_pending")
+        self.assertTrue(markdown_exists)
+        self.assertIn("required human listening", payload["safety_boundary"])
 
     def test_cluster_review_slate_exports_markdown_and_tsv(self):
         with tempfile.TemporaryDirectory() as tmp:
