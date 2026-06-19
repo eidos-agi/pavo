@@ -33,6 +33,7 @@ from .review import (
     create_cluster_question_impact_report,
     create_cluster_question_bundle,
     create_cluster_question_plan,
+    create_cluster_review_forecast,
     compile_anchor_review_corrections,
     export_cluster_question_decisions,
     export_anchor_review_decisions,
@@ -201,6 +202,9 @@ def build_parser() -> argparse.ArgumentParser:
     review_clusters_acoustics = review_clusters_sub.add_parser("acoustics", help="Score local acoustic consistency for cluster-question review clips")
     review_clusters_acoustics.add_argument("review_sheet", type=Path)
     review_clusters_acoustics.add_argument("--out", type=Path, help="Acoustic evidence JSON path")
+    review_clusters_forecast = review_clusters_sub.add_parser("forecast", help="Estimate risk-adjusted payoff for pending cluster review")
+    review_clusters_forecast.add_argument("review_sheet", type=Path)
+    review_clusters_forecast.add_argument("--out", type=Path, help="Forecast JSON path")
     review_clusters_decisions = review_clusters_sub.add_parser("decisions", help="Export reviewed cluster-question decisions")
     review_clusters_decisions.add_argument("review_sheet", type=Path)
     review_clusters_decisions.add_argument("--out", type=Path, help="Decision report JSON path")
@@ -602,6 +606,8 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"impact_markdown: {result.impact_markdown_path}")
                 print(f"acoustic_json: {result.acoustic_json_path}")
                 print(f"acoustic_markdown: {result.acoustic_markdown_path}")
+                print(f"forecast_json: {result.forecast_json_path}")
+                print(f"forecast_markdown: {result.forecast_markdown_path}")
                 print(f"page_verified: {str(result.page_verified).lower()}")
                 print(f"cluster_count: {result.cluster_count}")
                 print(f"question_count: {result.question_count}")
@@ -640,6 +646,8 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"acoustic_analyzed_count: {result.acoustic_analyzed_count}")
                 print(f"acoustic_attention_cluster_count: {result.acoustic_attention_cluster_count}")
                 print(f"acoustic_report: {result.acoustic_report_path}")
+                print(f"forecast_risk_adjusted_segments: {result.forecast_risk_adjusted_segments}")
+                print(f"forecast_report: {result.forecast_report_path}")
                 print(f"review_pressure_reduction: {result.review_pressure_reduction}")
                 print(f"routeable_named_span_gain: {result.routeable_named_span_gain}")
                 print(f"next_command: {result.next_command}")
@@ -687,6 +695,8 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"acoustic_markdown: {result.acoustic_markdown_path}")
                 print(f"acoustic_analyzed_count: {result.acoustic_analyzed_count}")
                 print(f"acoustic_attention_cluster_count: {result.acoustic_attention_cluster_count}")
+                print(f"forecast_json: {result.forecast_json_path}")
+                print(f"forecast_markdown: {result.forecast_markdown_path}")
                 return 0 if result.candidate_count and result.missing_clip_count == 0 else 2
             if args.review_clusters_command == "impact":
                 result = create_cluster_question_impact_report(args.review_sheet, out_path=args.out)
@@ -709,6 +719,17 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"consistent_cluster_count: {result.consistent_cluster_count}")
                 print(f"attention_cluster_count: {result.attention_cluster_count}")
                 return 0 if result.analyzed_count and result.missing_count == 0 else 2
+            if args.review_clusters_command == "forecast":
+                result = create_cluster_review_forecast(args.review_sheet, out_path=args.out)
+                print(f"forecast_json: {result.json_path}")
+                print(f"forecast_markdown: {result.markdown_path}")
+                print(f"candidate_count: {result.candidate_count}")
+                print(f"cluster_count: {result.cluster_count}")
+                print(f"pending_cluster_count: {result.pending_cluster_count}")
+                print(f"estimated_unlockable_segments: {result.estimated_unlockable_segments}")
+                print(f"risk_adjusted_segments: {result.risk_adjusted_segments}")
+                print(f"top_cluster_id: {result.top_cluster_id}")
+                return 0 if result.cluster_count else 2
             if args.review_clusters_command == "decisions":
                 result = export_cluster_question_decisions(args.review_sheet, out_path=args.out)
                 print(f"passed: {str(result.passed).lower()}")

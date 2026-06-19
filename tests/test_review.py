@@ -15,6 +15,7 @@ from pavo.review import (
     create_cluster_question_impact_report,
     create_cluster_question_bundle,
     create_cluster_question_plan,
+    create_cluster_review_forecast,
     compile_anchor_review_corrections,
     create_anchor_review_sheet,
     export_cluster_question_decisions,
@@ -637,6 +638,8 @@ class ReviewTests(unittest.TestCase):
             impact_markdown_exists = result.impact_markdown_path.exists()
             acoustic_json_exists = result.acoustic_json_path.exists()
             acoustic_markdown_exists = result.acoustic_markdown_path.exists()
+            forecast_json_exists = result.forecast_json_path.exists()
+            forecast_markdown_exists = result.forecast_markdown_path.exists()
             page_html = result.review_page_path.read_text()
 
         self.assertTrue(result.page_verified)
@@ -652,6 +655,8 @@ class ReviewTests(unittest.TestCase):
         self.assertTrue(impact_markdown_exists)
         self.assertTrue(acoustic_json_exists)
         self.assertTrue(acoustic_markdown_exists)
+        self.assertTrue(forecast_json_exists)
+        self.assertTrue(forecast_markdown_exists)
         self.assertIn("Acoustic evidence:", page_html)
 
     def test_cluster_review_status_reports_missing_prepare_state(self):
@@ -841,6 +846,7 @@ class ReviewTests(unittest.TestCase):
             self.assertEqual(result.acoustic_analyzed_count, 0)
             self.assertTrue(result.review_page_path.exists())
             self.assertTrue(result.acoustic_json_path.exists())
+            self.assertTrue(result.forecast_json_path.exists())
             self.assertEqual(sheet["rows"][0]["case"], "S1 / low_coverage_targeted_review")
             self.assertIn("Acoustic evidence:", html)
             self.assertTrue(verification.passed)
@@ -1077,6 +1083,93 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("Pavo Cluster Acoustic Evidence", markdown)
         self.assertEqual(status.acoustic_analyzed_count, 2)
         self.assertEqual(status.acoustic_attention_cluster_count, 0)
+
+    def test_cluster_review_forecast_combines_impact_and_acoustic_risk(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            clip_a = root / "clip-a.wav"
+            clip_b = root / "clip-b.wav"
+            _write_test_wav(clip_a)
+            _write_test_wav(clip_b)
+            sheet = root / "cluster-review-sheet.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "pending",
+                                "approved": False,
+                                "clip_path": str(clip_a),
+                                "cluster_question": {
+                                    "cluster_id": "S1",
+                                    "dominant_speaker": "Daniel",
+                                    "expected_impact": "40 segments / 80 seconds",
+                                },
+                            },
+                            {
+                                "index": 2,
+                                "status": "pending",
+                                "approved": False,
+                                "clip_path": str(clip_b),
+                                "cluster_question": {
+                                    "cluster_id": "S1",
+                                    "dominant_speaker": "Daniel",
+                                    "expected_impact": "40 segments / 80 seconds",
+                                },
+                            },
+                        ]
+                    }
+                )
+            )
+            create_cluster_question_impact_report(sheet)
+            create_cluster_question_acoustic_report(sheet)
+
+            result = create_cluster_review_forecast(sheet)
+            report = json.loads(result.json_path.read_text())
+            markdown = result.markdown_path.read_text()
+            status = status_cluster_review(root, review_sheet_path=sheet)
+
+        self.assertEqual(result.estimated_unlockable_segments, 40)
+        self.assertEqual(result.risk_adjusted_segments, 30)
+        self.assertEqual(report["clusters"][0]["success_probability"], 0.75)
+        self.assertIn("Forecasts are planning estimates only", report["safety_boundary"])
+        self.assertIn("Pavo Cluster Review Forecast", markdown)
+        self.assertEqual(status.forecast_risk_adjusted_segments, 30)
+
+    def test_cli_cluster_review_forecast_writes_reports(self):
+        from pavo.cli import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sheet = root / "cluster-review-sheet.json"
+            out = root / "forecast.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "pending",
+                                "approved": False,
+                                "cluster_question": {
+                                    "cluster_id": "S1",
+                                    "dominant_speaker": "Daniel",
+                                    "expected_impact": "10 segments / 5 seconds",
+                                },
+                            }
+                        ]
+                    }
+                )
+            )
+
+            exit_code = main(["review", "clusters", "forecast", str(sheet), "--out", str(out)])
+            payload = json.loads(out.read_text())
+            markdown = out.with_suffix(".md").read_text()
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["estimated_unlockable_segments"], 10)
+        self.assertIn("Risk-adjusted segments", markdown)
 
     def test_anchor_review_page_embeds_cluster_acoustic_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:

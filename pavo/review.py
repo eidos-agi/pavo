@@ -203,6 +203,8 @@ class ClusterQuestionBundleResult:
     bundle_dir: Path
     acoustic_json_path: Path
     acoustic_markdown_path: Path
+    forecast_json_path: Path
+    forecast_markdown_path: Path
     candidate_count: int
     copied_clip_count: int
     missing_clip_count: int
@@ -248,6 +250,19 @@ class ClusterQuestionAcousticReportResult:
 
 
 @dataclass(frozen=True)
+class ClusterReviewForecastResult:
+    review_sheet_path: Path
+    json_path: Path
+    markdown_path: Path
+    candidate_count: int
+    cluster_count: int
+    pending_cluster_count: int
+    estimated_unlockable_segments: int
+    risk_adjusted_segments: int
+    top_cluster_id: str | None
+
+
+@dataclass(frozen=True)
 class ClusterReviewPrepareResult:
     batch_root: Path
     audit_json_path: Path
@@ -259,6 +274,8 @@ class ClusterReviewPrepareResult:
     impact_markdown_path: Path
     acoustic_json_path: Path
     acoustic_markdown_path: Path
+    forecast_json_path: Path
+    forecast_markdown_path: Path
     page_verified: bool
     cluster_count: int
     question_count: int
@@ -312,6 +329,8 @@ class ClusterReviewStatusResult:
     acoustic_analyzed_count: int | None
     acoustic_attention_cluster_count: int | None
     acoustic_report_path: Path | None
+    forecast_risk_adjusted_segments: int | None
+    forecast_report_path: Path | None
     review_pressure_reduction: int | None
     routeable_named_span_gain: int | None
     next_command: str
@@ -335,6 +354,8 @@ class ClusterReviewStatusResult:
             "acoustic_analyzed_count": self.acoustic_analyzed_count,
             "acoustic_attention_cluster_count": self.acoustic_attention_cluster_count,
             "acoustic_report": str(self.acoustic_report_path) if self.acoustic_report_path else None,
+            "forecast_risk_adjusted_segments": self.forecast_risk_adjusted_segments,
+            "forecast_report": str(self.forecast_report_path) if self.forecast_report_path else None,
             "review_pressure_reduction": self.review_pressure_reduction,
             "routeable_named_span_gain": self.routeable_named_span_gain,
             "next_command": self.next_command,
@@ -356,6 +377,7 @@ class ClusterReviewStatusResult:
             f"- Estimated unlock: {self.estimated_unlockable_segments} segments / {self.estimated_unlockable_seconds} seconds",
             f"- Constraints / hints: {self.constraints_count} / {self.hint_count}",
             f"- Acoustic evidence: {self.acoustic_analyzed_count} analyzed / {self.acoustic_attention_cluster_count} attention clusters",
+            f"- Forecast risk-adjusted unlock: {self.forecast_risk_adjusted_segments} segments",
             f"- Review pressure reduction: {self.review_pressure_reduction}",
             f"- Routeable named span gain: {self.routeable_named_span_gain}",
             "",
@@ -1062,6 +1084,8 @@ def create_cluster_question_bundle(
     sheet_path.write_text(json.dumps(sheet, indent=2, sort_keys=True) + "\n")
     acoustic = create_cluster_question_acoustic_report(sheet_path)
     page = create_anchor_review_page(sheet_path, out_path=page_path)
+    impact = create_cluster_question_impact_report(sheet_path)
+    forecast = create_cluster_review_forecast(sheet_path)
     return ClusterQuestionBundleResult(
         question_plan_path=plan_path,
         review_sheet_path=sheet_path,
@@ -1069,6 +1093,8 @@ def create_cluster_question_bundle(
         bundle_dir=target_dir,
         acoustic_json_path=acoustic.json_path,
         acoustic_markdown_path=acoustic.markdown_path,
+        forecast_json_path=forecast.json_path,
+        forecast_markdown_path=forecast.markdown_path,
         candidate_count=len(rows),
         copied_clip_count=copied,
         missing_clip_count=missing,
@@ -1116,6 +1142,8 @@ def prepare_cluster_review(
         impact_markdown_path=impact.markdown_path,
         acoustic_json_path=bundle.acoustic_json_path,
         acoustic_markdown_path=bundle.acoustic_markdown_path,
+        forecast_json_path=bundle.forecast_json_path,
+        forecast_markdown_path=bundle.forecast_markdown_path,
         page_verified=page.passed,
         cluster_count=audit.cluster_count,
         question_count=questions.question_count,
@@ -1373,6 +1401,143 @@ def render_cluster_question_acoustic_markdown(report: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def create_cluster_review_forecast(
+    review_sheet_path: Path | str,
+    *,
+    out_path: Path | str | None = None,
+) -> ClusterReviewForecastResult:
+    sheet_path = Path(review_sheet_path)
+    impact_path = sheet_path.with_name(sheet_path.stem.replace("-sheet", "-impact") + ".json")
+    acoustic_path = sheet_path.with_name("pavo-cluster-question-acoustic-evidence.json")
+    impact = _load_optional_json(impact_path)
+    if not impact:
+        create_cluster_question_impact_report(sheet_path)
+        impact = _load_optional_json(impact_path)
+    acoustic = _load_optional_json(acoustic_path)
+    if not acoustic:
+        create_cluster_question_acoustic_report(sheet_path)
+        acoustic = _load_optional_json(acoustic_path)
+    acoustic_by_cluster = {
+        str(item.get("cluster_id") or ""): item
+        for item in (acoustic.get("clusters") if isinstance(acoustic, dict) else []) or []
+        if isinstance(item, dict)
+    }
+    clusters = []
+    for item in (impact.get("clusters") if isinstance(impact, dict) else []) or []:
+        if not isinstance(item, dict):
+            continue
+        cluster_id = str(item.get("cluster_id") or "")
+        acoustic_item = acoustic_by_cluster.get(cluster_id, {})
+        probability = _forecast_success_probability(str(acoustic_item.get("verdict") or "unknown"))
+        expected_segments = int(item.get("expected_segments") or 0)
+        risk_adjusted = int(round(expected_segments * probability))
+        clusters.append(
+            {
+                "cluster_id": cluster_id,
+                "target_speaker": item.get("target_speaker"),
+                "review_state": item.get("review_state"),
+                "pending_rows": int(item.get("pending_rows") or 0),
+                "expected_segments": expected_segments,
+                "expected_seconds": float(item.get("expected_seconds") or 0.0),
+                "impact_score": item.get("impact_score"),
+                "acoustic_verdict": acoustic_item.get("verdict"),
+                "acoustic_min_pair_similarity": acoustic_item.get("min_pair_similarity"),
+                "success_probability": probability,
+                "risk_adjusted_segments": risk_adjusted,
+                "recommended_next_action": _forecast_next_action(item, acoustic_item, probability),
+            }
+        )
+    clusters.sort(key=lambda row: (-int(row.get("risk_adjusted_segments") or 0), -float(row.get("impact_score") or 0.0), str(row.get("cluster_id") or "")))
+    pending_clusters = [row for row in clusters if int(row.get("pending_rows") or 0)]
+    estimated_segments = sum(int(row.get("expected_segments") or 0) for row in pending_clusters)
+    risk_adjusted_segments = sum(int(row.get("risk_adjusted_segments") or 0) for row in pending_clusters)
+    report = {
+        "passed": bool(clusters),
+        "review_sheet": str(sheet_path),
+        "candidate_count": int(impact.get("candidate_count") or 0) if isinstance(impact, dict) else 0,
+        "cluster_count": len(clusters),
+        "pending_cluster_count": len(pending_clusters),
+        "estimated_unlockable_segments": estimated_segments,
+        "risk_adjusted_segments": risk_adjusted_segments,
+        "top_cluster_id": clusters[0]["cluster_id"] if clusters else None,
+        "clusters": clusters,
+        "safety_boundary": "Forecasts are planning estimates only. They do not approve identity, create constraints, or prove improvement.",
+        "next_required_proof": "Human decisions, materialized constraints, rerun brief, and measured review-pressure reduction.",
+    }
+    json_path = Path(out_path) if out_path else sheet_path.with_name("pavo-cluster-review-forecast.json")
+    markdown_path = json_path.with_suffix(".md")
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    markdown_path.write_text(render_cluster_review_forecast_markdown(report), encoding="utf-8")
+    return ClusterReviewForecastResult(
+        review_sheet_path=sheet_path,
+        json_path=json_path,
+        markdown_path=markdown_path,
+        candidate_count=int(report["candidate_count"]),
+        cluster_count=len(clusters),
+        pending_cluster_count=len(pending_clusters),
+        estimated_unlockable_segments=estimated_segments,
+        risk_adjusted_segments=risk_adjusted_segments,
+        top_cluster_id=report["top_cluster_id"],
+    )
+
+
+def render_cluster_review_forecast_markdown(report: dict[str, Any]) -> str:
+    lines = [
+        "# Pavo Cluster Review Forecast",
+        "",
+        f"- Review sheet: `{report.get('review_sheet')}`",
+        f"- Candidate rows: {report.get('candidate_count')}",
+        f"- Pending clusters: {report.get('pending_cluster_count')}",
+        f"- Estimated unlockable segments: {report.get('estimated_unlockable_segments')}",
+        f"- Risk-adjusted segments: {report.get('risk_adjusted_segments')}",
+        f"- Top cluster: `{report.get('top_cluster_id')}`",
+        "",
+        "Safety boundary: this is a forecast only. It is not speaker identity or measured improvement.",
+        "",
+        "## Forecasted Clusters",
+        "",
+    ]
+    for item in report.get("clusters") or []:
+        lines.extend(
+            [
+                f"### {item.get('cluster_id')} - {item.get('target_speaker') or 'unknown'}",
+                "",
+                f"- Acoustic verdict: `{item.get('acoustic_verdict')}`",
+                f"- Success probability: {item.get('success_probability')}",
+                f"- Expected / risk-adjusted segments: {item.get('expected_segments')} / {item.get('risk_adjusted_segments')}",
+                f"- Recommended next action: {item.get('recommended_next_action')}",
+                "",
+            ]
+        )
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _forecast_success_probability(acoustic_verdict: str) -> float:
+    if acoustic_verdict == "consistent_acoustic_shape":
+        return 0.75
+    if acoustic_verdict == "mixed_acoustic_shape":
+        return 0.5
+    if acoustic_verdict == "listen_carefully_acoustic_drift":
+        return 0.25
+    if acoustic_verdict == "insufficient_audio":
+        return 0.2
+    return 0.35
+
+
+def _forecast_next_action(impact_item: dict[str, Any], acoustic_item: dict[str, Any], probability: float) -> str:
+    if int(impact_item.get("pending_rows") or 0) <= 0:
+        return "Already reviewed; materialize decisions and measure actual improvement."
+    verdict = str(acoustic_item.get("verdict") or "unknown")
+    if verdict == "listen_carefully_acoustic_drift":
+        return "Review first with extra caution; acoustic drift may expose a split cluster or overlap."
+    if verdict == "insufficient_audio":
+        return "Repair or replace samples before trusting this forecast."
+    if probability >= 0.7:
+        return "High-value review candidate; samples look acoustically consistent but still require listening."
+    return "Review carefully; expected payoff is real but acoustic evidence is mixed."
+
+
 def export_cluster_question_decisions(
     review_sheet_path: Path | str,
     *,
@@ -1557,6 +1722,8 @@ def status_cluster_review(
             acoustic_analyzed_count=None,
             acoustic_attention_cluster_count=None,
             acoustic_report_path=None,
+            forecast_risk_adjusted_segments=None,
+            forecast_report_path=None,
             review_pressure_reduction=None,
             routeable_named_span_gain=None,
             next_command=f"pavo review clusters prepare {root}",
@@ -1583,6 +1750,8 @@ def status_cluster_review(
     improvement = _load_optional_json(root / "pavo-cluster-question-artifacts" / "pavo-brief-improvement-report.json")
     acoustic_path = sheet_path.with_name("pavo-cluster-question-acoustic-evidence.json")
     acoustic = _load_optional_json(acoustic_path)
+    forecast_path = sheet_path.with_name("pavo-cluster-review-forecast.json")
+    forecast = _load_optional_json(forecast_path)
 
     blockers: list[str] = []
     if not page_verified:
@@ -1636,6 +1805,8 @@ def status_cluster_review(
         acoustic_analyzed_count=int(acoustic.get("analyzed_count")) if acoustic and acoustic.get("analyzed_count") is not None else None,
         acoustic_attention_cluster_count=int(acoustic.get("attention_cluster_count")) if acoustic and acoustic.get("attention_cluster_count") is not None else None,
         acoustic_report_path=acoustic_path if acoustic else None,
+        forecast_risk_adjusted_segments=int(forecast.get("risk_adjusted_segments")) if forecast and forecast.get("risk_adjusted_segments") is not None else None,
+        forecast_report_path=forecast_path if forecast else None,
         review_pressure_reduction=int(review_delta) if review_delta is not None else None,
         routeable_named_span_gain=int(routeable_delta) if routeable_delta is not None else None,
         next_command=next_command,
