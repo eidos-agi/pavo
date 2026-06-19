@@ -2311,6 +2311,7 @@ def create_anchor_review_page(
     cards = "\n".join(_review_card(row, labels=labels, display_mode=display_mode) for row in rows)
     sheet_json = json.dumps(sheet).replace("</", "<\\/")
     download_name_json = json.dumps(sheet_path.name)
+    slate_download_name_json = json.dumps(sheet_path.with_name("pavo-cluster-review-decision-slate.tsv").name)
     draft_key_json = json.dumps(f"pavo-review-draft:{sheet_path.resolve()}:{len(rows)}")
     title = sheet.get("review_title") or f"Pavo Anchor Review - {sheet.get('target_speaker_name') or sheet.get('target_speaker_label') or 'Speaker'}"
     instructions = _review_instructions(sheet, sheet_path)
@@ -2324,6 +2325,12 @@ def create_anchor_review_page(
     )
     cluster_finalize_command_json = json.dumps(
         f"pavo review clusters finalize {shlex.quote(str(sheet_path))} {shlex.quote(str(cluster_batch_root))}"
+    )
+    cluster_finish_from_slate_command_json = json.dumps(
+        "pavo review clusters finish-from-slate "
+        f"{shlex.quote(str(cluster_batch_root))} "
+        f"{shlex.quote(str(sheet_path))} "
+        f"{shlex.quote(str(sheet_path.with_name('pavo-cluster-review-decision-slate.tsv')))}"
     )
     cluster_status_command_json = json.dumps(
         "pavo review clusters status "
@@ -2761,6 +2768,7 @@ def create_anchor_review_page(
     <section class="actions">
       <button type="button" id="save-review">Save review</button>
       <button type="button" id="export-json">{escape(str(export_label))}</button>
+      <button type="button" id="export-slate-tsv">Export slate TSV</button>
       <button type="button" class="secondary" id="reset-review">{escape(str(reset_label))}</button>
       <span id="review-count">{len(pending)} pending</span>
       <span class="save-status" id="save-status">Checking save backend...</span>
@@ -2779,6 +2787,7 @@ def create_anchor_review_page(
     const reviewDraftKey = {draft_key_json};
     const clusterDecisionCommand = {cluster_decision_command_json};
     const clusterFinalizeCommand = {cluster_finalize_command_json};
+    const clusterFinishFromSlateCommand = {cluster_finish_from_slate_command_json};
     const clusterStatusCommand = {cluster_status_command_json};
 
     function initializeDecisionsFromSheet(sheet) {{
@@ -3226,12 +3235,13 @@ def create_anchor_review_page(
         return;
       }}
       body.innerHTML = `
-        <p><strong>Cluster consensus is ready.</strong> Export/save the reviewed sheet, then run:</p>
+        <p><strong>Cluster consensus is ready.</strong> Export the slate TSV, then run the one-command finish gate:</p>
         <ol>
-          <li>Write the decision report:<pre>${{escapeHtml(clusterDecisionCommand)}}</pre></li>
-          <li>Finalize constraints and rebuild the brief:<pre>${{escapeHtml(clusterFinalizeCommand)}}</pre></li>
+          <li>Export the filled TSV with <strong>Export slate TSV</strong>.</li>
+          <li>Finish from slate:<pre>${{escapeHtml(clusterFinishFromSlateCommand)}}</pre></li>
           <li>Refresh the status proof:<pre>${{escapeHtml(clusterStatusCommand)}}</pre></li>
         </ol>
+        <p>Fallback commands remain available if you need to debug: <code>${{escapeHtml(clusterDecisionCommand)}}</code> then <code>${{escapeHtml(clusterFinalizeCommand)}}</code>.</p>
       `;
     }}
 
@@ -3306,6 +3316,52 @@ def create_anchor_review_page(
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
       link.download = {download_name_json};
+      link.click();
+      URL.revokeObjectURL(link.href);
+    }}
+
+    function slateTsvCell(value) {{
+      return String(value == null ? "" : value)
+        .replaceAll("\\t", " ")
+        .replaceAll("\\r", " ")
+        .replaceAll("\\n", " ")
+        .trim();
+    }}
+
+    function buildReviewedSlateTsv() {{
+      const headers = ["row_index", "cluster_id", "decision", "speaker", "note", "priority_tier", "priority_score", "priority_reason", "question", "expected_impact", "acoustic_verdict", "clip_path", "transcript"];
+      const priorityByRow = new Map(minimalNextReviewPlan().map((item) => [String(item.rowIndex), item]));
+      const lines = [headers.join("\\t")];
+      buildReviewedSheet().rows.forEach((row) => {{
+        const question = row.cluster_question || {{}};
+        const priority = priorityByRow.get(String(row.index)) || {{}};
+        const speaker = question.dominant_speaker || row.target_speaker_label || row.target_speaker_name || question.candidate_name || "";
+        const values = [
+          row.index,
+          question.cluster_id || row.case || "unknown",
+          row.status || "pending",
+          speaker,
+          row.reviewer_note || "",
+          priority.reviewPriorityTier || "",
+          priority.reviewPriorityScore || "",
+          priority.reviewPriorityReason || "",
+          question.question || "",
+          question.expected_impact || "",
+          priority.acousticVerdict || "",
+          row.clip_path || "",
+          row.text || ""
+        ];
+        lines.push(values.map(slateTsvCell).join("\\t"));
+      }});
+      return lines.join("\\n") + "\\n";
+    }}
+
+    function exportReviewedSlateTsv() {{
+      persistReviewDraft();
+      const blob = new Blob([buildReviewedSlateTsv()], {{ type: "text/tab-separated-values" }});
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = {slate_download_name_json};
       link.click();
       URL.revokeObjectURL(link.href);
     }}
@@ -3555,6 +3611,7 @@ def create_anchor_review_page(
       saveReview().catch((error) => setSaveStatus(error.message));
     }});
     document.getElementById("export-json").addEventListener("click", exportReviewedSheet);
+    document.getElementById("export-slate-tsv").addEventListener("click", exportReviewedSlateTsv);
     document.getElementById("reset-review").addEventListener("click", () => {{
       initializeDecisionsFromSheet(originalSheet);
       document.querySelectorAll("[data-review-index]").forEach((card) => {{
@@ -3995,6 +4052,7 @@ def verify_anchor_review_page(
             embedded_sheet_present = False
     requires_import = sheet.get("requires_import_instruction", True)
     requires_rerun = sheet.get("requires_rerun_instruction", True)
+    requires_slate_export = any(isinstance(row.get("cluster_question"), dict) for row in sheet.get("rows", []))
     checks = {
         "export button": parser.export_button_present,
         "reset button": parser.reset_button_present,
@@ -4006,6 +4064,8 @@ def verify_anchor_review_page(
         "next review plan": 'id="next-review-plan"' in html and "minimalNextReviewPlan" in html and "focusNextRecommendedReview" in html,
         "review effort": 'id="review-effort"' in html and "renderReviewEffort" in html,
         "completion handoff": 'id="completion-handoff"' in html and "renderCompletionHandoff" in html and "clusterFinalizeCommand" in html,
+        "slate TSV export": (not requires_slate_export)
+        or ('id="export-slate-tsv"' in html and "buildReviewedSlateTsv" in html and "exportReviewedSlateTsv" in html),
         "embedded sheet JSON": embedded_sheet_present,
         "import instruction": (not requires_import) or "pavo review anchors import" in html,
         "rerun instruction": (not requires_rerun) or "pavo review anchors rerun-command" in html,
