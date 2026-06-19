@@ -349,6 +349,19 @@ class ClusterReviewSlateImportResult:
 
 
 @dataclass(frozen=True)
+class ClusterReviewSlateValidationResult:
+    review_sheet_path: Path
+    slate_path: Path
+    passed: bool
+    ready_to_finalize: bool
+    applied_count: int
+    approved_count: int
+    rejected_count: int
+    pending_count: int
+    blockers: list[str]
+
+
+@dataclass(frozen=True)
 class ClusterReviewFinishFromSlateResult:
     batch_root: Path
     review_sheet_path: Path
@@ -2350,6 +2363,46 @@ def import_cluster_review_slate(
         rejected_count=len(rejected),
         pending_count=len(pending),
     )
+
+
+def validate_cluster_review_slate(
+    review_sheet_path: Path | str,
+    slate_tsv_path: Path | str,
+) -> ClusterReviewSlateValidationResult:
+    sheet_path = Path(review_sheet_path)
+    slate_path = Path(slate_tsv_path)
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            imported_path = Path(tmp) / "validated-cluster-review-sheet.json"
+            imported = import_cluster_review_slate(sheet_path, slate_path, out_path=imported_path)
+            decisions = export_cluster_question_decisions(imported.imported_sheet_path)
+            blockers = list(decisions.blockers)
+            if not decisions.passed:
+                blockers.append("decision gate did not pass; fill every required cluster decision before finalizing")
+            blockers = list(dict.fromkeys(blockers))
+            return ClusterReviewSlateValidationResult(
+                review_sheet_path=sheet_path,
+                slate_path=slate_path,
+                passed=not blockers,
+                ready_to_finalize=decisions.passed and not blockers,
+                applied_count=imported.applied_count,
+                approved_count=imported.approved_count,
+                rejected_count=imported.rejected_count,
+                pending_count=imported.pending_count,
+                blockers=blockers,
+            )
+    except ValueError as exc:
+        return ClusterReviewSlateValidationResult(
+            review_sheet_path=sheet_path,
+            slate_path=slate_path,
+            passed=False,
+            ready_to_finalize=False,
+            applied_count=0,
+            approved_count=0,
+            rejected_count=0,
+            pending_count=0,
+            blockers=[str(exc)],
+        )
 
 
 def finish_cluster_review_from_slate(

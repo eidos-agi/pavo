@@ -37,6 +37,7 @@ from pavo.review import (
     status_cluster_review,
     status_anchor_review,
     summarize_anchor_review_sheet,
+    validate_cluster_review_slate,
     verify_anchor_review_page,
     _rank_next_review_plan_with_ensemble,
 )
@@ -1086,6 +1087,37 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(sheet["rows"][0]["cluster_question"]["dominant_speaker"], "Alex")
         self.assertEqual(report["decisions"][0]["dominant_speaker"], "Alex")
 
+    def test_cluster_review_slate_validation_dry_runs_without_mutating_sheet(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            work = root / "pavo-work"
+            work.mkdir()
+            (work / "diarization-segments.json").write_text(
+                json.dumps({"segments": [{"recording_id": "rec-1", "start": 1.0, "end": 5.0, "speaker": "S1", "text": "Review me."}]})
+            )
+            (work / "named-speaker-evidence.json").write_text(
+                json.dumps({"segments": [{"recording_id": "rec-1", "start": 1.0, "end": 5.0, "speaker": "Daniel", "confidence": "medium", "text": "Review me."}]})
+            )
+            prepared = prepare_cluster_review(root, min_strong_coverage=0.0, min_dominant_share=0.5)
+            slate = export_cluster_review_slate(root)
+            original = prepared.review_sheet_path.read_text()
+            lines = slate.tsv_path.read_text().splitlines()
+            header = lines[0].split("\t")
+            cells = lines[1].split("\t")
+            cells[header.index("decision")] = "approved"
+            cells[header.index("speaker")] = "Alex"
+            filled = slate.tsv_path.with_name("filled-slate.tsv")
+            filled.write_text("\n".join([lines[0], "\t".join(cells)]) + "\n")
+
+            result = validate_cluster_review_slate(prepared.review_sheet_path, filled)
+            after = prepared.review_sheet_path.read_text()
+
+        self.assertEqual(result.applied_count, 1)
+        self.assertEqual(result.approved_count, 1)
+        self.assertTrue(result.ready_to_finalize)
+        self.assertEqual(result.blockers, [])
+        self.assertEqual(after, original)
+
     def test_cluster_review_slate_import_rejects_cluster_mismatch(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1105,6 +1137,29 @@ class ReviewTests(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "changed cluster_id"):
                 import_cluster_review_slate(prepared.review_sheet_path, bad_path)
+
+    def test_cli_cluster_review_validate_slate_rejects_cluster_mismatch(self):
+        from pavo.cli import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            work = root / "pavo-work"
+            work.mkdir()
+            (work / "diarization-segments.json").write_text(
+                json.dumps({"segments": [{"recording_id": "rec-1", "start": 1.0, "end": 5.0, "speaker": "S1", "text": "Review me."}]})
+            )
+            (work / "named-speaker-evidence.json").write_text(
+                json.dumps({"segments": [{"recording_id": "rec-1", "start": 1.0, "end": 5.0, "speaker": "Daniel", "confidence": "medium", "text": "Review me."}]})
+            )
+            prepared = prepare_cluster_review(root, min_strong_coverage=0.0, min_dominant_share=0.5)
+            slate = export_cluster_review_slate(root)
+            bad = slate.tsv_path.read_text().replace("\tS1\t", "\tS999\t", 1)
+            bad_path = slate.tsv_path.with_name("bad-slate.tsv")
+            bad_path.write_text(bad)
+
+            exit_code = main(["review", "clusters", "validate-slate", str(prepared.review_sheet_path), str(bad_path)])
+
+        self.assertEqual(exit_code, 2)
 
     def test_cluster_review_advance_stops_at_human_review_boundary(self):
         with tempfile.TemporaryDirectory() as tmp:

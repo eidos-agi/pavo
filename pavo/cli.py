@@ -56,6 +56,7 @@ from .review import (
     status_cluster_review,
     status_anchor_review,
     summarize_anchor_review_sheet,
+    validate_cluster_review_slate,
     verify_anchor_review_page,
 )
 from .render import RenderVideoRequest, render_video
@@ -253,6 +254,9 @@ def build_parser() -> argparse.ArgumentParser:
     review_clusters_import_slate.add_argument("review_sheet", type=Path)
     review_clusters_import_slate.add_argument("slate_tsv", type=Path)
     review_clusters_import_slate.add_argument("--out", type=Path, help="Imported review sheet path; defaults to replacing review_sheet")
+    review_clusters_validate_slate = review_clusters_sub.add_parser("validate-slate", help="Dry-run a filled cluster decision slate TSV before finalizing")
+    review_clusters_validate_slate.add_argument("review_sheet", type=Path)
+    review_clusters_validate_slate.add_argument("slate_tsv", type=Path)
     review_clusters_finish_slate = review_clusters_sub.add_parser("finish-from-slate", help="Import a filled slate and finalize the cluster review when gates pass")
     review_clusters_finish_slate.add_argument("batch_root", type=Path)
     review_clusters_finish_slate.add_argument("review_sheet", type=Path)
@@ -904,6 +908,19 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"rejected_count: {result.rejected_count}")
                 print(f"pending_count: {result.pending_count}")
                 return 0 if result.applied_count else 2
+            if args.review_clusters_command == "validate-slate":
+                result = validate_cluster_review_slate(args.review_sheet, args.slate_tsv)
+                print(f"passed: {str(result.passed).lower()}")
+                print(f"ready_to_finalize: {str(result.ready_to_finalize).lower()}")
+                print(f"review_sheet: {result.review_sheet_path}")
+                print(f"slate: {result.slate_path}")
+                print(f"applied_count: {result.applied_count}")
+                print(f"approved_count: {result.approved_count}")
+                print(f"rejected_count: {result.rejected_count}")
+                print(f"pending_count: {result.pending_count}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+                return 0 if result.passed else 2
             if args.review_clusters_command == "finish-from-slate":
                 result = finish_cluster_review_from_slate(
                     args.batch_root,
