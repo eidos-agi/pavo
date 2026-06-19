@@ -218,6 +218,7 @@ pavo audio separate-overlaps youtube_<id> --start 17 --end 21 --min-duration 0.2
 pavo review anchors init docs/plaud-c37-speaker1-anchor-review-clips.json
 pavo review anchors corrections docs/plaud-c37-speaker1-anchor-review-sheet.json
 pavo review anchors decisions docs/pavo-review-cluster-sheet.json
+pavo review anchors materialize-decisions docs/pavo-review-cluster-decisions.json
 pavo video render youtube_<id> --title "Reviewed call" --duration 30
 pavo transcribe <recording-id> --context-term Plaud
 ```
@@ -267,6 +268,13 @@ For mixed cluster review pages from `pavo brief --review-plan-clips`, use
 report with routeable rows, enrollment candidates, pending blockers, and the
 safety boundary for the next attribution pass without inventing speaker
 correction flags.
+
+After the decision report exists, `pavo review anchors materialize-decisions
+<decision-report>` writes `pavo-reviewed-speaker-hints.json`,
+`pavo-reviewed-speaker-enrollment.json`, and
+`pavo-reviewed-speaker-rerun-plan.json`. Pending or unapproved reports fail
+closed, but still write the artifacts so the next operator can see exactly what
+is missing.
 
 ## Tests
 

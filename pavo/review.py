@@ -61,6 +61,19 @@ class AnchorReviewDecisionExportResult:
 
 
 @dataclass(frozen=True)
+class AnchorReviewMaterializeResult:
+    decision_report_path: Path
+    out_dir: Path
+    passed: bool
+    hint_path: Path
+    enrollment_path: Path
+    rerun_plan_path: Path
+    routeable_count: int
+    enrollment_speaker_count: int
+    blockers: list[str]
+
+
+@dataclass(frozen=True)
 class AnchorReviewPageResult:
     review_sheet_path: Path
     review_page_path: Path
@@ -229,6 +242,7 @@ def create_anchor_review_sheet(
                 "confidence": clip.get("confidence"),
                 "method": clip.get("method"),
                 "clip_path": clip.get("clip_path"),
+                "recording_id": clip.get("recording_id"),
                 "suggested_speaker_correction": clip.get("suggested_speaker_correction"),
                 "reviewer_note": "",
                 "case": clip.get("case"),
@@ -348,6 +362,89 @@ def export_anchor_review_decisions(
         routeable_count=len(routeable),
         enrollment_candidate_count=len(enrollment),
         blockers=blockers,
+    )
+
+
+def materialize_anchor_review_decisions(
+    decision_report_path: Path | str,
+    *,
+    out_dir: Path | str | None = None,
+) -> AnchorReviewMaterializeResult:
+    report_path = Path(decision_report_path)
+    report = json.loads(report_path.read_text())
+    target_dir = Path(out_dir) if out_dir else report_path.with_name("pavo-reviewed-speaker-artifacts")
+    target_dir.mkdir(parents=True, exist_ok=True)
+    decisions = report.get("decisions") or []
+    routeable = [decision for decision in decisions if decision.get("routeable")]
+    enrollment = [decision for decision in decisions if decision.get("enrollment_candidate")]
+    grouped = _group_enrollment_samples(enrollment)
+    blockers = list(report.get("blockers") or [])
+    if report.get("pending_count"):
+        blockers.append("decision report still has pending rows")
+    if not routeable:
+        blockers.append("no routeable reviewed speaker hints are available")
+    hints = {
+        "passed": bool(routeable),
+        "source_decision_report": str(report_path),
+        "created_at": _now_iso(),
+        "routeable_count": len(routeable),
+        "hints": [
+            {
+                "speaker": decision.get("speaker"),
+                "recording_id": decision.get("recording_id"),
+                "start": decision.get("start"),
+                "end": decision.get("end"),
+                "text": decision.get("text"),
+                "confidence": decision.get("confidence"),
+                "method": "human_reviewed_cluster_decision",
+                "reviewer_note": decision.get("reviewer_note"),
+                "clip_path": decision.get("clip_path"),
+            }
+            for decision in routeable
+        ],
+        "privacy": "Do not publish raw audio, voiceprints, or unreviewed speaker evidence outside Pavo.",
+    }
+    enrollment_payload = {
+        "passed": bool(grouped),
+        "source_decision_report": str(report_path),
+        "created_at": _now_iso(),
+        "speaker_count": len(grouped),
+        "speakers": grouped,
+        "next_required_proof": "Rerun attribution with these reviewed speaker hints, then regenerate the meeting brief and compare review-pressure reduction.",
+    }
+    rerun_plan = {
+        "passed": bool(routeable and not report.get("pending_count")),
+        "source_decision_report": str(report_path),
+        "created_at": _now_iso(),
+        "routeable_count": len(routeable),
+        "enrollment_speaker_count": len(grouped),
+        "blockers": list(dict.fromkeys(blockers)),
+        "artifacts": {
+            "speaker_hints": str(target_dir / "pavo-reviewed-speaker-hints.json"),
+            "speaker_enrollment": str(target_dir / "pavo-reviewed-speaker-enrollment.json"),
+        },
+        "operator_next_steps": [
+            "Feed pavo-reviewed-speaker-hints.json into the next attribution pass.",
+            "Use pavo-reviewed-speaker-enrollment.json as the human-reviewed enrollment ledger.",
+            "Regenerate pavo brief --review-plan-clips and compare routeable/review-pressure counts.",
+        ],
+    }
+    hint_path = target_dir / "pavo-reviewed-speaker-hints.json"
+    enrollment_path = target_dir / "pavo-reviewed-speaker-enrollment.json"
+    rerun_plan_path = target_dir / "pavo-reviewed-speaker-rerun-plan.json"
+    hint_path.write_text(json.dumps(hints, indent=2, sort_keys=True) + "\n")
+    enrollment_path.write_text(json.dumps(enrollment_payload, indent=2, sort_keys=True) + "\n")
+    rerun_plan_path.write_text(json.dumps(rerun_plan, indent=2, sort_keys=True) + "\n")
+    return AnchorReviewMaterializeResult(
+        decision_report_path=report_path,
+        out_dir=target_dir,
+        passed=bool(rerun_plan["passed"]),
+        hint_path=hint_path,
+        enrollment_path=enrollment_path,
+        rerun_plan_path=rerun_plan_path,
+        routeable_count=len(routeable),
+        enrollment_speaker_count=len(grouped),
+        blockers=list(dict.fromkeys(blockers)),
     )
 
 
@@ -1747,6 +1844,7 @@ def _review_decision_row(row: dict[str, Any]) -> dict[str, Any]:
         "confidence": row.get("confidence"),
         "method": row.get("method"),
         "clip_path": row.get("clip_path"),
+        "recording_id": row.get("recording_id"),
         "reviewer_note": row.get("reviewer_note"),
         "review_parse": review_parse,
         "routeable": routeable,
@@ -1785,6 +1883,59 @@ def _decision_cluster_summary(decisions: list[dict[str, Any]]) -> list[dict[str,
         if decision.get("enrollment_candidate"):
             cluster["enrollment_candidate_count"] += 1
     return sorted(clusters.values(), key=lambda item: (-item["candidate_count"], item["case"]))
+
+
+def _group_enrollment_samples(decisions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    speakers: dict[str, dict[str, Any]] = {}
+    for decision in decisions:
+        speaker = str(decision.get("speaker") or "").strip()
+        if not speaker:
+            continue
+        entry = speakers.setdefault(
+            speaker,
+            {
+                "speaker": speaker,
+                "slug": _speaker_slug(speaker),
+                "sample_count": 0,
+                "total_seconds": 0.0,
+                "samples": [],
+            },
+        )
+        duration = _safe_float(decision.get("duration"))
+        if duration is None:
+            start = _safe_float(decision.get("start")) or 0.0
+            end = _safe_float(decision.get("end")) or start
+            duration = max(0.0, end - start)
+        entry["sample_count"] += 1
+        entry["total_seconds"] = round(float(entry["total_seconds"]) + duration, 2)
+        entry["samples"].append(
+            {
+                "recording_id": decision.get("recording_id"),
+                "start": decision.get("start"),
+                "end": decision.get("end"),
+                "duration": round(duration, 2),
+                "clip_path": decision.get("clip_path"),
+                "text": decision.get("text"),
+                "reviewer_note": decision.get("reviewer_note"),
+            }
+        )
+    return sorted(speakers.values(), key=lambda item: (-item["sample_count"], item["speaker"]))
+
+
+def _speaker_slug(value: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+    return slug or "speaker"
+
+
+def _safe_float(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _now_iso() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
 def _decision_recommended_action(status: str, speaker: str, issues: list[str]) -> str:

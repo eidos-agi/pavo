@@ -13,6 +13,7 @@ from pavo.review import (
     export_anchor_review_decisions,
     gate_anchor_review,
     import_anchor_review_sheet,
+    materialize_anchor_review_decisions,
     parse_plain_english_review,
     save_anchor_review_sheet_payload,
     status_anchor_review,
@@ -250,6 +251,7 @@ class ReviewTests(unittest.TestCase):
                                 "confidence": "low",
                                 "method": "named_speaker_evidence",
                                 "clip_path": "clips/daniel.mp3",
+                                "recording_id": "rec-1",
                                 "reviewer_note": "clear Daniel",
                                 "review_parse": {"decision": "approved", "heard_speakers": ["Daniel"], "issues": []},
                             },
@@ -284,9 +286,66 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.pending_count, 0)
         self.assertEqual(result.routeable_count, 1)
         self.assertEqual(result.enrollment_candidate_count, 1)
+        self.assertEqual(report["decisions"][0]["recording_id"], "rec-1")
         self.assertEqual(report["decisions"][0]["recommended_action"], "use_as_reviewed_speaker_hint_or_enrollment_candidate")
         self.assertEqual(report["decisions"][1]["recommended_action"], "do_not_use_for_speaker_truth")
         self.assertEqual(len(report["clusters"]), 2)
+
+    def test_materialize_anchor_review_decisions_writes_hints_and_enrollment(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            decision_report = root / "decisions.json"
+            decision_report.write_text(
+                json.dumps(
+                    {
+                        "passed": True,
+                        "human_reviewed": True,
+                        "pending_count": 0,
+                        "blockers": [],
+                        "decisions": [
+                            {
+                                "index": 1,
+                                "status": "approved",
+                                "approved": True,
+                                "speaker": "Daniel",
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 3.5,
+                                "duration": 2.5,
+                                "text": "Daniel sample",
+                                "confidence": "low",
+                                "clip_path": "clips/daniel.mp3",
+                                "reviewer_note": "clear Daniel",
+                                "routeable": True,
+                                "enrollment_candidate": True,
+                            },
+                            {
+                                "index": 2,
+                                "status": "rejected",
+                                "approved": False,
+                                "speaker": "Unknown office speaker",
+                                "routeable": False,
+                                "enrollment_candidate": False,
+                            },
+                        ],
+                    }
+                )
+            )
+
+            result = materialize_anchor_review_decisions(decision_report)
+            hints = json.loads(result.hint_path.read_text())
+            enrollment = json.loads(result.enrollment_path.read_text())
+            rerun = json.loads(result.rerun_plan_path.read_text())
+
+        self.assertTrue(result.passed)
+        self.assertEqual(result.routeable_count, 1)
+        self.assertEqual(result.enrollment_speaker_count, 1)
+        self.assertEqual(hints["hints"][0]["speaker"], "Daniel")
+        self.assertEqual(hints["hints"][0]["recording_id"], "rec-1")
+        self.assertEqual(enrollment["speakers"][0]["slug"], "daniel")
+        self.assertEqual(enrollment["speakers"][0]["sample_count"], 1)
+        self.assertEqual(enrollment["speakers"][0]["total_seconds"], 2.5)
+        self.assertTrue(rerun["passed"])
 
     def test_compile_anchor_review_corrections_exports_only_approved_rows(self):
         with tempfile.TemporaryDirectory() as tmp:

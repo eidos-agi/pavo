@@ -28,6 +28,7 @@ from .review import (
     export_anchor_review_decisions,
     gate_anchor_review,
     import_anchor_review_sheet,
+    materialize_anchor_review_decisions,
     serve_anchor_review_bundle,
     status_anchor_review,
     summarize_anchor_review_sheet,
@@ -182,6 +183,9 @@ def build_parser() -> argparse.ArgumentParser:
     review_anchors_decisions = review_anchors_sub.add_parser("decisions", help="Export reviewed row decisions for cluster routing/enrollment")
     review_anchors_decisions.add_argument("review_sheet", type=Path)
     review_anchors_decisions.add_argument("--out", type=Path, help="Decision report JSON path")
+    review_anchors_materialize = review_anchors_sub.add_parser("materialize-decisions", help="Turn a decision report into reviewed speaker hint/enrollment artifacts")
+    review_anchors_materialize.add_argument("decision_report", type=Path)
+    review_anchors_materialize.add_argument("--out-dir", type=Path, help="Output artifact directory")
 
     config = subparsers.add_parser("config", help="Inspect local Pavo config")
     config_sub = config.add_subparsers(dest="config_command", required=True)
@@ -612,6 +616,17 @@ def main(argv: list[str] | None = None) -> int:
                 if result.blockers:
                     print("blockers: " + "; ".join(result.blockers))
                 print(f"report: {result.report_path}")
+                return 0 if result.passed else 2
+            if args.review_anchors_command == "materialize-decisions":
+                result = materialize_anchor_review_decisions(args.decision_report, out_dir=args.out_dir)
+                print(f"passed: {str(result.passed).lower()}")
+                print(f"routeable_count: {result.routeable_count}")
+                print(f"enrollment_speaker_count: {result.enrollment_speaker_count}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+                print(f"speaker_hints: {result.hint_path}")
+                print(f"speaker_enrollment: {result.enrollment_path}")
+                print(f"rerun_plan: {result.rerun_plan_path}")
                 return 0 if result.passed else 2
 
     if args.command == "config":
