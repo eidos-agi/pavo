@@ -32,10 +32,12 @@ from .review import (
     create_cluster_question_bundle,
     create_cluster_question_plan,
     compile_anchor_review_corrections,
+    export_cluster_question_decisions,
     export_anchor_review_decisions,
     gate_anchor_review,
     import_anchor_review_sheet,
     materialize_anchor_review_decisions,
+    materialize_cluster_question_decisions,
     serve_anchor_review_bundle,
     status_anchor_review,
     summarize_anchor_review_sheet,
@@ -175,6 +177,12 @@ def build_parser() -> argparse.ArgumentParser:
     review_clusters_bundle.add_argument("--batch-root", type=Path, help="Batch root for resolving source audio; defaults to question plan batch_root")
     review_clusters_bundle.add_argument("--out-dir", type=Path, help="Bundle output directory")
     review_clusters_bundle.add_argument("--clip-padding", type=float, default=0.25)
+    review_clusters_decisions = review_clusters_sub.add_parser("decisions", help="Export reviewed cluster-question decisions")
+    review_clusters_decisions.add_argument("review_sheet", type=Path)
+    review_clusters_decisions.add_argument("--out", type=Path, help="Decision report JSON path")
+    review_clusters_materialize = review_clusters_sub.add_parser("materialize-decisions", help="Materialize cluster question decisions into constraints and hints")
+    review_clusters_materialize.add_argument("decision_report", type=Path)
+    review_clusters_materialize.add_argument("--out-dir", type=Path, help="Output artifact directory")
     review_anchors_init = review_anchors_sub.add_parser("init", help="Create a pending review sheet from a clip packet")
     review_anchors_init.add_argument("clip_packet", type=Path)
     review_anchors_init.add_argument("--out", type=Path, help="Review sheet JSON path")
@@ -585,6 +593,27 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"copied_clip_count: {result.copied_clip_count}")
                 print(f"missing_clip_count: {result.missing_clip_count}")
                 return 0 if result.candidate_count and result.missing_clip_count == 0 else 2
+            if args.review_clusters_command == "decisions":
+                result = export_cluster_question_decisions(args.review_sheet, out_path=args.out)
+                print(f"passed: {str(result.passed).lower()}")
+                print(f"candidate_count: {result.candidate_count}")
+                print(f"approved_count: {result.approved_count}")
+                print(f"rejected_count: {result.rejected_count}")
+                print(f"pending_count: {result.pending_count}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+                print(f"report: {result.report_path}")
+                return 0 if result.passed else 2
+            if args.review_clusters_command == "materialize-decisions":
+                result = materialize_cluster_question_decisions(args.decision_report, out_dir=args.out_dir)
+                print(f"passed: {str(result.passed).lower()}")
+                print(f"constraints_count: {result.constraints_count}")
+                print(f"hint_count: {result.hint_count}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+                print(f"constraints: {result.constraints_path}")
+                print(f"reviewed_hints: {result.reviewed_hints_path}")
+                return 0 if result.passed else 2
         if args.review_command == "anchors":
             if args.review_anchors_command == "init":
                 result = create_anchor_review_sheet(args.clip_packet, out_path=args.out)

@@ -14,10 +14,12 @@ from pavo.review import (
     create_cluster_question_plan,
     compile_anchor_review_corrections,
     create_anchor_review_sheet,
+    export_cluster_question_decisions,
     export_anchor_review_decisions,
     gate_anchor_review,
     import_anchor_review_sheet,
     materialize_anchor_review_decisions,
+    materialize_cluster_question_decisions,
     parse_plain_english_review,
     save_anchor_review_sheet_payload,
     status_anchor_review,
@@ -605,6 +607,97 @@ class ReviewTests(unittest.TestCase):
             self.assertTrue(result.review_page_path.exists())
             self.assertEqual(sheet["rows"][0]["case"], "S1 / low_coverage_targeted_review")
             self.assertTrue(verification.passed)
+
+    def test_cluster_question_decisions_fail_closed_when_pending(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sheet = root / "cluster-review-sheet.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "pending",
+                                "approved": False,
+                                "target_speaker_label": "Daniel",
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 2.0,
+                                "cluster_question": {"cluster_id": "S1", "dominant_speaker": "Daniel"},
+                            }
+                        ]
+                    }
+                )
+            )
+
+            result = export_cluster_question_decisions(sheet)
+            materialized = materialize_cluster_question_decisions(result.report_path)
+
+        self.assertFalse(result.passed)
+        self.assertEqual(result.pending_count, 1)
+        self.assertFalse(materialized.passed)
+        self.assertIn("cluster question rows are still pending", "; ".join(materialized.blockers))
+
+    def test_materialize_cluster_question_decisions_writes_constraints_and_hints(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sheet = root / "cluster-review-sheet.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "approved",
+                                "approved": True,
+                                "target_speaker_label": "Daniel",
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 2.0,
+                                "duration": 1.0,
+                                "text": "Daniel sample",
+                                "clip_path": "clips/one.mp3",
+                                "reviewer_note": "supports Daniel",
+                                "cluster_question": {
+                                    "cluster_id": "S1",
+                                    "dominant_speaker": "Daniel",
+                                    "question": "Can S1 be Daniel?",
+                                },
+                            },
+                            {
+                                "index": 2,
+                                "status": "rejected",
+                                "approved": False,
+                                "target_speaker_label": "Alex",
+                                "recording_id": "rec-2",
+                                "start": 3.0,
+                                "end": 4.0,
+                                "clip_path": "clips/two.mp3",
+                                "reviewer_note": "not Alex",
+                                "cluster_question": {
+                                    "cluster_id": "S2",
+                                    "dominant_speaker": "Alex",
+                                    "question": "Can S2 be Alex?",
+                                },
+                            },
+                        ]
+                    }
+                )
+            )
+
+            result = export_cluster_question_decisions(sheet)
+            materialized = materialize_cluster_question_decisions(result.report_path)
+            constraints = json.loads(materialized.constraints_path.read_text())
+            hints = json.loads(materialized.reviewed_hints_path.read_text())
+
+        self.assertTrue(result.passed)
+        self.assertTrue(materialized.passed)
+        self.assertEqual(materialized.constraints_count, 2)
+        self.assertEqual(materialized.hint_count, 1)
+        self.assertEqual(constraints["constraints"][0]["type"], "must_link")
+        self.assertEqual(constraints["constraints"][1]["type"], "cannot_link")
+        self.assertEqual(hints["hints"][0]["speaker"], "Daniel")
 
     def test_materialize_anchor_review_decisions_writes_hints_and_enrollment(self):
         with tempfile.TemporaryDirectory() as tmp:

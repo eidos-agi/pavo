@@ -200,6 +200,30 @@ class ClusterQuestionBundleResult:
 
 
 @dataclass(frozen=True)
+class ClusterQuestionDecisionResult:
+    review_sheet_path: Path
+    report_path: Path
+    passed: bool
+    candidate_count: int
+    approved_count: int
+    rejected_count: int
+    pending_count: int
+    blockers: list[str]
+
+
+@dataclass(frozen=True)
+class ClusterQuestionMaterializeResult:
+    decision_report_path: Path
+    out_dir: Path
+    passed: bool
+    constraints_path: Path
+    reviewed_hints_path: Path
+    constraints_count: int
+    hint_count: int
+    blockers: list[str]
+
+
+@dataclass(frozen=True)
 class AnchorReviewGateResult:
     review_sheet_path: Path
     passed: bool
@@ -870,6 +894,106 @@ def create_cluster_question_bundle(
         candidate_count=len(rows),
         copied_clip_count=copied,
         missing_clip_count=missing,
+    )
+
+
+def export_cluster_question_decisions(
+    review_sheet_path: Path | str,
+    *,
+    out_path: Path | str | None = None,
+) -> ClusterQuestionDecisionResult:
+    sheet_path = Path(review_sheet_path)
+    sheet = json.loads(sheet_path.read_text())
+    rows = sheet.get("rows") or []
+    decisions = [_cluster_question_decision_row(row) for row in rows]
+    approved = [row for row in decisions if row["status"] == "approved"]
+    rejected = [row for row in decisions if row["status"] == "rejected"]
+    pending = [row for row in decisions if row["status"] == "pending"]
+    blockers = []
+    if pending:
+        blockers.append(f"{len(pending)} cluster question rows are still pending")
+    if not approved and not rejected:
+        blockers.append("no cluster question rows have been reviewed")
+    report = {
+        "passed": bool(decisions and not pending and (approved or rejected)),
+        "human_reviewed": bool(decisions and not pending),
+        "review_sheet": str(sheet_path),
+        "review_title": sheet.get("review_title"),
+        "candidate_count": len(decisions),
+        "approved_count": len(approved),
+        "rejected_count": len(rejected),
+        "pending_count": len(pending),
+        "blockers": blockers,
+        "decisions": decisions,
+        "next_required_proof": "Materialize reviewed cluster decisions into constraints, rerun Pavo brief, and compare review pressure.",
+    }
+    report_path = Path(out_path) if out_path else sheet_path.with_name(sheet_path.stem.replace("-sheet", "-decisions") + ".json")
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    return ClusterQuestionDecisionResult(
+        review_sheet_path=sheet_path,
+        report_path=report_path,
+        passed=bool(report["passed"]),
+        candidate_count=len(decisions),
+        approved_count=len(approved),
+        rejected_count=len(rejected),
+        pending_count=len(pending),
+        blockers=blockers,
+    )
+
+
+def materialize_cluster_question_decisions(
+    decision_report_path: Path | str,
+    *,
+    out_dir: Path | str | None = None,
+) -> ClusterQuestionMaterializeResult:
+    report_path = Path(decision_report_path)
+    report = json.loads(report_path.read_text())
+    target_dir = Path(out_dir) if out_dir else report_path.with_name("pavo-cluster-question-artifacts")
+    target_dir.mkdir(parents=True, exist_ok=True)
+    blockers = list(report.get("blockers") or [])
+    decisions = report.get("decisions") or []
+    if report.get("pending_count"):
+        blockers.append(f"{report.get('pending_count')} cluster question rows are still pending")
+    approved = [row for row in decisions if row.get("status") == "approved"]
+    rejected = [row for row in decisions if row.get("status") == "rejected"]
+    constraints = [_cluster_constraint_from_decision(row, kind="must_link") for row in approved]
+    constraints.extend(_cluster_constraint_from_decision(row, kind="cannot_link") for row in rejected)
+    constraints = [row for row in constraints if row]
+    hints = [_cluster_hint_from_decision(row) for row in approved]
+    hints = [row for row in hints if row]
+    if not constraints:
+        blockers.append("no reviewed cluster constraints were materialized")
+    constraints_path = target_dir / "pavo-cluster-constraints.json"
+    hints_path = target_dir / "pavo-cluster-reviewed-hints.json"
+    constraints_payload = {
+        "passed": bool(constraints and not blockers),
+        "source_decision_report": str(report_path),
+        "created_at": _now_iso(),
+        "constraint_count": len(constraints),
+        "constraints": constraints,
+        "blockers": list(dict.fromkeys(blockers)),
+        "privacy": "Reviewed constraints are routing evidence; do not publish raw audio or voiceprints outside Pavo.",
+    }
+    hints_payload = {
+        "passed": bool(hints and not blockers),
+        "source_decision_report": str(report_path),
+        "created_at": _now_iso(),
+        "hint_count": len(hints),
+        "hints": hints,
+        "privacy": "Reviewed cluster hints are routing evidence; do not publish raw audio or voiceprints outside Pavo.",
+    }
+    constraints_path.write_text(json.dumps(constraints_payload, indent=2, sort_keys=True) + "\n")
+    hints_path.write_text(json.dumps(hints_payload, indent=2, sort_keys=True) + "\n")
+    return ClusterQuestionMaterializeResult(
+        decision_report_path=report_path,
+        out_dir=target_dir,
+        passed=bool(constraints and not blockers),
+        constraints_path=constraints_path,
+        reviewed_hints_path=hints_path,
+        constraints_count=len(constraints),
+        hint_count=len(hints),
+        blockers=list(dict.fromkeys(blockers)),
     )
 
 
@@ -2787,6 +2911,75 @@ def _extract_review_audio_clip(ffmpeg: str, source_audio: Path, clip_path: Path,
             return wav_path
         return None
     return clip_path if clip_path.exists() and clip_path.stat().st_size > 0 else None
+
+
+def _cluster_question_decision_row(row: dict[str, Any]) -> dict[str, Any]:
+    status = str(row.get("status") or "pending")
+    question = row.get("cluster_question") if isinstance(row.get("cluster_question"), dict) else {}
+    sample = row.get("cluster_sample") if isinstance(row.get("cluster_sample"), dict) else {}
+    approved = status == "approved" and row.get("approved") is True
+    return {
+        "index": row.get("index"),
+        "status": status,
+        "approved": approved,
+        "case": row.get("case"),
+        "cluster_id": question.get("cluster_id"),
+        "cluster_status": question.get("status"),
+        "question": question.get("question"),
+        "suggested_decision": question.get("suggested_decision"),
+        "stop_condition": question.get("stop_condition"),
+        "target_speaker_label": row.get("target_speaker_label"),
+        "target_speaker_name": row.get("target_speaker_name"),
+        "dominant_speaker": question.get("dominant_speaker"),
+        "candidate_name": question.get("candidate_name"),
+        "recording_id": row.get("recording_id"),
+        "start": row.get("start"),
+        "end": row.get("end"),
+        "duration": row.get("duration"),
+        "text": row.get("text"),
+        "clip_path": row.get("clip_path"),
+        "reviewer_note": row.get("reviewer_note"),
+        "review_parse": row.get("review_parse") if isinstance(row.get("review_parse"), dict) else {},
+        "sample": sample,
+        "safe_to_materialize": status in {"approved", "rejected"},
+    }
+
+
+def _cluster_constraint_from_decision(decision: dict[str, Any], *, kind: str) -> dict[str, Any] | None:
+    cluster_id = decision.get("cluster_id")
+    speaker = decision.get("dominant_speaker") or decision.get("target_speaker_label") or decision.get("candidate_name")
+    if not cluster_id or not speaker:
+        return None
+    return {
+        "type": kind,
+        "cluster_id": cluster_id,
+        "speaker": speaker,
+        "recording_id": decision.get("recording_id"),
+        "start": decision.get("start"),
+        "end": decision.get("end"),
+        "clip_path": decision.get("clip_path"),
+        "reviewer_note": decision.get("reviewer_note"),
+        "question": decision.get("question"),
+        "source_decision_index": decision.get("index"),
+    }
+
+
+def _cluster_hint_from_decision(decision: dict[str, Any]) -> dict[str, Any] | None:
+    speaker = decision.get("dominant_speaker") or decision.get("target_speaker_label") or decision.get("candidate_name")
+    if not speaker or _is_unknown_review_speaker(speaker):
+        return None
+    return {
+        "speaker": speaker,
+        "cluster_id": decision.get("cluster_id"),
+        "recording_id": decision.get("recording_id"),
+        "start": decision.get("start"),
+        "end": decision.get("end"),
+        "duration": decision.get("duration"),
+        "text": decision.get("text"),
+        "clip_path": decision.get("clip_path"),
+        "reviewer_note": decision.get("reviewer_note"),
+        "confidence": "manual_confirmed_cluster_question",
+    }
 
 
 def _review_context_summary(neighbors: list[dict[str, Any]]) -> str:
