@@ -2508,8 +2508,16 @@ def write_batch_review_pack(
     review_packet = proof_report.get("review_packet") if isinstance(proof_report.get("review_packet"), dict) else {}
     write_batch_decision_board(proof_path)
     write_batch_review_sprint(proof_path, out_dir=proof_path.parent)
-    write_batch_speaker_answer_sheet(proof_path, out_dir=proof_path.parent)
-    write_batch_speaker_calibration(proof_path, out_dir=proof_path.parent)
+    answer_sheet_result = write_batch_speaker_answer_sheet(proof_path, out_dir=proof_path.parent)
+    calibration_result = write_batch_speaker_calibration(proof_path, out_dir=proof_path.parent)
+    _write_batch_review_pack_cockpit(
+        proof_path,
+        proof_report=proof_report,
+        handoff=handoff,
+        target_dir=target_dir,
+        answer_sheet_result=answer_sheet_result,
+        calibration_result=calibration_result,
+    )
     artifacts_to_copy = _batch_review_pack_artifacts(proof_path, proof_report, handoff, review_packet)
     copied: dict[str, dict[str, Any]] = {}
     missing: list[dict[str, Any]] = []
@@ -2603,6 +2611,69 @@ def _review_pack_artifact_manifest_sha256(copied: dict[str, dict[str, Any]]) -> 
     return _handoff_artifact_manifest_sha256(entries)
 
 
+def _write_batch_review_pack_cockpit(
+    proof_path: Path,
+    *,
+    proof_report: dict[str, Any],
+    handoff: dict[str, Any],
+    target_dir: Path,
+    answer_sheet_result: BatchSpeakerAnswerSheetResult,
+    calibration_result: dict[str, Any],
+) -> Path:
+    enriched_handoff = enrich_operator_handoff_with_validation(handoff) if handoff else {}
+    validation = enriched_handoff.get("validation") if isinstance(enriched_handoff.get("validation"), dict) else {}
+    answer_rows, _fields = _read_tsv(answer_sheet_result.tsv_path)
+    first_decision = dict(answer_rows[0]) if answer_rows else None
+    pending_decision_count = _optional_int(validation.get("pending_decision_count"))
+    if pending_decision_count is None:
+        pending_decision_count = len(answer_rows)
+    pending_clip_count = _optional_int(validation.get("pending_count"))
+    if pending_clip_count is None:
+        pending_clip_count = sum(len(str(row.get("clip_paths") or "").split(";")) for row in answer_rows)
+    target = proof_path.with_name("pavo-batch-review-cockpit.html")
+    checks = [
+        _check("machine_ready", bool(proof_report.get("passed")), str(proof_report.get("passed"))),
+        _check("speaker_answer_sheet_exists", answer_sheet_result.tsv_path.exists(), str(answer_sheet_result.tsv_path)),
+        _check("speaker_calibration_exists", Path(str(calibration_result.get("tsv_path") or "")).exists(), str(calibration_result.get("tsv_path") or "")),
+        _check("review_pack_target_named", target_dir.name != "", str(target_dir)),
+        _check("human_gate_is_explicit", True, "complete" if proof_report.get("complete") else "pending"),
+    ]
+    blockers = [f"{check['name']}: {check['detail']}" for check in checks if not check.get("passed")]
+    payload = {
+        "generated_at": datetime.now(UTC).isoformat(),
+        "proof_report_path": str(proof_path),
+        "state": "complete" if proof_report.get("complete") else "machine_ready_human_review_pending",
+        "passed": not blockers,
+        "complete": bool(proof_report.get("complete")),
+        "machine_ready": bool(proof_report.get("passed")),
+        "human_gate": "complete" if proof_report.get("complete") else "pending",
+        "pending_decision_count": pending_decision_count,
+        "pending_clip_count": pending_clip_count,
+        "estimated_minutes": None,
+        "first_decision": first_decision,
+        "artifacts": {
+            "decision_board": str(proof_path.with_name("pavo-batch-proof.decision-board.html")),
+            "review_sprint_markdown": str(proof_path.with_name("pavo-batch-review-sprint.md")),
+            "speaker_answer_sheet_markdown": str(answer_sheet_result.markdown_path),
+            "speaker_answer_sheet_tsv": str(answer_sheet_result.tsv_path),
+            "speaker_calibration_markdown": str(calibration_result.get("markdown_path") or ""),
+            "speaker_calibration_tsv": str(calibration_result.get("tsv_path") or ""),
+            "review_pack": str(target_dir),
+            "review_pack_zip": str(target_dir.with_suffix(".zip")),
+        },
+        "commands": {
+            "review_now": f"pavo batch review-now {shlex.quote(str(proof_path))}",
+            "review_cockpit": f"pavo batch review-cockpit {shlex.quote(str(proof_path))}",
+            "finalize_board_audit": _batch_finalize_board_audit_command(proof_path, enriched_handoff),
+        },
+        "checks": checks,
+        "blockers": blockers,
+        "safety_boundary": "This cockpit proves the operator page is present and wired. It does not approve speaker identity.",
+    }
+    target.write_text(_render_batch_review_cockpit_html(payload), encoding="utf-8")
+    return target
+
+
 def verify_batch_review_pack(
     proof_report_path: Path | str,
     *,
@@ -2625,8 +2696,10 @@ def verify_batch_review_pack(
         _check("raw_audio_copied_false", manifest.get("raw_audio_copied") is False, str(manifest.get("raw_audio_copied"))),
         _check("readme_has_finalize_board_audit", "pavo batch finalize-board-audit" in readme_text, "finalize-board-audit"),
         _check("readme_has_readiness", "pavo batch readiness" in readme_text, "readiness"),
+        _check("readme_has_review_cockpit", "pavo batch review-cockpit" in readme_text, "review cockpit"),
         _check("readme_has_speaker_calibration", "pavo batch speaker-calibration" in readme_text, "speaker calibration"),
         _check("readme_has_safety_boundary", "excludes raw audio" in readme_text, "raw-audio boundary"),
+        _check("has_review_cockpit_html", "review_cockpit_html" in artifacts, "review_cockpit_html"),
         _check("has_speaker_calibration_json", "speaker_calibration_json" in artifacts, "speaker_calibration_json"),
         _check("has_speaker_calibration_markdown", "speaker_calibration_markdown" in artifacts, "speaker_calibration_markdown"),
         _check("has_speaker_calibration_tsv", "speaker_calibration_tsv" in artifacts, "speaker_calibration_tsv"),
@@ -4201,6 +4274,7 @@ def _batch_review_pack_artifacts(
         "speaker_calibration_json": proof_path.with_name("pavo-batch-speaker-calibration.json"),
         "speaker_calibration_markdown": proof_path.with_name("pavo-batch-speaker-calibration.md"),
         "speaker_calibration_tsv": proof_path.with_name("pavo-batch-speaker-calibration.tsv"),
+        "review_cockpit_html": proof_path.with_name("pavo-batch-review-cockpit.html"),
         "proof_review_checklist_markdown": _path_from_report(handoff.get("proof_review_checklist_markdown")),
         "proof_review_validation_json": validation_report,
         "cluster_review_page_html": _path_from_report(review_packet.get("review_page")),
@@ -4242,6 +4316,8 @@ def _render_batch_review_pack_readme(manifest: dict[str, Any]) -> str:
         f"--decision-slate-out {shlex.quote(reviewed_decision_slate)}"
     )
     readiness_command = f"pavo batch readiness {shlex.quote(proof_report)}"
+    cockpit_command = f"pavo batch review-cockpit {shlex.quote(proof_report)}"
+    verify_cockpit_command = f"pavo batch verify-review-cockpit {shlex.quote(proof_report)}"
     calibration_command = f"pavo batch speaker-calibration {shlex.quote(proof_report)}"
     agreement_command = "pavo batch score-speaker-agreement pavo-batch-speaker-calibration.tsv pavo-batch-speaker-calibration.tsv"
     lines = [
@@ -4257,7 +4333,8 @@ def _render_batch_review_pack_readme(manifest: dict[str, Any]) -> str:
         "",
         "## What To Open",
         "",
-        "- Start with the artifact manifest entry named `proof_decision_board_html` for the human speaker decisions.",
+        "- Start with the artifact manifest entry named `review_cockpit_html` for the one-page operator cockpit.",
+        "- Use the artifact manifest entry named `proof_decision_board_html` for the human speaker decisions.",
         "- Use the entry named `proof_review_checklist_markdown` as the command checklist.",
         "- Inspect `proof_json` and `proof_review_validation_json` when a gate fails.",
         "",
@@ -4273,7 +4350,7 @@ def _render_batch_review_pack_readme(manifest: dict[str, Any]) -> str:
         "",
         "Run readiness before and after review to prove whether this pack is machine-clean, human-pending, or complete. After reviewing the board, download `pavo-batch-proof.decision-board.audit.json`, place it beside this README or run from your download directory, then use the one-command finalize path. The lower-level import command is included as a fallback.",
         "",
-        f"```bash\n{readiness_command}\n{calibration_command}\n{audit_finalize_command}\n{readiness_command}\n\n# Optional second-listener agreement scoring after calibration TSV is filled:\n{agreement_command}\n\n# Fallback/manual path:\n{audit_import_command}\n{handoff.get('validate_command')}\n{handoff.get('finish_command')}\n{handoff.get('strict_proof_command')}\n```",
+        f"```bash\n{readiness_command}\n{cockpit_command}\n{verify_cockpit_command}\n{calibration_command}\n{audit_finalize_command}\n{readiness_command}\n\n# Optional second-listener agreement scoring after calibration TSV is filled:\n{agreement_command}\n\n# Fallback/manual path:\n{audit_import_command}\n{handoff.get('validate_command')}\n{handoff.get('finish_command')}\n{handoff.get('strict_proof_command')}\n```",
         "",
         "## Safety Boundary",
         "",

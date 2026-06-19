@@ -1086,6 +1086,7 @@ def main(argv: list[str] | None = None) -> int:
                 pack_result = write_batch_review_pack(args.proof_report, out_dir=args.pack_dir)
                 sprint_verification = verify_batch_review_sprint(args.proof_report)
                 answer_sheet_verification = verify_batch_speaker_answer_sheet(args.proof_report)
+                cockpit_verification = verify_batch_review_cockpit(args.proof_report)
                 readiness = summarize_batch_readiness(args.proof_report, pack_dir=args.pack_dir)
             except (OSError, json.JSONDecodeError, ValueError) as exc:
                 print(str(exc), file=sys.stderr)
@@ -1117,10 +1118,12 @@ def main(argv: list[str] | None = None) -> int:
                 "review_pack_written": pack_result.as_report(),
                 "review_sprint_verification": sprint_verification.as_report(),
                 "speaker_answer_sheet_verification": answer_sheet_verification.as_report(),
+                "review_cockpit_verification": cockpit_verification,
                 "review_paths": review_paths,
+                "review_cockpit_path": cockpit_verification.get("cockpit_path"),
                 "opened": opened,
                 "next_action": readiness.next_action,
-                "blockers": readiness.blockers + sprint_verification.blockers + answer_sheet_verification.blockers,
+                "blockers": readiness.blockers + sprint_verification.blockers + answer_sheet_verification.blockers + cockpit_verification.get("blockers", []),
             }
             if args.json:
                 print(json.dumps(report, indent=2, sort_keys=True))
@@ -1137,6 +1140,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"review_export_ready: {str(bool(readiness.review_completion.get('export_ready'))).lower()}")
                 print(f"missing_reason_decision_count: {readiness.review_completion.get('missing_reason_decision_count')}")
                 print(f"open_review_sprint: {review_paths['open_review_sprint']}")
+                print(f"open_review_cockpit: {cockpit_verification.get('cockpit_path')}")
                 print(f"open_decision_board: {review_paths['open_decision_board']}")
                 print(f"audit_json_expected_path: {review_paths['audit_json_expected_path']}")
                 print(f"after_review: {review_paths['after_review']}")
@@ -1151,6 +1155,7 @@ def main(argv: list[str] | None = None) -> int:
                 and readiness.review_pack_ready
                 and sprint_verification.passed
                 and answer_sheet_verification.passed
+                and cockpit_verification.get("passed")
             ):
                 return 3
             return 2

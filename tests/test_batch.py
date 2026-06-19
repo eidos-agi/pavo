@@ -710,6 +710,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("speaker_calibration_json", artifact_names)
         self.assertIn("speaker_calibration_markdown", artifact_names)
         self.assertIn("speaker_calibration_tsv", artifact_names)
+        self.assertIn("review_cockpit_html", artifact_names)
         self.assertIn("proof_review_checklist_markdown", artifact_names)
         self.assertIn("review_pack_manifest", artifact_names)
         self.assertIn("review_pack_readme", artifact_names)
@@ -718,6 +719,8 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("pavo batch apply-decision-board-audit", readme)
         self.assertIn("pavo batch finalize-board-audit", readme)
         self.assertIn("pavo batch readiness", readme)
+        self.assertIn("pavo batch review-cockpit", readme)
+        self.assertIn("pavo batch verify-review-cockpit", readme)
         self.assertIn("pavo batch speaker-calibration", readme)
         self.assertIn("pavo batch score-speaker-agreement", readme)
         self.assertIn("pavo-batch-proof.decision-board.audit.json", readme)
@@ -1126,6 +1129,8 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("missing_reason_decision_count: 0", text)
         self.assertIn("open_review_sprint:", text)
         self.assertIn("pavo-batch-review-sprint.md", text)
+        self.assertIn("open_review_cockpit:", text)
+        self.assertIn("pavo-batch-review-cockpit.html", text)
         self.assertIn("open_decision_board:", text)
         self.assertIn("pavo-batch-proof.decision-board.html", text)
         self.assertIn("audit_json_expected_path:", text)
@@ -1179,6 +1184,8 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("finalize-board-audit", report["review_paths"]["after_review"])
         self.assertFalse(report["opened"])
         self.assertFalse(report["blockers"])
+        self.assertTrue(report["review_cockpit_verification"]["passed"])
+        self.assertTrue(report["review_cockpit_path"].endswith("pavo-batch-review-cockpit.html"))
 
     def test_batch_verify_review_pack_cli_passes_for_fresh_pack(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1210,6 +1217,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertRegex(report["artifact_manifest_sha256"], r"^[0-9a-f]{64}$")
         self.assertTrue(report["board_verification"]["passed"])
         self.assertTrue(report["sprint_verification"]["passed"])
+        self.assertTrue(any(check["name"] == "has_review_cockpit_html" and check["passed"] for check in report["checks"]))
 
     def test_batch_readiness_cli_reports_human_review_pending_when_surfaces_ready(self):
         with tempfile.TemporaryDirectory() as tmp:
