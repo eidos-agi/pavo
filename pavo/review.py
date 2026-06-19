@@ -448,6 +448,8 @@ class ClusterReviewStatusResult:
                         f"- Acoustic min similarity: {item.get('acoustic_min_pair_similarity') if item.get('acoustic_min_pair_similarity') is not None else 'unknown'}",
                         f"- Acoustic caution: {item.get('acoustic_caution') or 'Use audio evidence as a caution only; listen before deciding.'}",
                         f"- Acoustic recommendation: {item.get('acoustic_recommended_action') or 'Use this as reviewer evidence only.'}",
+                        f"- Review priority: `{item.get('review_priority_tier') or 'standard'}` / {item.get('review_priority_score') if item.get('review_priority_score') is not None else 'unknown'}",
+                        f"- Priority reason: {item.get('review_priority_reason') or 'Impact-ranked representative sample.'}",
                         f"- Recommended action: {item.get('recommended_action')}",
                         f"- Clip: `{item.get('clip_path')}`",
                         f"- Transcript excerpt: {transcript or 'None'}",
@@ -1962,6 +1964,7 @@ def status_cluster_review(
     acoustic_path = sheet_path.with_name("pavo-cluster-question-acoustic-evidence.json")
     acoustic = _load_optional_json(acoustic_path)
     next_review_plan = _attach_acoustic_evidence_to_next_review_plan(next_review_plan, acoustic)
+    next_review_plan = _rank_next_review_plan_with_ensemble(next_review_plan)
     forecast_path = sheet_path.with_name("pavo-cluster-review-forecast.json")
     forecast = _load_optional_json(forecast_path)
     decision_report_path = sheet_path.with_name(sheet_path.stem.replace("-sheet", "-decisions") + ".json")
@@ -2930,23 +2933,37 @@ def create_anchor_review_page(
           : `Approve: adds support; ${{approvalsNeeded - 1}} more matching sample(s) still needed.`;
         const rejectEffect = "Reject: early-stops this cluster as cannot-link and prevents unsafe identity propagation.";
         const terminalDecisionRule = "One contradiction is enough for cannot-link; confirmation requires approval quorum.";
+        const questionText = String(cluster.question || "").toLowerCase();
+        let riskPoints = 0;
+        const priorityReasons = [];
+        if (questionText.includes(" or ") || questionText.includes("what speaker")) {{
+          riskPoints += 15;
+          priorityReasons.push("ambiguous speaker question");
+        }}
+        const impactScore = Number(row.impact_score || 0);
+        const reviewPriorityScore = Math.round(impactScore * (1 + riskPoints / 100) * 10) / 10;
+        const reviewPriorityTier = riskPoints >= 25 ? "careful_listen" : riskPoints >= 10 ? "normal_listen" : "straightforward";
+        const reviewPriorityReason = `${{priorityReasons.length ? priorityReasons.join(", ") : "impact-ranked representative sample"}}; impact score ${{impactScore}}; risk boost ${{riskPoints}}%.`;
         plan.push({{
           clusterId: cluster.clusterId,
           targetSpeaker: cluster.targetSpeaker,
           rowIndex: row.index,
           impactRank: row.impact_rank || row.index,
-          impactScore: Number(row.impact_score || 0),
+          impactScore,
           expectedImpact: cluster.expectedImpact,
           text: row.text || "",
           question: cluster.question,
           closureRule,
           approveEffect,
           rejectEffect,
-          terminalDecisionRule
+          terminalDecisionRule,
+          reviewPriorityScore,
+          reviewPriorityTier,
+          reviewPriorityReason
         }});
       }});
       return plan.sort((left, right) => {{
-        const scoreDelta = Number(right.impactScore || 0) - Number(left.impactScore || 0);
+        const scoreDelta = Number(right.reviewPriorityScore || right.impactScore || 0) - Number(left.reviewPriorityScore || left.impactScore || 0);
         if (scoreDelta !== 0) return scoreDelta;
         return Number(left.impactRank || left.rowIndex || 0) - Number(right.impactRank || right.rowIndex || 0);
       }});
@@ -2969,6 +2986,7 @@ def create_anchor_review_page(
           <span>${{escapeHtml(item.approveEffect)}}</span>
           <span>${{escapeHtml(item.rejectEffect)}}</span>
           <span>${{escapeHtml(item.terminalDecisionRule)}}</span>
+          <span>Priority: ${{escapeHtml(item.reviewPriorityTier)}} / ${{escapeHtml(item.reviewPriorityScore)}} - ${{escapeHtml(item.reviewPriorityReason)}}</span>
           ${{text}}
         </div>`;
       }}).join("");
@@ -5461,6 +5479,71 @@ def _attach_acoustic_evidence_to_next_review_plan(
             }
         )
     return enriched
+
+
+def _rank_next_review_plan_with_ensemble(plan: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    enriched = []
+    for item in plan:
+        impact = float(item.get("impact_score") or 0.0)
+        risk_points = 0
+        reasons: list[str] = []
+        verdict = str(item.get("acoustic_verdict") or "")
+        if verdict == "listen_carefully_acoustic_drift":
+            risk_points += 30
+            reasons.append("acoustic drift")
+        elif verdict == "mixed_acoustic_shape":
+            risk_points += 15
+            reasons.append("mixed acoustic shape")
+        elif verdict == "insufficient_audio":
+            risk_points += 20
+            reasons.append("insufficient acoustic evidence")
+        elif verdict == "consistent_acoustic_shape":
+            reasons.append("consistent acoustic shape")
+        else:
+            risk_points += 10
+            reasons.append("missing acoustic evidence")
+
+        question = str(item.get("question") or "").lower()
+        if " or " in question or "what speaker" in question:
+            risk_points += 15
+            reasons.append("ambiguous speaker question")
+
+        min_similarity = item.get("acoustic_min_pair_similarity")
+        try:
+            min_similarity_value = float(min_similarity)
+        except (TypeError, ValueError):
+            min_similarity_value = None
+        if min_similarity_value is not None and min_similarity_value < 0.75:
+            risk_points += 20
+            reasons.append("low pair similarity")
+
+        priority_score = round(impact * (1.0 + (risk_points / 100.0)), 1)
+        if risk_points >= 45:
+            tier = "urgent_listen"
+        elif risk_points >= 25:
+            tier = "careful_listen"
+        elif risk_points >= 10:
+            tier = "normal_listen"
+        else:
+            tier = "straightforward"
+        reason = f"{', '.join(reasons)}; impact score {impact:g}; risk boost {risk_points}%."
+        enriched.append(
+            {
+                **item,
+                "review_priority_score": priority_score,
+                "review_priority_tier": tier,
+                "review_priority_risk_points": risk_points,
+                "review_priority_reason": reason,
+            }
+        )
+    return sorted(
+        enriched,
+        key=lambda item: (
+            -float(item.get("review_priority_score") or 0.0),
+            int(item.get("impact_rank") or item.get("row_index") or 0),
+            str(item.get("cluster_id") or ""),
+        ),
+    )
 
 
 def _bundle_clip_name(row: dict[str, Any], source: Path) -> str:

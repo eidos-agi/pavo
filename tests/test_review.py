@@ -33,6 +33,7 @@ from pavo.review import (
     status_anchor_review,
     summarize_anchor_review_sheet,
     verify_anchor_review_page,
+    _rank_next_review_plan_with_ensemble,
 )
 
 
@@ -736,6 +737,8 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("cannot-link", result.next_review_plan[0]["reject_effect"])
         self.assertIn("acoustic_verdict", result.next_review_plan[0])
         self.assertIn("acoustic_caution", result.next_review_plan[0])
+        self.assertIn("review_priority_score", result.next_review_plan[0])
+        self.assertIn("review_priority_reason", result.next_review_plan[0])
         self.assertEqual(result.review_effort["pending_reviews"], 1)
         self.assertEqual(result.review_effort["minimum_reviews"], 1)
         self.assertTrue(result.page_verified)
@@ -746,6 +749,8 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("Terminal decision rule:", markdown)
         self.assertIn("Acoustic verdict:", markdown)
         self.assertIn("Acoustic caution:", markdown)
+        self.assertIn("Review priority:", markdown)
+        self.assertIn("Priority reason:", markdown)
         self.assertIn("Transcript excerpt: Review me.", markdown)
         self.assertIn("Clip:", markdown)
 
@@ -1289,6 +1294,36 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(report["next_review_plan"][0]["row_index"], 2)
         self.assertEqual(report["next_review_plan"][0]["text"], "best sample")
         self.assertIn("early-stop", report["next_review_plan"][0]["closure_rule"])
+
+    def test_cluster_status_reranks_next_reviews_by_ensemble_priority(self):
+        plan = [
+            {
+                "cluster_id": "S1",
+                "row_index": 1,
+                "impact_rank": 1,
+                "impact_score": 100.0,
+                "question": "Can cluster S1 be confirmed as Daniel?",
+                "acoustic_verdict": "consistent_acoustic_shape",
+                "acoustic_min_pair_similarity": 0.95,
+            },
+            {
+                "cluster_id": "S2",
+                "row_index": 2,
+                "impact_rank": 2,
+                "impact_score": 90.0,
+                "question": "Does cluster S2 belong to Daniel or Alex?",
+                "acoustic_verdict": "listen_carefully_acoustic_drift",
+                "acoustic_min_pair_similarity": 0.7,
+            },
+        ]
+
+        ranked = _rank_next_review_plan_with_ensemble(plan)
+
+        self.assertEqual(ranked[0]["cluster_id"], "S2")
+        self.assertEqual(ranked[0]["review_priority_tier"], "urgent_listen")
+        self.assertGreater(ranked[0]["review_priority_score"], ranked[1]["review_priority_score"])
+        self.assertIn("acoustic drift", ranked[0]["review_priority_reason"])
+        self.assertIn("ambiguous speaker question", ranked[0]["review_priority_reason"])
 
     def test_cluster_question_impact_report_ranks_pending_clusters(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1929,6 +1964,9 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("approveEffect", html)
         self.assertIn("rejectEffect", html)
         self.assertIn("terminalDecisionRule", html)
+        self.assertIn("reviewPriorityScore", html)
+        self.assertIn("reviewPriorityReason", html)
+        self.assertIn("Priority:", html)
         self.assertIn('id="review-effort"', html)
         self.assertIn("renderReviewEffort", html)
         self.assertIn('id="completion-handoff"', html)
