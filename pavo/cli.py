@@ -25,6 +25,7 @@ from .batch import (
     verify_batch_decision_board,
     verify_batch_manifest,
     verify_batch_review_pack,
+    verify_batch_review_sprint,
     write_batch_decision_board,
     write_batch_review_pack,
     write_batch_review_sprint,
@@ -141,6 +142,14 @@ def build_parser() -> argparse.ArgumentParser:
     batch_review_sprint.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
     batch_review_sprint.add_argument("--out-dir", type=Path, help="Output directory; defaults beside the proof report")
     batch_review_sprint.add_argument("--json", action="store_true", help="Print machine-readable sprint report")
+    batch_verify_review_sprint = batch_sub.add_parser(
+        "verify-review-sprint",
+        help="Verify the review sprint packet has focus order, clip evidence, checkboxes, and finish commands",
+    )
+    batch_verify_review_sprint.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_verify_review_sprint.add_argument("--sprint-json", type=Path, help="Override pavo-batch-review-sprint.json path")
+    batch_verify_review_sprint.add_argument("--sprint-markdown", type=Path, help="Override pavo-batch-review-sprint.md path")
+    batch_verify_review_sprint.add_argument("--json", action="store_true", help="Print machine-readable verification report")
     batch_decision_board = batch_sub.add_parser(
         "decision-board",
         help="Write a browser-friendly board for grouped proof speaker decisions",
@@ -728,6 +737,27 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"pending_clip_count: {result.pending_clip_count}")
                 print(f"estimated_minutes: {result.estimated_minutes}")
             return 0
+        if args.batch_command == "verify-review-sprint":
+            try:
+                result = verify_batch_review_sprint(
+                    args.proof_report,
+                    json_path=args.sprint_json,
+                    markdown_path=args.sprint_markdown,
+                )
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+            else:
+                print(f"passed: {str(result.passed).lower()}")
+                print(f"json_path: {result.json_path}")
+                print(f"markdown_path: {result.markdown_path}")
+                print(f"pending_decision_count: {result.pending_decision_count}")
+                print(f"pending_clip_count: {result.pending_clip_count}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+            return 0 if result.passed else 3
         if args.batch_command == "decision-board":
             try:
                 result = write_batch_decision_board(args.proof_report, out_path=args.out)

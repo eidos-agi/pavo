@@ -547,6 +547,7 @@ class BatchReviewPackVerifyResult:
     blockers: list[str]
     artifact_manifest_sha256: str | None
     board_verification: dict[str, Any] | None
+    sprint_verification: dict[str, Any] | None
 
     def as_report(self) -> dict[str, Any]:
         return {
@@ -562,6 +563,7 @@ class BatchReviewPackVerifyResult:
             "blockers": self.blockers,
             "artifact_manifest_sha256": self.artifact_manifest_sha256,
             "board_verification": self.board_verification,
+            "sprint_verification": self.sprint_verification,
             "safety_boundary": "Review-pack verification proves the handoff package is complete and integrity-checked. It does not copy raw audio or approve speaker identity.",
         }
 
@@ -592,6 +594,31 @@ class BatchReviewSprintResult:
             "estimated_minutes": self.estimated_minutes,
             "payload": self.payload,
             "safety_boundary": "Review sprint packets guide human speaker review. They do not approve identity or copy raw audio.",
+        }
+
+
+@dataclass(frozen=True)
+class BatchReviewSprintVerifyResult:
+    proof_report_path: Path
+    json_path: Path
+    markdown_path: Path
+    passed: bool
+    pending_decision_count: int
+    pending_clip_count: int
+    checks: list[dict[str, Any]]
+    blockers: list[str]
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "proof_report_path": str(self.proof_report_path),
+            "json_path": str(self.json_path),
+            "markdown_path": str(self.markdown_path),
+            "passed": self.passed,
+            "pending_decision_count": self.pending_decision_count,
+            "pending_clip_count": self.pending_clip_count,
+            "checks": self.checks,
+            "blockers": self.blockers,
+            "safety_boundary": "Review-sprint verification proves the reviewer packet is complete and evidence-linked. It does not approve speaker identity.",
         }
 
 
@@ -2389,6 +2416,7 @@ def verify_batch_review_pack(
         )
     )
     board_verification: dict[str, Any] | None = None
+    sprint_verification: dict[str, Any] | None = None
     try:
         board = verify_batch_decision_board(proof_path)
         board_verification = board.as_report()
@@ -2396,6 +2424,13 @@ def verify_batch_review_pack(
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         board_verification = {"passed": False, "error": str(exc)}
         checks.append(_check("decision_board_verifies", False, str(exc)))
+    try:
+        sprint = verify_batch_review_sprint(proof_path)
+        sprint_verification = sprint.as_report()
+        checks.append(_check("review_sprint_verifies", sprint.passed, str(sprint.markdown_path)))
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        sprint_verification = {"passed": False, "error": str(exc)}
+        checks.append(_check("review_sprint_verifies", False, str(exc)))
     blockers = [f"{check['name']}: {check['detail']}" for check in checks if not check.get("passed")]
     return BatchReviewPackVerifyResult(
         proof_report_path=proof_path,
@@ -2410,6 +2445,7 @@ def verify_batch_review_pack(
         blockers=blockers,
         artifact_manifest_sha256=artifact_manifest_sha256,
         board_verification=board_verification,
+        sprint_verification=sprint_verification,
     )
 
 
@@ -2628,6 +2664,65 @@ def write_batch_review_sprint(
         pending_clip_count=int(sprint.get("pending_clip_count") or 0),
         estimated_minutes=float(sprint.get("estimated_minutes") or 0),
         payload=payload,
+    )
+
+
+def verify_batch_review_sprint(
+    proof_report_path: Path | str,
+    *,
+    json_path: Path | str | None = None,
+    markdown_path: Path | str | None = None,
+) -> BatchReviewSprintVerifyResult:
+    proof_path = Path(proof_report_path)
+    resolved_json = Path(json_path) if json_path else proof_path.with_name("pavo-batch-review-sprint.json")
+    resolved_markdown = Path(markdown_path) if markdown_path else proof_path.with_name("pavo-batch-review-sprint.md")
+    payload = json.loads(resolved_json.read_text()) if resolved_json.exists() else {}
+    markdown = resolved_markdown.read_text(encoding="utf-8") if resolved_markdown.exists() else ""
+    sprint = payload.get("review_sprint") if isinstance(payload.get("review_sprint"), dict) else {}
+    focus_order = sprint.get("focus_order") if isinstance(sprint.get("focus_order"), list) else []
+    pending_decision_count = _optional_int(sprint.get("pending_decision_count")) or 0
+    pending_clip_count = _optional_int(sprint.get("pending_clip_count")) or 0
+    clip_paths = [
+        str(path)
+        for item in focus_order
+        if isinstance(item, dict)
+        for path in item.get("clip_paths") or []
+    ]
+    transcript_count = sum(
+        len(item.get("transcript_samples") or [])
+        for item in focus_order
+        if isinstance(item, dict)
+    )
+    checks = [
+        _check("review_sprint_json_exists", resolved_json.exists() and resolved_json.is_file(), str(resolved_json)),
+        _check("review_sprint_markdown_exists", resolved_markdown.exists() and resolved_markdown.is_file(), str(resolved_markdown)),
+        _check("proof_report_matches", str(payload.get("proof_report_path") or "") == str(proof_path), str(payload.get("proof_report_path"))),
+        _check("has_focus_order", bool(focus_order) or pending_decision_count == 0, f"{len(focus_order)} focus item(s)"),
+        _check("pending_decision_count_matches_focus", pending_decision_count == len(focus_order), f"{pending_decision_count}/{len(focus_order)}"),
+        _check("pending_clip_count_matches_paths", pending_clip_count == len(clip_paths), f"{pending_clip_count}/{len(clip_paths)}"),
+        _check("has_transcript_samples", transcript_count >= pending_decision_count or pending_decision_count == 0, f"{transcript_count}/{pending_decision_count}"),
+        _check("markdown_has_listen_checklist", pending_decision_count == 0 or "Listen checklist" in markdown, "Listen checklist"),
+        _check("markdown_has_clip_checkboxes", "- [ ] Clip 1:" in markdown or pending_clip_count == 0, "clip checkboxes"),
+        _check(
+            "markdown_has_decision_checkboxes",
+            pending_decision_count == 0 or ("- [ ] Approved" in markdown and "- [ ] Rejected" in markdown),
+            "decision checkboxes",
+        ),
+        _check("markdown_has_finalize_command", "pavo batch finalize-board-audit" in markdown, "finalize command"),
+        _check("has_safety_boundary", "human owns the final identity decision" in str(payload.get("safety_boundary") or ""), "identity boundary"),
+    ]
+    for clip_path in clip_paths:
+        checks.append(_check(f"clip_exists:{Path(clip_path).name}", Path(clip_path).exists(), clip_path))
+    blockers = [f"{check['name']}: {check['detail']}" for check in checks if not check.get("passed")]
+    return BatchReviewSprintVerifyResult(
+        proof_report_path=proof_path,
+        json_path=resolved_json,
+        markdown_path=resolved_markdown,
+        passed=not blockers,
+        pending_decision_count=pending_decision_count,
+        pending_clip_count=pending_clip_count,
+        checks=checks,
+        blockers=blockers,
     )
 
 

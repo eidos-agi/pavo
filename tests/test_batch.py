@@ -34,6 +34,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("pavo batch verify-review-pack", readme)
         self.assertIn("pavo batch readiness", readme)
         self.assertIn("pavo batch review-sprint", readme)
+        self.assertIn("pavo batch verify-review-sprint", readme)
         self.assertIn("pavo batch finalize-reviewed-proof", readme)
         self.assertIn("stale-validation detection", readme)
         self.assertIn("it exits `0` only when all", readme)
@@ -649,6 +650,47 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("Listen to every supporting clip", sprint_markdown)
         self.assertIn("pavo batch finalize-board-audit", sprint_markdown)
 
+    def test_batch_verify_review_sprint_cli_passes_for_fresh_packet(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            main(["batch", "finalize-reviewed-proof", str(result.proof_report_path), "--json"])
+            main(["batch", "review-sprint", str(result.proof_report_path), "--json"])
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(["batch", "verify-review-sprint", str(result.proof_report_path), "--json"])
+
+            report = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(report["passed"])
+        self.assertEqual(report["pending_decision_count"], 1)
+        self.assertEqual(report["pending_clip_count"], 2)
+        self.assertIn("clip_exists", "\n".join(check["name"] for check in report["checks"]))
+        self.assertFalse(report["blockers"])
+
+    def test_batch_verify_review_sprint_cli_fails_when_markdown_loses_checklist(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            main(["batch", "finalize-reviewed-proof", str(result.proof_report_path), "--json"])
+            main(["batch", "review-sprint", str(result.proof_report_path), "--json"])
+            markdown_path = result.proof_report_path.with_name("pavo-batch-review-sprint.md")
+            markdown_path.write_text(markdown_path.read_text().replace("Listen checklist", "Listen removed"))
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(["batch", "verify-review-sprint", str(result.proof_report_path), "--json"])
+
+            report = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 3)
+        self.assertFalse(report["passed"])
+        self.assertIn("markdown_has_listen_checklist", "\n".join(report["blockers"]))
+
     def test_batch_verify_review_pack_cli_passes_for_fresh_pack(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -678,6 +720,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertGreaterEqual(report["artifact_count"], 10)
         self.assertRegex(report["artifact_manifest_sha256"], r"^[0-9a-f]{64}$")
         self.assertTrue(report["board_verification"]["passed"])
+        self.assertTrue(report["sprint_verification"]["passed"])
 
     def test_batch_readiness_cli_reports_human_review_pending_when_surfaces_ready(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1276,6 +1319,7 @@ class BatchDoctorTests(unittest.TestCase):
 
 def _write_processed_batch(root: Path, *, recording_ids: list[str]) -> None:
     root.mkdir(parents=True, exist_ok=True)
+    (root / "clip.mp3").write_bytes(b"fake review clip")
     for recording_id in recording_ids:
         directory = root / recording_id
         directory.mkdir()

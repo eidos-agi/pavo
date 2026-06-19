@@ -113,6 +113,7 @@ pavo batch review-pack /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch verify-review-pack /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch readiness /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch review-sprint /path/to/meeting-batch/pavo-batch-proof.json
+pavo batch verify-review-sprint /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch finalize-reviewed-proof /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --check-validation
 pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --strict-ready
@@ -217,6 +218,12 @@ Use `pavo batch review-sprint` to write `pavo-batch-review-sprint.json` and
 `pavo-batch-review-sprint.md`, a compact reviewer packet with the same sprint
 estimate, focus order, links, finish commands, and safety boundary. Review packs
 generate and include these sprint files automatically.
+
+Use `pavo batch verify-review-sprint` to prove the sprint packet is fit for
+handoff. It checks the packet JSON/Markdown exist, the proof report matches,
+the focus-order and clip counts agree, transcript samples are present, clip
+paths exist, checklist boxes are rendered, finish commands are included, and the
+identity safety boundary is present. Review-pack verification runs this gate too.
 
 Use `pavo batch finalize-reviewed-proof` when the proof slate has been reviewed.
 It validates the proof slate, materializes the cluster decisions, writes speaker
