@@ -2352,6 +2352,14 @@ def verify_batch_decision_board(
             "reviewCompletion" in html and "progressPercent" in html and "missingReasonCount" in html,
             "audit JSON includes review completion summary",
         ),
+        _check(
+            "has_audit_review_context",
+            "reviewContext" in html
+            and "decision_risk" in html
+            and "suggested_review_action" in html
+            and "evidence_hints" in html,
+            "audit JSON includes speaker review context",
+        ),
         _check("has_autosave", "localStorage" in html and "Autosaved locally" in html, "localStorage autosave"),
         _check("has_audit_events", "auditEvents" in html and "auditPayload" in html, "audit event export"),
         _check("has_finalize_board_audit_command", "pavo batch finalize-board-audit" in html, "finalize-board-audit command"),
@@ -3348,12 +3356,16 @@ def _render_batch_decision_board_html(
     supporting_count = sum(len(rows_by_group.get(str(row.get("decision_group") or ""), [])) for row in decisions)
     estimated_seconds = sum(_batch_decision_review_seconds(row, rows_by_group.get(str(row.get("decision_group") or ""), [])) for row in decisions)
     estimated_minutes = round(estimated_seconds / 60, 1) if estimated_seconds else 0
-    rows_json = json.dumps(decisions, sort_keys=True)
+    enriched_decisions = [
+        _batch_decision_with_review_context(row, rows_by_group.get(str(row.get("decision_group") or ""), []))
+        for row in decisions
+    ]
+    rows_json = json.dumps(enriched_decisions, sort_keys=True)
     reason_options_json = json.dumps(BATCH_SPEAKER_REVIEW_REASONS, sort_keys=True)
     storage_key = json.dumps(f"pavo-decision-board:{proof_report_path}:{decision_slate_path}")
     cards = "\n".join(
         _render_batch_decision_card(row, rows_by_group.get(str(row.get("decision_group") or ""), []))
-        for row in decisions
+        for row in enriched_decisions
     )
     decision_rubric_html = "\n".join(f"<li>{escape(rule)}</li>" for rule in BATCH_SPEAKER_DECISION_RUBRIC)
     return f"""<!doctype html>
@@ -3562,6 +3574,24 @@ pavo batch finalize-reviewed-proof {escape(str(proof_report_path))}</div>
         exportReady: pending === 0 && missingReasons === 0
       }};
     }}
+    function reviewContext() {{
+      return {{
+        strategy: "risk_then_priority_score",
+        contextVersion: 1,
+        rows: rows.map(row => ({{
+          decision_group: row.decision_group,
+          cluster_id: row.cluster_id,
+          speaker: row.speaker,
+          decision_shape: row.decision_shape,
+          decision_risk: row.decision_risk,
+          suggested_review_action: row.suggested_review_action,
+          evidence_hints: row.evidence_hints || [],
+          priority_score: row.priority_score,
+          acoustic_verdict: row.acoustic_verdict,
+          clip_count: row.clip_count
+        }}))
+      }};
+    }}
     function riskCompletion() {{
       const cards = Array.from(document.querySelectorAll("[data-group]"));
       let highPendingCount = 0;
@@ -3649,6 +3679,7 @@ pavo batch finalize-reviewed-proof {escape(str(proof_report_path))}</div>
         exportedAt: new Date().toISOString(),
         source,
         summary: reviewCompletion(),
+        reviewContext: reviewContext(),
         rows,
         auditEvents,
         safetyBoundary: "This audit records human review-board edits. It is not a voiceprint and does not prove identity by itself."
@@ -3761,6 +3792,19 @@ def _render_batch_decision_card(decision: dict[str, str], proof_rows: list[dict[
     {samples}
   </div>
 </article>"""
+
+
+def _batch_decision_with_review_context(
+    decision: dict[str, str],
+    proof_rows: list[dict[str, str]],
+) -> dict[str, Any]:
+    enriched: dict[str, Any] = dict(decision)
+    clip_count = _optional_int(decision.get("clip_count")) or len(proof_rows)
+    enriched["decision_shape"] = _batch_speaker_decision_shape(decision)
+    enriched["decision_risk"] = _batch_speaker_decision_risk(decision, clip_count=clip_count)
+    enriched["suggested_review_action"] = _batch_speaker_suggested_review_action(decision, clip_count=clip_count)
+    enriched["evidence_hints"] = _batch_speaker_evidence_hints(decision, clip_count=clip_count)
+    return enriched
 
 
 def _render_batch_decision_guidance(decision: dict[str, str], proof_rows: list[dict[str, str]]) -> str:
