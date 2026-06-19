@@ -170,6 +170,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(proof_report["state"], "machine_ready_human_review_pending")
         self.assertTrue(proof_report["proof_review_slate_path"].endswith("pavo-batch-proof.review-slate.tsv"))
         self.assertTrue(proof_report["review_packet"]["proof_review_slate_tsv"].endswith("pavo-batch-proof.review-slate.tsv"))
+        self.assertEqual(proof_report["review_packet"]["proof_slate_item_count"], 2)
         self.assertIn("pavo-batch-proof.review-slate.tsv", proof_report["review_packet"]["validate_proof_slate_command"])
         self.assertIn("pavo-batch-proof.review-slate.validation.json", proof_report["review_packet"]["validate_proof_slate_command"])
         self.assertIn("pavo-batch-proof.review-slate.tsv", proof_report["review_packet"]["finish_proof_slate_command"])
@@ -186,11 +187,14 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("Transcript: hello from the sample", proof_markdown)
         self.assertIn("Finish from proof slate:", proof_markdown)
         self.assertIn("## Fillable Review Slate", proof_markdown)
+        self.assertIn("This TSV includes 2 review-sheet row(s)", proof_markdown)
         self.assertIn("Edit `", proof_markdown)
         self.assertIn("row_index\tcluster_id\tdecision\tspeaker\tnote", proof_markdown)
         self.assertIn("1\tS1\tpending\tDaniel", proof_markdown)
+        self.assertIn("2\tS1\tpending\tDaniel", proof_markdown)
         self.assertIn("row_index\tcluster_id\tdecision\tspeaker\tnote", proof_review_slate)
         self.assertIn("1\tS1\tpending\tDaniel", proof_review_slate)
+        self.assertIn("2\tS1\tpending\tDaniel", proof_review_slate)
         self.assertTrue(proof_markdown_exists)
         self.assertTrue(proof_review_slate_exists)
 
@@ -306,7 +310,30 @@ def _write_processed_batch(root: Path, *, recording_ids: list[str]) -> None:
     bundle = root / "pavo-cluster-question-bundle"
     bundle.mkdir()
     (bundle / "index.html").write_text("<!doctype html><title>Review</title>\n")
-    (bundle / "pavo-cluster-question-review-sheet.json").write_text(json.dumps({"questions": []}))
+    (bundle / "pavo-cluster-question-review-sheet.json").write_text(
+        json.dumps(
+            {
+                "rows": [
+                    {
+                        "index": 1,
+                        "status": "pending",
+                        "target_speaker_label": "Daniel",
+                        "target_speaker_name": "Daniel",
+                        "text": "hello from the sample",
+                        "cluster_question": {"cluster_id": "S1", "candidate_name": "Daniel"},
+                    },
+                    {
+                        "index": 2,
+                        "status": "pending",
+                        "target_speaker_label": "Daniel",
+                        "target_speaker_name": "Daniel",
+                        "text": "second supporting sample",
+                        "cluster_question": {"cluster_id": "S1", "candidate_name": "Daniel"},
+                    },
+                ]
+            }
+        )
+    )
     (bundle / "pavo-cluster-question-acoustic-evidence.json").write_text(json.dumps({"clusters": []}))
     (bundle / "pavo-cluster-review-forecast.json").write_text(json.dumps({"risk_adjusted_segments": 0}))
     (bundle / "pavo-cluster-review-decision-slate.tsv").write_text("cluster_id\tdecision\n")

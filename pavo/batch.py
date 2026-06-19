@@ -257,6 +257,7 @@ class BatchProofResult:
             "",
         ]
         top_items = self.review_packet.get("top_items") or []
+        proof_slate_items = self.review_packet.get("proof_slate_items") or top_items
         if top_items:
             for item in top_items:
                 lines.extend(
@@ -284,12 +285,12 @@ class BatchProofResult:
                 "",
                 "## Fillable Review Slate",
                 "",
-                f"Edit `{self.proof_review_slate_path}`, change `decision` from `pending` to `approved` or `rejected`, adjust `speaker` if needed, then run the proof-slate validate and finish commands above.",
+                f"Edit `{self.proof_review_slate_path}`, change `decision` from `pending` to `approved` or `rejected`, adjust `speaker` if needed, then run the proof-slate validate and finish commands above. This TSV includes {len(proof_slate_items)} review-sheet row(s), not just the ranked summary cards.",
                 "",
                 "```tsv",
             ]
         )
-        lines.extend(_review_packet_slate_tsv_lines(top_items))
+        lines.extend(_review_packet_slate_tsv_lines(proof_slate_items))
         lines.extend(
             [
                 "```",
@@ -475,7 +476,12 @@ def prove_batch(
 
     review_packet = _review_packet_summary(root, doctor.cluster_gate)
     proof_review_slate_path.write_text(
-        "\n".join(_review_packet_slate_tsv_lines(review_packet.get("top_items") or [])) + "\n"
+        "\n".join(
+            _review_packet_slate_tsv_lines(
+                review_packet.get("proof_slate_items") or review_packet.get("top_items") or []
+            )
+        )
+        + "\n"
     )
     _add_proof_slate_commands(
         review_packet,
@@ -509,9 +515,32 @@ def _review_packet_summary(batch_root: Path, cluster_gate: dict[str, Any] | None
     review_queue = gate.get("review_queue") or {}
     summary = review_queue.get("summary") or {}
     items = review_queue.get("items") or []
+    top_items = [
+        {
+            "rank": item.get("rank"),
+            "row_index": item.get("row_index"),
+            "cluster_id": item.get("cluster_id"),
+            "question": item.get("question"),
+            "target_speaker": item.get("target_speaker"),
+            "priority_tier": item.get("priority_tier"),
+            "priority_score": item.get("priority_score"),
+            "priority_reason": item.get("priority_reason"),
+            "unlockable_segments": item.get("unlockable_segments"),
+            "unlockable_seconds": item.get("unlockable_seconds"),
+            "acoustic_verdict": item.get("acoustic_verdict"),
+            "clip_path": item.get("clip_path"),
+            "transcript_excerpt": item.get("transcript_excerpt"),
+            "approve_effect": item.get("approve_effect"),
+            "reject_effect": item.get("reject_effect"),
+            "terminal_decision_rule": item.get("terminal_decision_rule"),
+        }
+        for item in items[:7]
+    ]
+    proof_slate_items = _proof_review_slate_items(gate.get("review_sheet"), top_items)
     return {
         "state": gate.get("state"),
         "item_count": len(items),
+        "proof_slate_item_count": len(proof_slate_items),
         "minimum_reviews": summary.get("minimum_reviews"),
         "pending_reviews": summary.get("pending_reviews"),
         "possible_reviews_saved": summary.get("possible_reviews_saved"),
@@ -528,27 +557,8 @@ def _review_packet_summary(batch_root: Path, cluster_gate: dict[str, Any] | None
         "review_page": str(bundle / "index.html"),
         "validate_command": review_queue.get("validate_command"),
         "finish_command": gate.get("finish_command") or review_queue.get("finish_command"),
-        "top_items": [
-            {
-                "rank": item.get("rank"),
-                "row_index": item.get("row_index"),
-                "cluster_id": item.get("cluster_id"),
-                "question": item.get("question"),
-                "target_speaker": item.get("target_speaker"),
-                "priority_tier": item.get("priority_tier"),
-                "priority_score": item.get("priority_score"),
-                "priority_reason": item.get("priority_reason"),
-                "unlockable_segments": item.get("unlockable_segments"),
-                "unlockable_seconds": item.get("unlockable_seconds"),
-                "acoustic_verdict": item.get("acoustic_verdict"),
-                "clip_path": item.get("clip_path"),
-                "transcript_excerpt": item.get("transcript_excerpt"),
-                "approve_effect": item.get("approve_effect"),
-                "reject_effect": item.get("reject_effect"),
-                "terminal_decision_rule": item.get("terminal_decision_rule"),
-            }
-            for item in items[:7]
-        ],
+        "top_items": top_items,
+        "proof_slate_items": proof_slate_items,
         "safety_boundary": "Review packet lists required human speaker decisions; it does not approve identity.",
     }
 
@@ -579,6 +589,49 @@ def _add_proof_slate_commands(
         f"{shlex.quote(review_sheet)} "
         f"{shlex.quote(str(proof_review_slate_path))}"
     )
+
+
+def _proof_review_slate_items(review_sheet: Any, top_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    sheet_path = Path(str(review_sheet)) if review_sheet else None
+    if not sheet_path or not sheet_path.exists():
+        return top_items
+    try:
+        sheet = json.loads(sheet_path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return top_items
+    rows = sheet.get("rows") or []
+    if not rows:
+        return top_items
+    top_by_cluster = {str(item.get("cluster_id") or ""): item for item in top_items}
+    top_by_row = {str(item.get("row_index") or ""): item for item in top_items}
+    proof_items: list[dict[str, Any]] = []
+    for row in rows:
+        question = row.get("cluster_question") if isinstance(row.get("cluster_question"), dict) else {}
+        row_index = row.get("index")
+        cluster_id = str(question.get("cluster_id") or row.get("case") or "")
+        top = top_by_row.get(str(row_index)) or top_by_cluster.get(cluster_id) or {}
+        target_speaker = (
+            top.get("target_speaker")
+            or question.get("candidate_name")
+            or question.get("dominant_speaker")
+            or row.get("target_speaker_name")
+            or row.get("target_speaker_label")
+            or ""
+        )
+        transcript = str(row.get("text") or "").strip()
+        if len(transcript) > 120:
+            transcript = transcript[:117].rstrip() + "..."
+        proof_items.append(
+            {
+                "rank": top.get("rank") or len(proof_items) + 1,
+                "row_index": row_index,
+                "cluster_id": cluster_id,
+                "question": top.get("question") or question.get("question") or f"Review cluster {cluster_id}",
+                "target_speaker": target_speaker,
+                "transcript_excerpt": top.get("transcript_excerpt") or transcript,
+            }
+        )
+    return proof_items
 
 
 def _review_packet_slate_tsv_lines(items: list[dict[str, Any]]) -> list[str]:
