@@ -32,9 +32,11 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("pavo batch verify-decision-board", readme)
         self.assertIn("pavo batch review-pack", readme)
         self.assertIn("pavo batch verify-review-pack", readme)
+        self.assertIn("pavo batch readiness", readme)
         self.assertIn("pavo batch finalize-reviewed-proof", readme)
         self.assertIn("stale-validation detection", readme)
         self.assertIn("it exits `0` only when all", readme)
+        self.assertIn("exits `2` when a\nmachine artifact needs repair", readme)
         self.assertIn("it exits `3` when the handoff exists", readme)
 
     def test_batch_doctor_reports_machine_ready_with_human_gate_pending(self):
@@ -603,6 +605,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("Raw audio copied: `false`", readme)
         self.assertIn("pavo batch apply-decision-board-audit", readme)
         self.assertIn("pavo batch finalize-board-audit", readme)
+        self.assertIn("pavo batch readiness", readme)
         self.assertIn("pavo-batch-proof.decision-board.audit.json", readme)
         self.assertIn("pavo batch prove", readme)
         self.assertRegex(report["artifact_manifest_sha256"], r"^[0-9a-f]{64}$")
@@ -636,6 +639,64 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertGreaterEqual(report["artifact_count"], 10)
         self.assertRegex(report["artifact_manifest_sha256"], r"^[0-9a-f]{64}$")
         self.assertTrue(report["board_verification"]["passed"])
+
+    def test_batch_readiness_cli_reports_human_review_pending_when_surfaces_ready(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            out_dir = root / "handoff-pack"
+            main(["batch", "finalize-reviewed-proof", str(result.proof_report_path), "--json"])
+            main(["batch", "review-pack", str(result.proof_report_path), "--out-dir", str(out_dir), "--json"])
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "batch",
+                        "readiness",
+                        str(result.proof_report_path),
+                        "--pack-dir",
+                        str(out_dir),
+                        "--json",
+                    ]
+                )
+
+            report = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 3)
+        self.assertEqual(report["state"], "machine_ready_human_review_pending")
+        self.assertFalse(report["passed"])
+        self.assertFalse(report["complete"])
+        self.assertTrue(report["machine_ready"])
+        self.assertTrue(report["board_ready"])
+        self.assertTrue(report["review_pack_ready"])
+        self.assertFalse(report["validation_ready"])
+        self.assertEqual(report["pending_decision_count"], 1)
+        self.assertEqual(report["pending_row_count"], 2)
+        self.assertIn("review 1 pending speaker decision", report["next_action"])
+        self.assertFalse(report["blockers"])
+        self.assertTrue(report["board"]["passed"])
+        self.assertTrue(report["review_pack"]["passed"])
+
+    def test_batch_readiness_cli_reports_machine_repair_when_review_pack_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(["batch", "readiness", str(result.proof_report_path), "--json"])
+
+            report = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 2)
+        self.assertEqual(report["state"], "needs_machine_repair")
+        self.assertTrue(report["machine_ready"])
+        self.assertTrue(report["board_ready"])
+        self.assertFalse(report["review_pack_ready"])
+        self.assertIn("review pack:", "\n".join(report["blockers"]))
 
     def test_batch_verify_review_pack_cli_fails_when_artifact_tampered(self):
         with tempfile.TemporaryDirectory() as tmp:

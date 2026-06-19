@@ -21,6 +21,7 @@ from .batch import (
     load_operator_handoff,
     operator_handoff_ready_to_finish,
     prove_batch,
+    summarize_batch_readiness,
     verify_batch_decision_board,
     verify_batch_manifest,
     verify_batch_review_pack,
@@ -125,6 +126,13 @@ def build_parser() -> argparse.ArgumentParser:
     batch_handoff.add_argument("--check-validation", action="store_true", help="Include current proof-slate validation report status when present")
     batch_handoff.add_argument("--strict-ready", action="store_true", help="Exit nonzero unless validation is fresh and ready to finish")
     batch_handoff.add_argument("--json", action="store_true", help="Print machine-readable handoff JSON")
+    batch_readiness = batch_sub.add_parser(
+        "readiness",
+        help="Summarize proof, board, review-pack, validation, and final human-review readiness",
+    )
+    batch_readiness.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_readiness.add_argument("--pack-dir", type=Path, help="Review pack directory; defaults beside the proof report")
+    batch_readiness.add_argument("--json", action="store_true", help="Print machine-readable readiness report")
     batch_decision_board = batch_sub.add_parser(
         "decision-board",
         help="Write a browser-friendly board for grouped proof speaker decisions",
@@ -667,6 +675,32 @@ def main(argv: list[str] | None = None) -> int:
             if args.strict_ready:
                 return 0 if operator_handoff_ready_to_finish(handoff) else 3
             return 0
+        if args.batch_command == "readiness":
+            try:
+                result = summarize_batch_readiness(args.proof_report, pack_dir=args.pack_dir)
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+            else:
+                print(f"state: {result.state}")
+                print(f"complete: {str(result.complete).lower()}")
+                print(f"machine_ready: {str(result.machine_ready).lower()}")
+                print(f"board_ready: {str(result.board_ready).lower()}")
+                print(f"review_pack_ready: {str(result.review_pack_ready).lower()}")
+                print(f"validation_status: {result.validation_status}")
+                print(f"validation_ready: {str(result.validation_ready).lower()}")
+                print(f"pending_decision_count: {result.pending_decision_count}")
+                print(f"pending_row_count: {result.pending_row_count}")
+                print(f"next_action: {result.next_action}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+            if result.complete:
+                return 0
+            if result.machine_ready and result.board_ready and result.review_pack_ready:
+                return 3
+            return 2
         if args.batch_command == "decision-board":
             try:
                 result = write_batch_decision_board(args.proof_report, out_path=args.out)

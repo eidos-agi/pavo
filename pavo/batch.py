@@ -567,6 +567,49 @@ class BatchReviewPackVerifyResult:
 
 
 @dataclass(frozen=True)
+class BatchReadinessResult:
+    proof_report_path: Path
+    state: str
+    passed: bool
+    complete: bool
+    machine_ready: bool
+    board_ready: bool
+    review_pack_ready: bool
+    validation_status: str | None
+    validation_ready: bool
+    pending_decision_count: int | None
+    pending_row_count: int | None
+    next_action: str
+    blockers: list[str]
+    proof: dict[str, Any]
+    handoff: dict[str, Any]
+    board: dict[str, Any] | None
+    review_pack: dict[str, Any] | None
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "proof_report_path": str(self.proof_report_path),
+            "state": self.state,
+            "passed": self.passed,
+            "complete": self.complete,
+            "machine_ready": self.machine_ready,
+            "board_ready": self.board_ready,
+            "review_pack_ready": self.review_pack_ready,
+            "validation_status": self.validation_status,
+            "validation_ready": self.validation_ready,
+            "pending_decision_count": self.pending_decision_count,
+            "pending_row_count": self.pending_row_count,
+            "next_action": self.next_action,
+            "blockers": self.blockers,
+            "proof": self.proof,
+            "handoff": self.handoff,
+            "board": self.board,
+            "review_pack": self.review_pack,
+            "safety_boundary": "Readiness summarizes proof, pack, board, and human-review gates. It does not approve speaker identity.",
+        }
+
+
+@dataclass(frozen=True)
 class BatchDecisionBoardAuditApplyResult:
     proof_report_path: Path
     audit_path: Path
@@ -2296,6 +2339,7 @@ def verify_batch_review_pack(
         _check("readme_exists", readme_path.exists() and readme_path.is_file(), str(readme_path)),
         _check("raw_audio_copied_false", manifest.get("raw_audio_copied") is False, str(manifest.get("raw_audio_copied"))),
         _check("readme_has_finalize_board_audit", "pavo batch finalize-board-audit" in readme_text, "finalize-board-audit"),
+        _check("readme_has_readiness", "pavo batch readiness" in readme_text, "readiness"),
         _check("readme_has_safety_boundary", "excludes raw audio" in readme_text, "raw-audio boundary"),
         _check("zip_exists", zip_path.exists() and zip_path.is_file(), str(zip_path)),
     ]
@@ -2379,6 +2423,87 @@ def _review_pack_raw_audio_files(pack_dir: Path) -> list[str]:
     ]
 
 
+def summarize_batch_readiness(
+    proof_report_path: Path | str,
+    *,
+    pack_dir: Path | str | None = None,
+) -> BatchReadinessResult:
+    proof_path = Path(proof_report_path)
+    proof_report = json.loads(proof_path.read_text())
+    handoff = enrich_operator_handoff_with_validation(load_operator_handoff(proof_path))
+    board_report: dict[str, Any] | None = None
+    pack_report: dict[str, Any] | None = None
+    blockers: list[str] = []
+    machine_ready = bool(proof_report.get("passed"))
+    complete = bool(proof_report.get("complete"))
+    if not machine_ready:
+        blockers.append("batch proof has not passed")
+    try:
+        board = verify_batch_decision_board(proof_path)
+        board_report = board.as_report()
+        if not board.passed:
+            blockers.extend(f"decision board: {blocker}" for blocker in board.blockers)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        board_report = {"passed": False, "error": str(exc)}
+        blockers.append(f"decision board: {exc}")
+    try:
+        review_pack = verify_batch_review_pack(proof_path, pack_dir=pack_dir)
+        pack_report = review_pack.as_report()
+        if not review_pack.passed:
+            blockers.extend(f"review pack: {blocker}" for blocker in review_pack.blockers)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        pack_report = {"passed": False, "error": str(exc)}
+        blockers.append(f"review pack: {exc}")
+    validation = handoff.get("validation") if isinstance(handoff.get("validation"), dict) else {}
+    validation_status = validation.get("status")
+    validation_ready = bool(validation.get("status") == "ready_to_finish" and validation.get("decision_ready"))
+    pending_decision_count = _optional_int(validation.get("pending_decision_count"))
+    pending_row_count = _optional_int(validation.get("pending_count"))
+    board_ready = bool(board_report and board_report.get("passed"))
+    review_pack_ready = bool(pack_report and pack_report.get("passed"))
+    if complete:
+        state = "complete"
+        next_action = "no action required; strict proof is complete"
+    elif machine_ready and board_ready and review_pack_ready and validation_ready:
+        state = "ready_to_finalize"
+        next_action = str(handoff.get("finish_command") or "run finish command, then strict proof")
+    elif machine_ready and board_ready and review_pack_ready:
+        state = "machine_ready_human_review_pending"
+        next_action = str(
+            validation.get("next_action")
+            or "open the decision board, review pending speaker decisions, download audit JSON, then run finalize-board-audit"
+        )
+    else:
+        state = "needs_machine_repair"
+        next_action = "repair blockers, regenerate proof, board, and review pack, then rerun readiness"
+    return BatchReadinessResult(
+        proof_report_path=proof_path,
+        state=state,
+        passed=bool(complete),
+        complete=complete,
+        machine_ready=machine_ready,
+        board_ready=board_ready,
+        review_pack_ready=review_pack_ready,
+        validation_status=str(validation_status) if validation_status is not None else None,
+        validation_ready=validation_ready,
+        pending_decision_count=pending_decision_count,
+        pending_row_count=pending_row_count,
+        next_action=next_action,
+        blockers=list(dict.fromkeys(blockers)),
+        proof=proof_report,
+        handoff=handoff,
+        board=board_report,
+        review_pack=pack_report,
+    )
+
+
+def _optional_int(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _batch_review_pack_artifacts(
     proof_path: Path,
     proof_report: dict[str, Any],
@@ -2437,6 +2562,7 @@ def _render_batch_review_pack_readme(manifest: dict[str, Any]) -> str:
         f"--out {shlex.quote(proof_review_slate)} "
         f"--decision-slate-out {shlex.quote(reviewed_decision_slate)}"
     )
+    readiness_command = f"pavo batch readiness {shlex.quote(proof_report)}"
     lines = [
         "# Pavo Batch Review Pack",
         "",
@@ -2464,9 +2590,9 @@ def _render_batch_review_pack_readme(manifest: dict[str, Any]) -> str:
         "",
         "## Commands",
         "",
-        "After reviewing the board, download `pavo-batch-proof.decision-board.audit.json`, place it beside this README or run from your download directory, then use the one-command finalize path. The lower-level import command is included as a fallback.",
+        "Run readiness before and after review to prove whether this pack is machine-clean, human-pending, or complete. After reviewing the board, download `pavo-batch-proof.decision-board.audit.json`, place it beside this README or run from your download directory, then use the one-command finalize path. The lower-level import command is included as a fallback.",
         "",
-        f"```bash\n{audit_finalize_command}\n\n# Fallback/manual path:\n{audit_import_command}\n{handoff.get('validate_command')}\n{handoff.get('finish_command')}\n{handoff.get('strict_proof_command')}\n```",
+        f"```bash\n{readiness_command}\n{audit_finalize_command}\n{readiness_command}\n\n# Fallback/manual path:\n{audit_import_command}\n{handoff.get('validate_command')}\n{handoff.get('finish_command')}\n{handoff.get('strict_proof_command')}\n```",
         "",
         "## Safety Boundary",
         "",

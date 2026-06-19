@@ -111,6 +111,7 @@ pavo batch speaker-memory-candidates \
   --out /path/to/meeting-batch/pavo-speaker-memory-candidates.json
 pavo batch review-pack /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch verify-review-pack /path/to/meeting-batch/pavo-batch-proof.json
+pavo batch readiness /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch finalize-reviewed-proof /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --check-validation
 pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --strict-ready
@@ -200,6 +201,12 @@ README and zip exist, verifies no raw audio files were copied, recomputes the
 artifact manifest hash, and runs `verify-decision-board` against the source
 proof. It exits `3` if the pack is stale, tampered, incomplete, or missing the
 safe finish commands.
+
+Use `pavo batch readiness` as the concise operator rollup across proof, board,
+review pack, validation, and human-review gates. It exits `0` only when strict
+proof is complete, exits `3` when the machine surfaces are healthy but human
+speaker review is still pending or ready to finalize, and exits `2` when a
+machine artifact needs repair.
 
 Use `pavo batch finalize-reviewed-proof` when the proof slate has been reviewed.
 It validates the proof slate, materializes the cluster decisions, writes speaker
