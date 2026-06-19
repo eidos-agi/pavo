@@ -746,6 +746,62 @@ class BatchSpeakerSuggestionVerifyResult:
 
 
 @dataclass(frozen=True)
+class BatchReviewCompletionResult:
+    proof_report_path: Path
+    out_dir: Path
+    json_path: Path
+    markdown_path: Path
+    state: str
+    export_ready: bool
+    pending_decision_count: int
+    missing_reason_decision_count: int
+    payload: dict[str, Any]
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "proof_report_path": str(self.proof_report_path),
+            "out_dir": str(self.out_dir),
+            "json_path": str(self.json_path),
+            "markdown_path": str(self.markdown_path),
+            "state": self.state,
+            "export_ready": self.export_ready,
+            "pending_decision_count": self.pending_decision_count,
+            "missing_reason_decision_count": self.missing_reason_decision_count,
+            "payload": self.payload,
+            "safety_boundary": "Review-completion artifacts show whether human speaker review is finishable. They do not approve speaker identity.",
+        }
+
+
+@dataclass(frozen=True)
+class BatchReviewCompletionVerifyResult:
+    proof_report_path: Path
+    json_path: Path
+    markdown_path: Path
+    passed: bool
+    state: str
+    export_ready: bool
+    pending_decision_count: int
+    missing_reason_decision_count: int
+    checks: list[dict[str, Any]]
+    blockers: list[str]
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "proof_report_path": str(self.proof_report_path),
+            "json_path": str(self.json_path),
+            "markdown_path": str(self.markdown_path),
+            "passed": self.passed,
+            "state": self.state,
+            "export_ready": self.export_ready,
+            "pending_decision_count": self.pending_decision_count,
+            "missing_reason_decision_count": self.missing_reason_decision_count,
+            "checks": self.checks,
+            "blockers": self.blockers,
+            "safety_boundary": "Review-completion verification proves the completion artifact is coherent. It does not approve speaker identity.",
+        }
+
+
+@dataclass(frozen=True)
 class BatchReviewRehearsalResult:
     proof_report_path: Path
     out_dir: Path
@@ -1409,6 +1465,145 @@ def _decision_slate_review_completion(path_value: str | None) -> dict[str, Any]:
         "progress_percent": progress,
         "export_ready": pending == 0 and not missing_reason_groups,
     }
+
+
+def write_batch_review_completion(
+    proof_report_path: Path | str,
+    *,
+    out_dir: Path | str | None = None,
+) -> BatchReviewCompletionResult:
+    proof_path = Path(proof_report_path)
+    proof_report = json.loads(proof_path.read_text())
+    handoff = enrich_operator_handoff_with_validation(load_operator_handoff(proof_path))
+    validation = handoff.get("validation") if isinstance(handoff.get("validation"), dict) else {}
+    target_dir = Path(out_dir) if out_dir else proof_path.parent
+    target_dir.mkdir(parents=True, exist_ok=True)
+    completion = _decision_slate_review_completion(str(handoff.get("proof_decision_slate_tsv") or ""))
+    pending_questions = validation.get("pending_review_questions") if isinstance(validation.get("pending_review_questions"), list) else []
+    state = "ready_to_finalize" if completion.get("export_ready") else "human_review_pending"
+    if proof_report.get("complete"):
+        state = "complete"
+    payload = {
+        "generated_at": datetime.now(UTC).isoformat(),
+        "proof_report_path": str(proof_path),
+        "state": state,
+        "machine_ready": bool(proof_report.get("passed")),
+        "complete": bool(proof_report.get("complete")),
+        "review_completion": completion,
+        "pending_question_count": len(pending_questions),
+        "pending_question_groups": [
+            str(item.get("decision_group") or item.get("cluster_id") or "")
+            for item in pending_questions
+            if isinstance(item, dict)
+        ],
+        "commands": {
+            "review_now": f"pavo batch review-now {shlex.quote(str(proof_path))}",
+            "decision_board": f"pavo batch decision-board {shlex.quote(str(proof_path))}",
+            "finalize_board_audit": _batch_finalize_board_audit_command(proof_path, handoff),
+            "readiness": f"pavo batch readiness {shlex.quote(str(proof_path))}",
+        },
+        "next_action": (
+            "run finalize-board-audit, then strict proof"
+            if completion.get("export_ready")
+            else "finish human speaker decisions and required review reasons before finalization"
+        ),
+        "safety_boundary": "This report tracks the human-review gate. It does not approve speaker identity.",
+    }
+    json_path = target_dir / "pavo-batch-review-completion.json"
+    markdown_path = target_dir / "pavo-batch-review-completion.md"
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    markdown_path.write_text(_render_batch_review_completion_markdown(payload), encoding="utf-8")
+    return BatchReviewCompletionResult(
+        proof_report_path=proof_path,
+        out_dir=target_dir,
+        json_path=json_path,
+        markdown_path=markdown_path,
+        state=state,
+        export_ready=bool(completion.get("export_ready")),
+        pending_decision_count=int(completion.get("pending_decision_count") or 0),
+        missing_reason_decision_count=int(completion.get("missing_reason_decision_count") or 0),
+        payload=payload,
+    )
+
+
+def verify_batch_review_completion(
+    proof_report_path: Path | str,
+    *,
+    json_path: Path | str | None = None,
+    markdown_path: Path | str | None = None,
+) -> BatchReviewCompletionVerifyResult:
+    proof_path = Path(proof_report_path)
+    resolved_json = Path(json_path) if json_path else proof_path.with_name("pavo-batch-review-completion.json")
+    resolved_markdown = Path(markdown_path) if markdown_path else proof_path.with_name("pavo-batch-review-completion.md")
+    payload = json.loads(resolved_json.read_text()) if resolved_json.exists() else {}
+    markdown = resolved_markdown.read_text(encoding="utf-8") if resolved_markdown.exists() else ""
+    completion = payload.get("review_completion") if isinstance(payload.get("review_completion"), dict) else {}
+    pending_decision_count = int(completion.get("pending_decision_count") or 0)
+    missing_reason_count = int(completion.get("missing_reason_decision_count") or 0)
+    state = str(payload.get("state") or "unknown")
+    checks = [
+        _check("review_completion_json_exists", resolved_json.exists() and resolved_json.is_file(), str(resolved_json)),
+        _check("review_completion_markdown_exists", resolved_markdown.exists() and resolved_markdown.is_file(), str(resolved_markdown)),
+        _check("proof_report_matches", str(payload.get("proof_report_path") or "") == str(proof_path), str(payload.get("proof_report_path") or "")),
+        _check("has_review_completion", bool(completion), "review_completion"),
+        _check("has_export_ready", "export_ready" in completion, str(completion.get("export_ready"))),
+        _check("has_pending_count", "pending_decision_count" in completion, str(completion.get("pending_decision_count"))),
+        _check("has_missing_reason_count", "missing_reason_decision_count" in completion, str(completion.get("missing_reason_decision_count"))),
+        _check("markdown_has_title", "Pavo Review Completion" in markdown, "title"),
+        _check("markdown_has_finalize_command", "pavo batch finalize-board-audit" in markdown, "finalize command"),
+        _check("markdown_has_safety_boundary", "does not approve speaker identity" in markdown, "safety boundary"),
+    ]
+    blockers = [f"{check['name']}: {check['detail']}" for check in checks if not check.get("passed")]
+    return BatchReviewCompletionVerifyResult(
+        proof_report_path=proof_path,
+        json_path=resolved_json,
+        markdown_path=resolved_markdown,
+        passed=not blockers,
+        state=state,
+        export_ready=bool(completion.get("export_ready")),
+        pending_decision_count=pending_decision_count,
+        missing_reason_decision_count=missing_reason_count,
+        checks=checks,
+        blockers=blockers,
+    )
+
+
+def _render_batch_review_completion_markdown(payload: dict[str, Any]) -> str:
+    completion = payload.get("review_completion") if isinstance(payload.get("review_completion"), dict) else {}
+    commands = payload.get("commands") if isinstance(payload.get("commands"), dict) else {}
+    lines = [
+        "# Pavo Review Completion",
+        "",
+        f"- State: `{payload.get('state')}`",
+        f"- Machine ready: `{str(bool(payload.get('machine_ready'))).lower()}`",
+        f"- Complete: `{str(bool(payload.get('complete'))).lower()}`",
+        f"- Export ready: `{str(bool(completion.get('export_ready'))).lower()}`",
+        f"- Progress: `{completion.get('progress_percent')}`%",
+        f"- Total decisions: `{completion.get('total_decision_count')}`",
+        f"- Reviewed decisions: `{completion.get('reviewed_decision_count')}`",
+        f"- Pending decisions: `{completion.get('pending_decision_count')}`",
+        f"- Missing reason decisions: `{completion.get('missing_reason_decision_count')}`",
+        f"- Next action: {payload.get('next_action')}",
+        "",
+        "## Missing Review Reasons",
+        "",
+    ]
+    missing = completion.get("missing_reason_decision_groups") if isinstance(completion.get("missing_reason_decision_groups"), list) else []
+    if missing:
+        lines.extend(f"- `{value}`" for value in missing)
+    else:
+        lines.append("- None")
+    lines.extend(["", "## Pending Question Groups", ""])
+    pending_groups = payload.get("pending_question_groups") if isinstance(payload.get("pending_question_groups"), list) else []
+    if pending_groups:
+        lines.extend(f"- `{value}`" for value in pending_groups if value)
+    else:
+        lines.append("- None")
+    lines.extend(["", "## Commands", "", "```bash"])
+    for command in commands.values():
+        lines.append(str(command or ""))
+    lines.extend(["```", "", "## Safety Boundary", "", str(payload.get("safety_boundary") or "")])
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def _handoff_pending_review_questions(pending_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -2566,6 +2761,7 @@ def write_batch_review_pack(
     write_batch_review_sprint(proof_path, out_dir=proof_path.parent)
     answer_sheet_result = write_batch_speaker_answer_sheet(proof_path, out_dir=proof_path.parent)
     write_batch_speaker_suggestions(proof_path, out_dir=proof_path.parent)
+    write_batch_review_completion(proof_path, out_dir=proof_path.parent)
     calibration_result = write_batch_speaker_calibration(proof_path, out_dir=proof_path.parent)
     _write_batch_review_pack_cockpit(
         proof_path,
@@ -2757,11 +2953,14 @@ def verify_batch_review_pack(
         _check("raw_audio_copied_false", manifest.get("raw_audio_copied") is False, str(manifest.get("raw_audio_copied"))),
         _check("readme_has_finalize_board_audit", "pavo batch finalize-board-audit" in readme_text, "finalize-board-audit"),
         _check("readme_has_readiness", "pavo batch readiness" in readme_text, "readiness"),
+        _check("readme_has_review_completion", "pavo batch review-completion" in readme_text, "review completion"),
         _check("readme_has_review_cockpit", "pavo batch review-cockpit" in readme_text, "review cockpit"),
         _check("readme_has_speaker_suggestions", "pavo batch speaker-suggestions" in readme_text, "speaker suggestions"),
         _check("readme_has_speaker_calibration", "pavo batch speaker-calibration" in readme_text, "speaker calibration"),
         _check("readme_has_safety_boundary", "excludes raw audio" in readme_text, "raw-audio boundary"),
         _check("has_review_cockpit_html", "review_cockpit_html" in artifacts, "review_cockpit_html"),
+        _check("has_review_completion_json", "review_completion_json" in artifacts, "review_completion_json"),
+        _check("has_review_completion_markdown", "review_completion_markdown" in artifacts, "review_completion_markdown"),
         _check("has_speaker_suggestions_json", "speaker_suggestions_json" in artifacts, "speaker_suggestions_json"),
         _check("has_speaker_suggestions_markdown", "speaker_suggestions_markdown" in artifacts, "speaker_suggestions_markdown"),
         _check("has_speaker_suggestions_tsv", "speaker_suggestions_tsv" in artifacts, "speaker_suggestions_tsv"),
@@ -4674,6 +4873,8 @@ def _batch_review_pack_artifacts(
         "proof_decision_board_html": _path_from_report(handoff.get("proof_decision_board_html")),
         "proof_review_sprint_json": proof_path.with_name("pavo-batch-review-sprint.json"),
         "proof_review_sprint_markdown": proof_path.with_name("pavo-batch-review-sprint.md"),
+        "review_completion_json": proof_path.with_name("pavo-batch-review-completion.json"),
+        "review_completion_markdown": proof_path.with_name("pavo-batch-review-completion.md"),
         "speaker_answer_sheet_markdown": proof_path.with_name("pavo-batch-speaker-answer-sheet.md"),
         "speaker_answer_sheet_tsv": proof_path.with_name("pavo-batch-speaker-answer-sheet.tsv"),
         "speaker_suggestions_json": proof_path.with_name("pavo-batch-speaker-suggestions.json"),
@@ -4724,6 +4925,8 @@ def _render_batch_review_pack_readme(manifest: dict[str, Any]) -> str:
         f"--decision-slate-out {shlex.quote(reviewed_decision_slate)}"
     )
     readiness_command = f"pavo batch readiness {shlex.quote(proof_report)}"
+    completion_command = f"pavo batch review-completion {shlex.quote(proof_report)}"
+    verify_completion_command = f"pavo batch verify-review-completion {shlex.quote(proof_report)}"
     cockpit_command = f"pavo batch review-cockpit {shlex.quote(proof_report)}"
     verify_cockpit_command = f"pavo batch verify-review-cockpit {shlex.quote(proof_report)}"
     suggestions_command = f"pavo batch speaker-suggestions {shlex.quote(proof_report)}"
@@ -4744,6 +4947,7 @@ def _render_batch_review_pack_readme(manifest: dict[str, Any]) -> str:
         "## What To Open",
         "",
         "- Start with the artifact manifest entry named `review_cockpit_html` for the one-page operator cockpit.",
+        "- Use the entry named `review_completion_markdown` for the exact remaining human-review gate.",
         "- Use the entry named `speaker_suggestions_markdown` to see machine hypotheses and safety blockers before listening.",
         "- Use the artifact manifest entry named `proof_decision_board_html` for the human speaker decisions.",
         "- Use the entry named `proof_review_checklist_markdown` as the command checklist.",
@@ -4761,7 +4965,7 @@ def _render_batch_review_pack_readme(manifest: dict[str, Any]) -> str:
         "",
         "Run readiness before and after review to prove whether this pack is machine-clean, human-pending, or complete. After reviewing the board, download `pavo-batch-proof.decision-board.audit.json`, place it beside this README or run from your download directory, then use the one-command finalize path. The lower-level import command is included as a fallback.",
         "",
-        f"```bash\n{readiness_command}\n{cockpit_command}\n{verify_cockpit_command}\n{suggestions_command}\n{verify_suggestions_command}\n{calibration_command}\n{audit_finalize_command}\n{readiness_command}\n\n# Optional second-listener agreement scoring after calibration TSV is filled:\n{agreement_command}\n\n# Fallback/manual path:\n{audit_import_command}\n{handoff.get('validate_command')}\n{handoff.get('finish_command')}\n{handoff.get('strict_proof_command')}\n```",
+        f"```bash\n{readiness_command}\n{completion_command}\n{verify_completion_command}\n{cockpit_command}\n{verify_cockpit_command}\n{suggestions_command}\n{verify_suggestions_command}\n{calibration_command}\n{audit_finalize_command}\n{readiness_command}\n\n# Optional second-listener agreement scoring after calibration TSV is filled:\n{agreement_command}\n\n# Fallback/manual path:\n{audit_import_command}\n{handoff.get('validate_command')}\n{handoff.get('finish_command')}\n{handoff.get('strict_proof_command')}\n```",
         "",
         "## Safety Boundary",
         "",

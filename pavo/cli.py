@@ -27,6 +27,7 @@ from .batch import (
     summarize_batch_readiness,
     verify_batch_decision_board,
     verify_batch_manifest,
+    verify_batch_review_completion,
     verify_batch_review_pack,
     verify_batch_review_cockpit,
     verify_batch_review_rehearsal,
@@ -34,6 +35,7 @@ from .batch import (
     verify_batch_speaker_answer_sheet,
     verify_batch_speaker_suggestions,
     write_batch_decision_board,
+    write_batch_review_completion,
     write_batch_review_pack,
     write_batch_review_cockpit,
     write_batch_review_rehearsal,
@@ -205,6 +207,21 @@ def build_parser() -> argparse.ArgumentParser:
     batch_readiness.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
     batch_readiness.add_argument("--pack-dir", type=Path, help="Review pack directory; defaults beside the proof report")
     batch_readiness.add_argument("--json", action="store_true", help="Print machine-readable readiness report")
+    batch_review_completion = batch_sub.add_parser(
+        "review-completion",
+        help="Write a durable JSON/Markdown report of the remaining human-review completion gate",
+    )
+    batch_review_completion.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_review_completion.add_argument("--out-dir", type=Path, help="Output directory; defaults beside the proof report")
+    batch_review_completion.add_argument("--json", action="store_true", help="Print machine-readable completion report")
+    batch_verify_review_completion = batch_sub.add_parser(
+        "verify-review-completion",
+        help="Verify the review completion report is present, coherent, and proof-linked",
+    )
+    batch_verify_review_completion.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_verify_review_completion.add_argument("--completion-json", type=Path, help="Override pavo-batch-review-completion.json path")
+    batch_verify_review_completion.add_argument("--markdown", type=Path, help="Override pavo-batch-review-completion.md path")
+    batch_verify_review_completion.add_argument("--json", action="store_true", help="Print machine-readable verification report")
     batch_review_sprint = batch_sub.add_parser(
         "review-sprint",
         help="Write a compact JSON and Markdown sprint packet for pending human speaker review",
@@ -895,6 +912,45 @@ def main(argv: list[str] | None = None) -> int:
             if result.machine_ready and result.board_ready and result.review_pack_ready:
                 return 3
             return 2
+        if args.batch_command == "review-completion":
+            try:
+                result = write_batch_review_completion(args.proof_report, out_dir=args.out_dir)
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+            else:
+                print(f"state: {result.state}")
+                print(f"export_ready: {str(result.export_ready).lower()}")
+                print(f"pending_decision_count: {result.pending_decision_count}")
+                print(f"missing_reason_decision_count: {result.missing_reason_decision_count}")
+                print(f"json_path: {result.json_path}")
+                print(f"markdown_path: {result.markdown_path}")
+            return 0
+        if args.batch_command == "verify-review-completion":
+            try:
+                result = verify_batch_review_completion(
+                    args.proof_report,
+                    json_path=args.completion_json,
+                    markdown_path=args.markdown,
+                )
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+            else:
+                print(f"passed: {str(result.passed).lower()}")
+                print(f"state: {result.state}")
+                print(f"export_ready: {str(result.export_ready).lower()}")
+                print(f"pending_decision_count: {result.pending_decision_count}")
+                print(f"missing_reason_decision_count: {result.missing_reason_decision_count}")
+                print(f"json_path: {result.json_path}")
+                print(f"markdown_path: {result.markdown_path}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+            return 0 if result.passed else 3
         if args.batch_command == "review-sprint":
             try:
                 result = write_batch_review_sprint(args.proof_report, out_dir=args.out_dir)
@@ -1142,6 +1198,7 @@ def main(argv: list[str] | None = None) -> int:
                 sprint_result = write_batch_review_sprint(args.proof_report)
                 answer_sheet_result = write_batch_speaker_answer_sheet(args.proof_report)
                 pack_result = write_batch_review_pack(args.proof_report, out_dir=args.pack_dir)
+                review_completion_verification = verify_batch_review_completion(args.proof_report)
                 sprint_verification = verify_batch_review_sprint(args.proof_report)
                 answer_sheet_verification = verify_batch_speaker_answer_sheet(args.proof_report)
                 speaker_suggestions_verification = verify_batch_speaker_suggestions(args.proof_report)
@@ -1175,17 +1232,20 @@ def main(argv: list[str] | None = None) -> int:
                 "review_sprint_written": sprint_result.as_report(),
                 "speaker_answer_sheet_written": answer_sheet_result.as_report(),
                 "review_pack_written": pack_result.as_report(),
+                "review_completion_verification": review_completion_verification.as_report(),
                 "review_sprint_verification": sprint_verification.as_report(),
                 "speaker_answer_sheet_verification": answer_sheet_verification.as_report(),
                 "speaker_suggestions_verification": speaker_suggestions_verification.as_report(),
                 "review_cockpit_verification": cockpit_verification,
                 "review_paths": review_paths,
+                "review_completion_path": str(review_completion_verification.markdown_path),
                 "speaker_suggestions_path": str(speaker_suggestions_verification.markdown_path),
                 "review_cockpit_path": cockpit_verification.get("cockpit_path"),
                 "opened": opened,
                 "next_action": readiness.next_action,
                 "blockers": (
                     readiness.blockers
+                    + review_completion_verification.blockers
                     + sprint_verification.blockers
                     + answer_sheet_verification.blockers
                     + speaker_suggestions_verification.blockers
@@ -1203,6 +1263,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"estimated_review_minutes: {readiness.review_sprint.get('estimated_minutes')}")
                 print(f"priority_queue_top: {_format_batch_priority_queue_top(priority_queue_top)}")
                 print(f"speaker_answer_sheet: {answer_sheet_result.markdown_path}")
+                print(f"review_completion: {review_completion_verification.markdown_path}")
                 print(f"speaker_suggestions: {speaker_suggestions_verification.markdown_path}")
                 print(f"review_progress_percent: {readiness.review_completion.get('progress_percent')}")
                 print(f"review_export_ready: {str(bool(readiness.review_completion.get('export_ready'))).lower()}")
@@ -1221,6 +1282,7 @@ def main(argv: list[str] | None = None) -> int:
                 readiness.machine_ready
                 and readiness.board_ready
                 and readiness.review_pack_ready
+                and review_completion_verification.passed
                 and sprint_verification.passed
                 and answer_sheet_verification.passed
                 and speaker_suggestions_verification.passed

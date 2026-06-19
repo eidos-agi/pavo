@@ -113,6 +113,8 @@ pavo batch review-pack /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch verify-review-pack /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch status /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch readiness /path/to/meeting-batch/pavo-batch-proof.json
+pavo batch review-completion /path/to/meeting-batch/pavo-batch-proof.json
+pavo batch verify-review-completion /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch review-sprint /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch verify-review-sprint /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch speaker-answer-sheet /path/to/meeting-batch/pavo-batch-proof.json
@@ -268,6 +270,15 @@ not approvals. Use `pavo batch verify-speaker-suggestions` to prove the
 suggestion files exist, match the current proof report, include confidence and
 review-lane labels, carry the finish command, and preserve the safety boundary.
 Review packs generate and include these suggestion files automatically.
+
+Use `pavo batch review-completion` to write
+`pavo-batch-review-completion.json` and Markdown, a durable audit readout of
+the remaining human-review gate. It records the reviewed, pending, and missing
+reason counts, export readiness, pending decision groups, next action, and
+finish commands. Use `pavo batch verify-review-completion` to prove the report
+exists, matches the proof report, carries export-ready and missing-reason
+fields, and preserves the identity safety boundary. Review packs generate and
+include these completion files automatically.
 
 Use `pavo batch review-rehearsal` immediately before a human listener starts.
 It regenerates the decision board, review sprint, speaker answer sheet, and
