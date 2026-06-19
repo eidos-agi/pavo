@@ -628,14 +628,37 @@ def _proof_review_slate_items(review_sheet: Any, top_items: list[dict[str, Any]]
                 "cluster_id": cluster_id,
                 "question": top.get("question") or question.get("question") or f"Review cluster {cluster_id}",
                 "target_speaker": target_speaker,
-                "transcript_excerpt": top.get("transcript_excerpt") or transcript,
+                "priority_tier": top.get("priority_tier"),
+                "priority_score": top.get("priority_score"),
+                "priority_reason": top.get("priority_reason"),
+                "acoustic_verdict": top.get("acoustic_verdict"),
+                "clip_path": row.get("clip_path") or top.get("clip_path"),
+                "transcript_excerpt": transcript or top.get("transcript_excerpt"),
             }
         )
     return proof_items
 
 
 def _review_packet_slate_tsv_lines(items: list[dict[str, Any]]) -> list[str]:
-    lines = ["row_index\tcluster_id\tdecision\tspeaker\tnote"]
+    lines = [
+        "\t".join(
+            [
+                "row_index",
+                "cluster_id",
+                "decision",
+                "speaker",
+                "note",
+                "rank",
+                "priority_tier",
+                "priority_score",
+                "priority_reason",
+                "question",
+                "acoustic_verdict",
+                "clip_path",
+                "transcript",
+            ]
+        )
+    ]
     for item in items:
         note = f"reviewed via pavo-batch-proof rank {item.get('rank')}; {item.get('question') or ''}"
         lines.append(
@@ -646,6 +669,14 @@ def _review_packet_slate_tsv_lines(items: list[dict[str, Any]]) -> list[str]:
                     "pending",
                     str(item.get("target_speaker") or ""),
                     _tsv_safe(note),
+                    str(item.get("rank") or ""),
+                    _tsv_safe(str(item.get("priority_tier") or "")),
+                    _tsv_safe(str(item.get("priority_score") or "")),
+                    _tsv_safe(str(item.get("priority_reason") or "")),
+                    _tsv_safe(str(item.get("question") or "")),
+                    _tsv_safe(str(item.get("acoustic_verdict") or "")),
+                    _tsv_safe(str(item.get("clip_path") or "")),
+                    _tsv_safe(str(item.get("transcript_excerpt") or "")),
                 ]
             )
         )
