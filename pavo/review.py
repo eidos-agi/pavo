@@ -201,9 +201,13 @@ class ClusterQuestionBundleResult:
     review_sheet_path: Path
     review_page_path: Path
     bundle_dir: Path
+    acoustic_json_path: Path
+    acoustic_markdown_path: Path
     candidate_count: int
     copied_clip_count: int
     missing_clip_count: int
+    acoustic_analyzed_count: int
+    acoustic_attention_cluster_count: int
 
 
 @dataclass(frozen=True)
@@ -253,12 +257,16 @@ class ClusterReviewPrepareResult:
     review_page_path: Path
     impact_json_path: Path
     impact_markdown_path: Path
+    acoustic_json_path: Path
+    acoustic_markdown_path: Path
     page_verified: bool
     cluster_count: int
     question_count: int
     candidate_count: int
     copied_clip_count: int
     missing_clip_count: int
+    acoustic_analyzed_count: int
+    acoustic_attention_cluster_count: int
     top_cluster_id: str | None
     estimated_unlockable_segments: int
     estimated_unlockable_seconds: float
@@ -1052,15 +1060,20 @@ def create_cluster_question_bundle(
         "rows": rows,
     }
     sheet_path.write_text(json.dumps(sheet, indent=2, sort_keys=True) + "\n")
+    acoustic = create_cluster_question_acoustic_report(sheet_path)
     page = create_anchor_review_page(sheet_path, out_path=page_path)
     return ClusterQuestionBundleResult(
         question_plan_path=plan_path,
         review_sheet_path=sheet_path,
         review_page_path=page.review_page_path,
         bundle_dir=target_dir,
+        acoustic_json_path=acoustic.json_path,
+        acoustic_markdown_path=acoustic.markdown_path,
         candidate_count=len(rows),
         copied_clip_count=copied,
         missing_clip_count=missing,
+        acoustic_analyzed_count=acoustic.analyzed_count,
+        acoustic_attention_cluster_count=acoustic.attention_cluster_count,
     )
 
 
@@ -1101,12 +1114,16 @@ def prepare_cluster_review(
         review_page_path=bundle.review_page_path,
         impact_json_path=impact.json_path,
         impact_markdown_path=impact.markdown_path,
+        acoustic_json_path=bundle.acoustic_json_path,
+        acoustic_markdown_path=bundle.acoustic_markdown_path,
         page_verified=page.passed,
         cluster_count=audit.cluster_count,
         question_count=questions.question_count,
         candidate_count=bundle.candidate_count,
         copied_clip_count=bundle.copied_clip_count,
         missing_clip_count=bundle.missing_clip_count,
+        acoustic_analyzed_count=bundle.acoustic_analyzed_count,
+        acoustic_attention_cluster_count=bundle.acoustic_attention_cluster_count,
         top_cluster_id=impact.top_cluster_id,
         estimated_unlockable_segments=impact.estimated_unlockable_segments,
         estimated_unlockable_seconds=impact.estimated_unlockable_seconds,

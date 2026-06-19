@@ -635,16 +635,24 @@ class ReviewTests(unittest.TestCase):
             sheet = json.loads(result.review_sheet_path.read_text())
             impact_json_exists = result.impact_json_path.exists()
             impact_markdown_exists = result.impact_markdown_path.exists()
+            acoustic_json_exists = result.acoustic_json_path.exists()
+            acoustic_markdown_exists = result.acoustic_markdown_path.exists()
+            page_html = result.review_page_path.read_text()
 
         self.assertTrue(result.page_verified)
         self.assertEqual(result.cluster_count, 2)
         self.assertEqual(result.question_count, 2)
         self.assertEqual(result.candidate_count, 3)
         self.assertEqual(result.missing_clip_count, 0)
+        self.assertEqual(result.acoustic_analyzed_count, 3)
+        self.assertGreaterEqual(result.acoustic_attention_cluster_count, 1)
         self.assertEqual(sheet["sort"]["mode"], "impact_desc")
         self.assertEqual(sheet["rows"][0]["cluster_question"]["cluster_id"], "S-big")
         self.assertTrue(impact_json_exists)
         self.assertTrue(impact_markdown_exists)
+        self.assertTrue(acoustic_json_exists)
+        self.assertTrue(acoustic_markdown_exists)
+        self.assertIn("Acoustic evidence:", page_html)
 
     def test_cluster_review_status_reports_missing_prepare_state(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -827,10 +835,14 @@ class ReviewTests(unittest.TestCase):
             result = create_cluster_question_bundle(plan)
             sheet = json.loads(result.review_sheet_path.read_text())
             verification = verify_anchor_review_page(result.review_sheet_path, result.review_page_path)
+            html = result.review_page_path.read_text()
 
             self.assertEqual(result.candidate_count, 1)
+            self.assertEqual(result.acoustic_analyzed_count, 0)
             self.assertTrue(result.review_page_path.exists())
+            self.assertTrue(result.acoustic_json_path.exists())
             self.assertEqual(sheet["rows"][0]["case"], "S1 / low_coverage_targeted_review")
+            self.assertIn("Acoustic evidence:", html)
             self.assertTrue(verification.passed)
 
     def test_cluster_question_bundle_orders_review_rows_by_impact(self):
