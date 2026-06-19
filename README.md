@@ -210,9 +210,11 @@ safe finish commands.
 Use `pavo batch status` when you want the short operator answer. It uses the
 same readiness engine as `pavo batch readiness`, but text output is intentionally
 compact: state, machine readiness, human gate, pending decisions/clips,
-estimated review minutes, and next action. It exits `0` only when strict proof
-is complete, `3` when machine surfaces are healthy but human review remains, and
-`2` when machine repair is needed.
+estimated review minutes, the review sprint Markdown path, the browser decision
+board path, the exact `finalize-board-audit` command to run after review, and
+next action. It exits `0` only when strict proof is complete, `3` when machine
+surfaces are healthy but human review remains, and `2` when machine repair is
+needed.
 
 Use `pavo batch readiness` as the concise operator rollup across proof, board,
 review pack, validation, and human-review gates. It exits `0` only when strict

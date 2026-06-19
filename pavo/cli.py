@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -709,6 +710,29 @@ def main(argv: list[str] | None = None) -> int:
                 print(json.dumps(result.as_report(), indent=2, sort_keys=True))
             elif args.batch_command == "status":
                 sprint = result.review_sprint or {}
+                proof_report = args.proof_report
+                review_sprint_markdown = proof_report.with_name("pavo-batch-review-sprint.md")
+                board_audit_json = proof_report.with_name("pavo-batch-proof.decision-board.audit.json")
+                reviewed_decision_slate = proof_report.with_name("pavo-batch-proof.decision-slate.reviewed.tsv")
+                review_slate = result.handoff.get("proof_review_slate_tsv") or str(
+                    proof_report.with_name("pavo-batch-proof.review-slate.tsv")
+                )
+                decision_board = result.handoff.get("proof_decision_board_html") or str(
+                    proof_report.with_name("pavo-batch-proof.decision-board.html")
+                )
+                after_review = " ".join(
+                    [
+                        "pavo",
+                        "batch",
+                        "finalize-board-audit",
+                        shlex.quote(str(proof_report)),
+                        shlex.quote(str(board_audit_json)),
+                        "--out",
+                        shlex.quote(str(review_slate)),
+                        "--decision-slate-out",
+                        shlex.quote(str(reviewed_decision_slate)),
+                    ]
+                )
                 print(f"state: {result.state}")
                 print(f"complete: {str(result.complete).lower()}")
                 print(f"machine_ready: {str(result.machine_ready).lower()}")
@@ -716,6 +740,9 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"pending_decisions: {result.pending_decision_count}")
                 print(f"pending_clips: {sprint.get('pending_clip_count')}")
                 print(f"estimated_review_minutes: {sprint.get('estimated_minutes')}")
+                print(f"open_review_sprint: {review_sprint_markdown}")
+                print(f"open_decision_board: {decision_board}")
+                print(f"after_review: {after_review}")
                 print(f"next_action: {result.next_action}")
                 if result.blockers:
                     print("blockers: " + "; ".join(result.blockers))

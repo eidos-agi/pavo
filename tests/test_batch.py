@@ -797,6 +797,13 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("pending_decisions: 1", text)
         self.assertIn("pending_clips: 2", text)
         self.assertIn("estimated_review_minutes: 1.8", text)
+        self.assertIn("open_review_sprint:", text)
+        self.assertIn("pavo-batch-review-sprint.md", text)
+        self.assertIn("open_decision_board:", text)
+        self.assertIn("pavo-batch-proof.decision-board.html", text)
+        self.assertIn("after_review: pavo batch finalize-board-audit", text)
+        self.assertIn("pavo-batch-proof.decision-board.audit.json", text)
+        self.assertIn("pavo-batch-proof.decision-slate.reviewed.tsv", text)
         self.assertIn("next_action: review 1 pending speaker decision", text)
 
     def test_batch_readiness_cli_reports_machine_repair_when_review_pack_missing(self):
