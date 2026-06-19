@@ -611,10 +611,16 @@ def enrich_operator_handoff_with_validation(handoff: dict[str, Any]) -> dict[str
             pending_review_questions = _handoff_pending_review_questions(pending_rows)
             pending_decision_count = len(pending_review_questions)
             decision_progress = _handoff_decision_progress(slate)
+            decision_ready = bool(
+                decision_progress.get("total_decision_count")
+                and decision_progress.get("pending_decision_count") == 0
+                and decision_progress.get("reviewed_decision_count")
+                == decision_progress.get("total_decision_count")
+            )
             slate_mtime = Path(slate).stat().st_mtime if slate and Path(slate).exists() else None
             validation_mtime = validation_path.stat().st_mtime
             fresh = slate_mtime is None or validation_mtime >= slate_mtime
-            status = "stale_validation" if not fresh else ("ready_to_finish" if ready else "pending_review")
+            status = "stale_validation" if not fresh else ("ready_to_finish" if ready and decision_ready else "pending_review")
             validation.update(
                 {
                     "status": status,
@@ -627,6 +633,7 @@ def enrich_operator_handoff_with_validation(handoff: dict[str, Any]) -> dict[str
                     "pending_rows": pending_rows,
                     "pending_decision_count": pending_decision_count,
                     "decision_progress": decision_progress,
+                    "decision_ready": decision_ready,
                     "pending_review_questions": pending_review_questions,
                     "next_action": _handoff_validation_next_action(status, pending, pending_decision_count),
                     "passed": passed,
@@ -800,6 +807,7 @@ def operator_handoff_ready_to_finish(handoff: dict[str, Any]) -> bool:
         and validation.get("exists")
         and validation.get("fresh")
         and validation.get("ready_to_finalize")
+        and validation.get("decision_ready")
         and validation.get("status") == "ready_to_finish"
     )
 
@@ -877,6 +885,7 @@ def format_operator_handoff(handoff: dict[str, Any]) -> str:
                     f"rejected_count: {validation.get('rejected_count')}",
                     f"pending_count: {validation.get('pending_count')}",
                     f"pending_decision_count: {validation.get('pending_decision_count')}",
+                    f"decision_ready: {str(bool(validation.get('decision_ready'))).lower()}",
                     f"reviewed_count: {validation.get('reviewed_count')}",
                     f"total_count: {validation.get('total_count')}",
                     f"progress_percent: {validation.get('progress_percent')}",
