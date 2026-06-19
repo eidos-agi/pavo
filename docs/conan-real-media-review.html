@@ -818,10 +818,12 @@
     }
 
     function clusterConsensusState(cluster) {
-      if (cluster.pendingRows > 0) return ["pending_review", "pending", "Finish pending samples before materializing."];
       if (cluster.approvedRows > 0 && cluster.rejectedRows > 0) return ["conflicting_review", "conflict", "Do not materialize; re-listen or add samples."];
-      if (cluster.approvedRows > 0) return ["ready_for_must_link", "ready", "Ready to confirm this cluster after export/import."];
       if (cluster.rejectedRows > 0) return ["ready_for_cannot_link", "ready", "Ready to reject this proposed speaker after export/import."];
+      const quorum = Math.min(2, Math.max(1, cluster.totalRows));
+      if (cluster.approvedRows >= quorum) return ["ready_for_must_link", "ready", "Ready to confirm this cluster after export/import."];
+      if (cluster.approvedRows > 0) return ["pending_review", "pending", `Need ${quorum - cluster.approvedRows} more supporting sample(s), or one contradiction to early-stop.`];
+      if (cluster.pendingRows > 0) return ["pending_review", "pending", "Review one representative sample. A contradiction can early-stop; confirmation needs quorum."];
       return ["unresolved_no_decision", "pending", "Review at least one sample."];
     }
 

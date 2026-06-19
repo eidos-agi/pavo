@@ -670,6 +670,7 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.cluster_count, 0)
         self.assertEqual(result.ready_cluster_count, 0)
         self.assertEqual(result.conflicted_cluster_count, 0)
+        self.assertEqual(result.unresolved_cluster_count, 0)
         self.assertIn("prepare", result.next_command)
         self.assertIn("review sheet is missing", "; ".join(result.blockers))
 
@@ -721,6 +722,7 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.cluster_count, 1)
         self.assertEqual(result.ready_cluster_count, 0)
         self.assertEqual(result.conflicted_cluster_count, 0)
+        self.assertEqual(result.unresolved_cluster_count, 1)
         self.assertTrue(result.page_verified)
         self.assertIn("open", result.next_command)
 
@@ -754,6 +756,7 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.cluster_count, 1)
         self.assertEqual(result.ready_cluster_count, 1)
         self.assertEqual(result.conflicted_cluster_count, 0)
+        self.assertEqual(result.unresolved_cluster_count, 0)
         self.assertTrue(result.page_verified)
         self.assertIn("finalize", result.next_command)
 
@@ -770,6 +773,7 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(report["cluster_count"], 0)
         self.assertEqual(report["ready_cluster_count"], 0)
         self.assertEqual(report["conflicted_cluster_count"], 0)
+        self.assertEqual(report["unresolved_cluster_count"], 0)
         self.assertIn("next_command", report)
         self.assertIn("blockers", report)
         self.assertIn("Pavo Cluster Review Status", markdown)
@@ -960,8 +964,9 @@ class ReviewTests(unittest.TestCase):
 
         self.assertFalse(result.passed)
         self.assertEqual(result.pending_count, 1)
+        self.assertEqual(result.unresolved_cluster_count, 1)
         self.assertFalse(materialized.passed)
-        self.assertIn("cluster question rows are still pending", "; ".join(materialized.blockers))
+        self.assertIn("cluster questions still need review before terminal consensus", "; ".join(materialized.blockers))
 
     def test_finalize_cluster_review_fails_closed_when_pending(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -991,7 +996,55 @@ class ReviewTests(unittest.TestCase):
         self.assertFalse(result.passed)
         self.assertEqual(result.pending_count, 1)
         self.assertIsNone(result.brief_json_path)
-        self.assertIn("cluster question rows are still pending", "; ".join(result.blockers))
+        self.assertIn("cluster questions still need review before terminal consensus", "; ".join(result.blockers))
+
+    def test_cluster_question_decisions_allow_rejection_early_stop(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sheet = root / "cluster-review-sheet.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "rejected",
+                                "approved": False,
+                                "target_speaker_label": "Daniel",
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 2.0,
+                                "clip_path": "clips/one.mp3",
+                                "cluster_question": {"cluster_id": "S1", "dominant_speaker": "Daniel"},
+                            },
+                            {
+                                "index": 2,
+                                "status": "pending",
+                                "approved": False,
+                                "target_speaker_label": "Daniel",
+                                "recording_id": "rec-2",
+                                "start": 3.0,
+                                "end": 4.0,
+                                "clip_path": "clips/two.mp3",
+                                "cluster_question": {"cluster_id": "S1", "dominant_speaker": "Daniel"},
+                            },
+                        ]
+                    }
+                )
+            )
+
+            result = export_cluster_question_decisions(sheet)
+            report = json.loads(result.report_path.read_text())
+            materialized = materialize_cluster_question_decisions(result.report_path)
+            constraints = json.loads(materialized.constraints_path.read_text())
+
+        self.assertTrue(result.passed)
+        self.assertEqual(result.pending_count, 1)
+        self.assertEqual(result.ready_cluster_count, 1)
+        self.assertEqual(result.unresolved_cluster_count, 0)
+        self.assertEqual(report["clusters"][0]["consensus_state"], "ready_for_cannot_link")
+        self.assertTrue(materialized.passed)
+        self.assertEqual(constraints["constraints"][0]["type"], "cannot_link")
 
     def test_cluster_question_impact_report_ranks_pending_clusters(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1406,6 +1459,7 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.cluster_count, 2)
         self.assertEqual(result.ready_cluster_count, 2)
         self.assertEqual(result.conflicted_cluster_count, 0)
+        self.assertEqual(result.unresolved_cluster_count, 0)
         self.assertEqual(report["clusters"][0]["consensus_state"], "ready_for_must_link")
         self.assertEqual(report["clusters"][1]["consensus_state"], "ready_for_cannot_link")
         self.assertTrue(materialized.passed)
@@ -1468,6 +1522,7 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.cluster_count, 1)
         self.assertEqual(result.ready_cluster_count, 0)
         self.assertEqual(result.conflicted_cluster_count, 1)
+        self.assertEqual(result.unresolved_cluster_count, 0)
         self.assertIn("1 clusters have conflicting approved/rejected samples", result.blockers)
         self.assertEqual(report["clusters"][0]["consensus_state"], "conflicting_review")
         self.assertEqual(report["clusters"][0]["materialization_effect"], "do_not_materialize_broad_cluster_constraint")
