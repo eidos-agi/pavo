@@ -444,6 +444,10 @@ class ClusterReviewStatusResult:
                         f"- Approve effect: {item.get('approve_effect')}",
                         f"- Reject effect: {item.get('reject_effect')}",
                         f"- Terminal decision rule: {item.get('terminal_decision_rule')}",
+                        f"- Acoustic verdict: `{item.get('acoustic_verdict') or 'unknown'}`",
+                        f"- Acoustic min similarity: {item.get('acoustic_min_pair_similarity') if item.get('acoustic_min_pair_similarity') is not None else 'unknown'}",
+                        f"- Acoustic caution: {item.get('acoustic_caution') or 'Use audio evidence as a caution only; listen before deciding.'}",
+                        f"- Acoustic recommendation: {item.get('acoustic_recommended_action') or 'Use this as reviewer evidence only.'}",
                         f"- Recommended action: {item.get('recommended_action')}",
                         f"- Clip: `{item.get('clip_path')}`",
                         f"- Transcript excerpt: {transcript or 'None'}",
@@ -1957,6 +1961,7 @@ def status_cluster_review(
             break
     acoustic_path = sheet_path.with_name("pavo-cluster-question-acoustic-evidence.json")
     acoustic = _load_optional_json(acoustic_path)
+    next_review_plan = _attach_acoustic_evidence_to_next_review_plan(next_review_plan, acoustic)
     forecast_path = sheet_path.with_name("pavo-cluster-review-forecast.json")
     forecast = _load_optional_json(forecast_path)
     decision_report_path = sheet_path.with_name(sheet_path.stem.replace("-sheet", "-decisions") + ".json")
@@ -5406,6 +5411,56 @@ def _load_first_optional_json(paths: list[Path]) -> tuple[dict[str, Any], Path |
         if path.exists():
             return json.loads(path.read_text()), path
     return {}, None
+
+
+def _attach_acoustic_evidence_to_next_review_plan(
+    plan: list[dict[str, Any]],
+    acoustic: dict[str, Any],
+) -> list[dict[str, Any]]:
+    if not plan:
+        return plan
+    clusters = {
+        str(item.get("cluster_id") or ""): item
+        for item in acoustic.get("clusters") or []
+        if isinstance(item, dict)
+    }
+    rows: dict[int, dict[str, Any]] = {}
+    for item in acoustic.get("rows") or []:
+        if not isinstance(item, dict) or item.get("index") is None:
+            continue
+        try:
+            rows[int(item.get("index"))] = item
+        except (TypeError, ValueError):
+            continue
+    enriched = []
+    for item in plan:
+        row_index = item.get("row_index")
+        try:
+            row = rows.get(int(row_index))
+        except (TypeError, ValueError):
+            row = None
+        cluster = clusters.get(str(item.get("cluster_id") or ""))
+        verdict = cluster.get("verdict") if cluster else None
+        if verdict == "consistent_acoustic_shape":
+            caution = "Acoustic shape is consistent, but this is not identity proof."
+        elif verdict in {"mixed_acoustic_shape", "listen_carefully_acoustic_drift"}:
+            caution = "Listen carefully for overlap, noise, or a split cluster before approving."
+        elif verdict == "insufficient_audio":
+            caution = "Acoustic evidence is insufficient; rely on listening and consider replacing the sample."
+        else:
+            caution = "No acoustic cluster evidence is available; rely on listening."
+        enriched.append(
+            {
+                **item,
+                "acoustic_verdict": verdict,
+                "acoustic_min_pair_similarity": cluster.get("min_pair_similarity") if cluster else None,
+                "acoustic_average_pair_similarity": cluster.get("average_pair_similarity") if cluster else None,
+                "acoustic_recommended_action": cluster.get("recommended_next_action") if cluster else None,
+                "acoustic_caution": caution,
+                "acoustic_signature_analyzed": bool((row or {}).get("signature", {}).get("analyzed")),
+            }
+        )
+    return enriched
 
 
 def _bundle_clip_name(row: dict[str, Any], source: Path) -> str:

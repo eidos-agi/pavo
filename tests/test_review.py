@@ -734,6 +734,8 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("reject_effect", result.next_review_plan[0])
         self.assertIn("terminal_decision_rule", result.next_review_plan[0])
         self.assertIn("cannot-link", result.next_review_plan[0]["reject_effect"])
+        self.assertIn("acoustic_verdict", result.next_review_plan[0])
+        self.assertIn("acoustic_caution", result.next_review_plan[0])
         self.assertEqual(result.review_effort["pending_reviews"], 1)
         self.assertEqual(result.review_effort["minimum_reviews"], 1)
         self.assertTrue(result.page_verified)
@@ -742,6 +744,8 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("Approve effect:", markdown)
         self.assertIn("Reject effect:", markdown)
         self.assertIn("Terminal decision rule:", markdown)
+        self.assertIn("Acoustic verdict:", markdown)
+        self.assertIn("Acoustic caution:", markdown)
         self.assertIn("Transcript excerpt: Review me.", markdown)
         self.assertIn("Clip:", markdown)
 
