@@ -961,6 +961,12 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("Space play/pause", html)
         self.assertIn("document.addEventListener(\"keydown\"", html)
         self.assertIn("setDecision(activeCard()", html)
+        self.assertIn("Live decision impact", html)
+        self.assertIn("approved unlock", html)
+        self.assertIn("rejected/blocked", html)
+        self.assertIn("impact reviewed", html)
+        self.assertIn("writeImpact(rows)", html)
+        self.assertIn("unlockable_segments", html)
 
     def test_cli_cluster_review_decision_brief_writes_json_and_markdown(self):
         from pavo.cli import main

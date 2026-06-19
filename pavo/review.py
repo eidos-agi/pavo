@@ -6110,6 +6110,8 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
             "priority_reason": item.get("priority_reason"),
             "question": item.get("question"),
             "expected_impact": item.get("expected_impact"),
+            "unlockable_segments": item.get("unlockable_segments"),
+            "unlockable_seconds": item.get("unlockable_seconds"),
             "acoustic_verdict": item.get("acoustic_verdict"),
             "clip_path": item.get("clip_path"),
             "transcript": item.get("transcript_excerpt"),
@@ -6184,6 +6186,10 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
     .completion-summary {{ display: inline-block; border-radius: 999px; padding: 8px 12px; font-weight: 850; background: #fff7ed; color: #9a3412; }}
     .completion-summary.ready {{ background: #ecfdf3; color: #027a48; }}
     .completion-summary.incomplete {{ background: #fff7ed; color: #9a3412; }}
+    .impact-grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 12px 0 14px; }}
+    .impact-cell {{ border: 1px solid #fed7aa; background: #fffbeb; border-radius: 14px; padding: 10px; }}
+    .impact-cell strong {{ display: block; font-size: 19px; }}
+    .impact-cell span {{ color: var(--muted); font-size: 12px; }}
     code {{ background: #f1f5f9; border: 1px solid #dbe3ee; border-radius: 8px; padding: 2px 5px; overflow-wrap: anywhere; }}
     button {{ border: 0; border-radius: 12px; background: var(--blue); color: white; padding: 10px 14px; font-weight: 800; cursor: pointer; margin-right: 8px; }}
     button.secondary {{ background: #475467; }}
@@ -6249,6 +6255,12 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
       <h2>Decision Export</h2>
       <p>Mark each card, adjust speaker if needed, add notes, then export the TSV. The output is compatible with <code>pavo review clusters finish-from-slate</code>.</p>
       <p id="completion-summary" class="completion-summary">Pending review...</p>
+      <div class="impact-grid" aria-label="Live decision impact">
+        <div class="impact-cell"><strong id="approved-impact">0 / 0.0s</strong><span>approved unlock</span></div>
+        <div class="impact-cell"><strong id="rejected-impact">0 / 0.0s</strong><span>rejected/blocked</span></div>
+        <div class="impact-cell"><strong id="pending-impact">0 / 0.0s</strong><span>still undecided</span></div>
+        <div class="impact-cell"><strong id="review-impact">0%</strong><span>impact reviewed</span></div>
+      </div>
       <button type="button" id="export-tsv">Export reviewed TSV</button>
       <button type="button" class="secondary" id="copy-tsv">Copy TSV</button>
       <button type="button" class="secondary" id="reset-decisions">Reset to pending</button>
@@ -6289,6 +6301,8 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
         priority_reason: metadata.priority_reason,
         question: metadata.question,
         expected_impact: metadata.expected_impact,
+        unlockable_segments: Number(metadata.unlockable_segments || 0),
+        unlockable_seconds: Number(metadata.unlockable_seconds || 0),
         acoustic_verdict: metadata.acoustic_verdict,
         clip_path: metadata.clip_path,
         transcript: metadata.transcript
@@ -6350,7 +6364,32 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
       summary.textContent = `${{stats.reviewed}}/${{stats.total}} reviewed · ${{stats.approved}} approved · ${{stats.rejected}} rejected · ${{stats.pending}} pending${{done ? " · ready to export" : " · incomplete"}}`;
       summary.classList.toggle("ready", done);
       summary.classList.toggle("incomplete", !done);
+      writeImpact(rows);
       return stats;
+    }}
+    function formatImpact(segments, seconds) {{
+      return `${{Math.round(segments)}} / ${{Number(seconds || 0).toFixed(1)}}s`;
+    }}
+    function writeImpact(rows = currentRows()) {{
+      const totals = rows.reduce((acc, row) => {{
+        const bucket = row.decision === "approved" ? "approved" : row.decision === "rejected" ? "rejected" : "pending";
+        acc[bucket].segments += Number(row.unlockable_segments || 0);
+        acc[bucket].seconds += Number(row.unlockable_seconds || 0);
+        acc.total.segments += Number(row.unlockable_segments || 0);
+        acc.total.seconds += Number(row.unlockable_seconds || 0);
+        return acc;
+      }}, {{
+        approved: {{ segments: 0, seconds: 0 }},
+        rejected: {{ segments: 0, seconds: 0 }},
+        pending: {{ segments: 0, seconds: 0 }},
+        total: {{ segments: 0, seconds: 0 }}
+      }});
+      const reviewedSegments = totals.approved.segments + totals.rejected.segments;
+      const reviewedPercent = totals.total.segments ? Math.round((reviewedSegments / totals.total.segments) * 100) : 0;
+      document.getElementById("approved-impact").textContent = formatImpact(totals.approved.segments, totals.approved.seconds);
+      document.getElementById("rejected-impact").textContent = formatImpact(totals.rejected.segments, totals.rejected.seconds);
+      document.getElementById("pending-impact").textContent = formatImpact(totals.pending.segments, totals.pending.seconds);
+      document.getElementById("review-impact").textContent = `${{reviewedPercent}}%`;
     }}
     function saveLocal() {{
       const decisions = currentRows().map(row => ({{
