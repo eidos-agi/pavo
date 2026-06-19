@@ -94,6 +94,7 @@ pavo batch verify-manifest /path/to/meeting-batch/pavo-batch-doctor.json --json 
 pavo batch prove /path/to/meeting-batch --json
 pavo batch prove /path/to/meeting-batch --strict-complete
 pavo batch decision-board /path/to/meeting-batch/pavo-batch-proof.json
+pavo batch verify-decision-board /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch apply-decision-board-audit \
   /path/to/meeting-batch/pavo-batch-proof.json \
   /path/to/meeting-batch/pavo-batch-proof.decision-board.audit.json \
@@ -155,6 +156,12 @@ grouped speaker decisions again when you need to regenerate just that artifact.
 It shows each decision, supporting clips and transcript samples, keyboard
 shortcuts, and a generated decision TSV surface for the reviewer. It does not
 write reviewed decisions by itself.
+
+Use `pavo batch verify-decision-board` to prove the rendered board is fit for
+handoff. It checks the board exists, fingerprints it, compares decision/support
+counts against the proof slates, and verifies the required review controls,
+autosave, audit export, and finish commands are present. It exits `3` if the
+board is stale or missing required controls.
 
 Use `pavo batch apply-decision-board-audit` when the reviewer uses the browser
 board's "Download Audit JSON" button. It validates that the audit came from the

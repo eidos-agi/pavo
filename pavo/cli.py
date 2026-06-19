@@ -21,6 +21,7 @@ from .batch import (
     load_operator_handoff,
     operator_handoff_ready_to_finish,
     prove_batch,
+    verify_batch_decision_board,
     verify_batch_manifest,
     write_batch_decision_board,
     write_batch_review_pack,
@@ -130,6 +131,13 @@ def build_parser() -> argparse.ArgumentParser:
     batch_decision_board.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
     batch_decision_board.add_argument("--out", type=Path, help="Output HTML path; defaults beside the proof report")
     batch_decision_board.add_argument("--json", action="store_true", help="Print machine-readable board report")
+    batch_verify_decision_board = batch_sub.add_parser(
+        "verify-decision-board",
+        help="Verify the rendered batch decision board has required controls, counts, commands, and audit wiring",
+    )
+    batch_verify_decision_board.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_verify_decision_board.add_argument("--board", type=Path, help="Decision board HTML path; defaults from the proof report")
+    batch_verify_decision_board.add_argument("--json", action="store_true", help="Print machine-readable verification report")
     batch_apply_decision_slate = batch_sub.add_parser(
         "apply-decision-slate",
         help="Apply grouped proof decisions to the row-level proof review slate",
@@ -665,6 +673,27 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"pending_decision_count: {result.pending_decision_count}")
                 print(f"supporting_row_count: {result.supporting_row_count}")
             return 0
+        if args.batch_command == "verify-decision-board":
+            try:
+                result = verify_batch_decision_board(args.proof_report, decision_board_path=args.board)
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+            else:
+                print(f"passed: {str(result.passed).lower()}")
+                print(f"decision_board_path: {result.decision_board_path}")
+                print(f"decision_count: {result.decision_count}")
+                print(f"expected_decision_count: {result.expected_decision_count}")
+                print(f"pending_decision_count: {result.pending_decision_count}")
+                print(f"supporting_row_count: {result.supporting_row_count}")
+                print(f"expected_supporting_row_count: {result.expected_supporting_row_count}")
+                if result.board_fingerprint:
+                    print(f"board_sha256: {result.board_fingerprint.get('sha256')}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+            return 0 if result.passed else 3
         if args.batch_command == "apply-decision-slate":
             try:
                 result = apply_batch_decision_slate(args.proof_report, args.decision_slate, out_path=args.out)

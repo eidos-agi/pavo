@@ -470,6 +470,37 @@ class BatchDecisionBoardResult:
 
 
 @dataclass(frozen=True)
+class BatchDecisionBoardVerifyResult:
+    proof_report_path: Path
+    decision_board_path: Path
+    passed: bool
+    decision_count: int
+    expected_decision_count: int
+    pending_decision_count: int
+    supporting_row_count: int
+    expected_supporting_row_count: int
+    checks: list[dict[str, Any]]
+    blockers: list[str]
+    board_fingerprint: dict[str, Any]
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "proof_report_path": str(self.proof_report_path),
+            "decision_board_path": str(self.decision_board_path),
+            "passed": self.passed,
+            "decision_count": self.decision_count,
+            "expected_decision_count": self.expected_decision_count,
+            "pending_decision_count": self.pending_decision_count,
+            "supporting_row_count": self.supporting_row_count,
+            "expected_supporting_row_count": self.expected_supporting_row_count,
+            "checks": self.checks,
+            "blockers": self.blockers,
+            "board_fingerprint": self.board_fingerprint,
+            "safety_boundary": "Decision-board verification proves the review surface is present and wired. It does not approve speaker identity or replace human listening review.",
+        }
+
+
+@dataclass(frozen=True)
 class BatchReviewPackResult:
     proof_report_path: Path
     batch_root: Path
@@ -2015,6 +2046,88 @@ def write_batch_decision_board(
         pending_decision_count=pending_count,
         supporting_row_count=len(proof_rows),
     )
+
+
+def verify_batch_decision_board(
+    proof_report_path: Path | str,
+    *,
+    decision_board_path: Path | str | None = None,
+) -> BatchDecisionBoardVerifyResult:
+    proof_path = Path(proof_report_path)
+    proof_report = json.loads(proof_path.read_text())
+    board_value = decision_board_path or proof_report.get("proof_decision_board_path")
+    if not board_value:
+        board_value = (proof_report.get("review_packet") or {}).get("proof_decision_board_html")
+    if not board_value:
+        board_value = (proof_report.get("operator_handoff") or {}).get("proof_decision_board_html")
+    if not board_value:
+        raise ValueError(f"proof report does not name a decision board: {proof_path}")
+    board_path = Path(str(board_value))
+    decision_slate_value = (
+        proof_report.get("proof_decision_slate_path")
+        or (proof_report.get("review_packet") or {}).get("proof_decision_slate_tsv")
+        or (proof_report.get("operator_handoff") or {}).get("proof_decision_slate_tsv")
+    )
+    if not decision_slate_value:
+        raise ValueError(f"proof report does not name a decision slate: {proof_path}")
+    decision_slate_path = Path(str(decision_slate_value))
+    decisions, _decision_fields = _read_tsv(decision_slate_path)
+    proof_slate_path = _proof_review_slate_path_from_report(proof_path)
+    proof_rows, _proof_fields = _read_tsv(proof_slate_path)
+    html = board_path.read_text(encoding="utf-8") if board_path.exists() else ""
+    pending_count = sum(1 for row in decisions if str(row.get("decision") or "").strip().lower() == "pending")
+    expected_decision_count = _proof_report_decision_count(proof_report, default=len(decisions))
+    expected_supporting_count = _proof_report_supporting_row_count(proof_report, default=len(proof_rows))
+    card_count = html.count('class="card"')
+    checks = [
+        _check("decision_board_exists", board_path.exists() and board_path.is_file(), str(board_path)),
+        _check("decision_slate_exists", decision_slate_path.exists() and decision_slate_path.is_file(), str(decision_slate_path)),
+        _check("proof_review_slate_exists", proof_slate_path.exists() and proof_slate_path.is_file(), str(proof_slate_path)),
+        _check("decision_count_matches", len(decisions) == expected_decision_count, f"{len(decisions)}/{expected_decision_count}"),
+        _check("supporting_row_count_matches", len(proof_rows) == expected_supporting_count, f"{len(proof_rows)}/{expected_supporting_count}"),
+        _check("has_decision_cards", card_count >= len(decisions), f"{card_count}/{len(decisions)}"),
+        _check("has_download_tsv", "Download TSV" in html and "downloadTsv" in html, "Download TSV control"),
+        _check("has_download_audit_json", "Download Audit JSON" in html and "downloadAudit" in html, "Download Audit JSON control"),
+        _check("has_autosave", "localStorage" in html and "Autosaved locally" in html, "localStorage autosave"),
+        _check("has_audit_events", "auditEvents" in html and "auditPayload" in html, "audit event export"),
+        _check("has_finalize_board_audit_command", "pavo batch finalize-board-audit" in html, "finalize-board-audit command"),
+        _check("has_apply_board_audit_command", "pavo batch apply-decision-board-audit" in html, "apply-decision-board-audit command"),
+        _check("has_finalize_reviewed_proof_command", "pavo batch finalize-reviewed-proof" in html, "finalize-reviewed-proof command"),
+        _check("has_safety_boundary", "does not write files or approve identity by itself" in html, "identity safety boundary"),
+    ]
+    blockers = [f"{check['name']}: {check['detail']}" for check in checks if not check.get("passed")]
+    board_fingerprint = _file_fingerprint(board_path) if board_path.exists() and board_path.is_file() else {}
+    return BatchDecisionBoardVerifyResult(
+        proof_report_path=proof_path,
+        decision_board_path=board_path,
+        passed=not blockers,
+        decision_count=len(decisions),
+        expected_decision_count=expected_decision_count,
+        pending_decision_count=pending_count,
+        supporting_row_count=len(proof_rows),
+        expected_supporting_row_count=expected_supporting_count,
+        checks=checks,
+        blockers=blockers,
+        board_fingerprint=board_fingerprint,
+    )
+
+
+def _proof_report_decision_count(proof_report: dict[str, Any], *, default: int) -> int:
+    review_packet = proof_report.get("review_packet") if isinstance(proof_report.get("review_packet"), dict) else {}
+    value = review_packet.get("proof_decision_count") or review_packet.get("decision_count")
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _proof_report_supporting_row_count(proof_report: dict[str, Any], *, default: int) -> int:
+    review_packet = proof_report.get("review_packet") if isinstance(proof_report.get("review_packet"), dict) else {}
+    value = review_packet.get("proof_slate_item_count") or proof_report.get("proof_slate_item_count")
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def write_batch_review_pack(

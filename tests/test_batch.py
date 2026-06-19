@@ -29,6 +29,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("pavo batch apply-decision-board-audit", readme)
         self.assertIn("pavo batch finalize-board-audit", readme)
         self.assertIn("pavo batch decision-board", readme)
+        self.assertIn("pavo batch verify-decision-board", readme)
         self.assertIn("pavo batch review-pack", readme)
         self.assertIn("pavo batch finalize-reviewed-proof", readme)
         self.assertIn("stale-validation detection", readme)
@@ -504,6 +505,62 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("auditEvents", html)
         self.assertIn("Autosaved locally", html)
         self.assertIn("pavo batch finalize-reviewed-proof", html)
+
+    def test_batch_verify_decision_board_cli_passes_for_fresh_board(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "batch",
+                        "verify-decision-board",
+                        str(result.proof_report_path),
+                        "--json",
+                    ]
+                )
+
+            report = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(report["passed"])
+        self.assertEqual(report["decision_count"], 1)
+        self.assertEqual(report["pending_decision_count"], 1)
+        self.assertEqual(report["supporting_row_count"], 2)
+        self.assertRegex(report["board_fingerprint"]["sha256"], r"^[0-9a-f]{64}$")
+        self.assertFalse(report["blockers"])
+
+    def test_batch_verify_decision_board_cli_fails_when_control_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            broken_board = root / "broken-decision-board.html"
+            broken_board.write_text(
+                result.proof_decision_board_path.read_text().replace("Download Audit JSON", "Download Removed")
+            )
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "batch",
+                        "verify-decision-board",
+                        str(result.proof_report_path),
+                        "--board",
+                        str(broken_board),
+                        "--json",
+                    ]
+                )
+
+            report = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 3)
+        self.assertFalse(report["passed"])
+        self.assertIn("has_download_audit_json", "\n".join(report["blockers"]))
 
     def test_batch_review_pack_cli_copies_review_artifacts_without_audio(self):
         with tempfile.TemporaryDirectory() as tmp:
