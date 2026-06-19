@@ -614,6 +614,7 @@ def enrich_operator_handoff_with_validation(handoff: dict[str, Any]) -> dict[str
             decision_ready = bool(
                 decision_progress.get("total_decision_count")
                 and decision_progress.get("pending_decision_count") == 0
+                and decision_progress.get("inconsistent_decision_count") == 0
                 and decision_progress.get("reviewed_decision_count")
                 == decision_progress.get("total_decision_count")
             )
@@ -720,7 +721,7 @@ def _handoff_decision_progress(slate: str) -> dict[str, Any]:
             "pending_decision_count": 0,
             "progress_percent": 100.0,
         }
-    grouped: dict[tuple[str, str, str], set[str]] = {}
+    grouped: dict[tuple[str, str, str], dict[str, Any]] = {}
     try:
         with path.open(newline="", encoding="utf-8") as handle:
             reader = csv.DictReader(handle, delimiter="\t")
@@ -730,7 +731,18 @@ def _handoff_decision_progress(slate: str) -> dict[str, Any]:
                     str(row.get("speaker") or ""),
                     str(row.get("question") or ""),
                 )
-                grouped.setdefault(key, set()).add(str(row.get("decision") or "").strip().lower() or "pending")
+                group = grouped.setdefault(
+                    key,
+                    {
+                        "cluster_id": row.get("cluster_id"),
+                        "speaker": row.get("speaker"),
+                        "question": row.get("question"),
+                        "row_indices": [],
+                        "decisions": set(),
+                    },
+                )
+                group["row_indices"].append(row.get("row_index"))
+                group["decisions"].add(str(row.get("decision") or "").strip().lower() or "pending")
     except (OSError, csv.Error):
         return {
             "total_decision_count": 0,
@@ -740,13 +752,26 @@ def _handoff_decision_progress(slate: str) -> dict[str, Any]:
             "error": "unable to read proof TSV decision progress",
         }
     total = len(grouped)
-    pending = sum(1 for decisions in grouped.values() if "pending" in decisions)
+    pending = sum(1 for group in grouped.values() if "pending" in group["decisions"])
+    inconsistent_groups = [
+        {
+            "cluster_id": group.get("cluster_id"),
+            "speaker": group.get("speaker"),
+            "question": group.get("question"),
+            "row_indices": group.get("row_indices") or [],
+            "decisions": sorted(group["decisions"]),
+        }
+        for group in grouped.values()
+        if "pending" not in group["decisions"] and len(group["decisions"]) > 1
+    ]
     reviewed = total - pending
     progress = round((reviewed / total) * 100, 1) if total else 100.0
     return {
         "total_decision_count": total,
         "reviewed_decision_count": reviewed,
         "pending_decision_count": pending,
+        "inconsistent_decision_count": len(inconsistent_groups),
+        "inconsistent_decisions": inconsistent_groups,
         "progress_percent": progress,
     }
 
@@ -900,6 +925,7 @@ def format_operator_handoff(handoff: dict[str, Any]) -> str:
                         f"total_decision_count: {decision_progress.get('total_decision_count')}",
                         f"reviewed_decision_count: {decision_progress.get('reviewed_decision_count')}",
                         f"pending_decision_count: {decision_progress.get('pending_decision_count')}",
+                        f"inconsistent_decision_count: {decision_progress.get('inconsistent_decision_count')}",
                         f"decision_progress_percent: {decision_progress.get('progress_percent')}",
                     ]
                 )

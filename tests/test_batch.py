@@ -373,6 +373,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("decision_progress:", checked_stdout.getvalue())
         self.assertIn("total_decision_count: 1", checked_stdout.getvalue())
         self.assertIn("reviewed_decision_count: 0", checked_stdout.getvalue())
+        self.assertIn("inconsistent_decision_count: 0", checked_stdout.getvalue())
         self.assertIn("decision_progress_percent: 0.0", checked_stdout.getvalue())
         self.assertEqual(
             json_report["validation"]["decision_progress"],
@@ -380,6 +381,8 @@ class BatchDoctorTests(unittest.TestCase):
                 "total_decision_count": 1,
                 "reviewed_decision_count": 0,
                 "pending_decision_count": 1,
+                "inconsistent_decision_count": 0,
+                "inconsistent_decisions": [],
                 "progress_percent": 0.0,
             },
         )
@@ -447,6 +450,8 @@ class BatchDoctorTests(unittest.TestCase):
                 "total_decision_count": 1,
                 "reviewed_decision_count": 1,
                 "pending_decision_count": 0,
+                "inconsistent_decision_count": 0,
+                "inconsistent_decisions": [],
                 "progress_percent": 100.0,
             },
         )
@@ -481,6 +486,42 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(report["validation"]["status"], "pending_review")
         self.assertFalse(report["validation"]["decision_ready"])
         self.assertEqual(report["validation"]["decision_progress"]["pending_decision_count"], 1)
+        self.assertFalse(operator_handoff_ready_to_finish(report))
+
+    def test_batch_handoff_strict_ready_fails_for_mixed_group_decisions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            lines = result.proof_review_slate_path.read_text().splitlines()
+            lines[1] = lines[1].replace("\tpending\t", "\tapproved\t")
+            lines[2] = lines[2].replace("\tpending\t", "\trejected\t")
+            result.proof_review_slate_path.write_text("\n".join(lines) + "\n")
+            result.proof_review_slate_path.with_suffix(".validation.json").write_text(
+                json.dumps(
+                    {
+                        "passed": True,
+                        "ready_to_finalize": True,
+                        "applied_count": 2,
+                        "approved_count": 1,
+                        "rejected_count": 1,
+                        "pending_count": 0,
+                        "blockers": [],
+                    }
+                )
+            )
+
+            json_stdout = io.StringIO()
+            with redirect_stdout(json_stdout):
+                exit_code = main(["batch", "handoff", str(result.proof_report_path), "--strict-ready", "--json"])
+            report = json.loads(json_stdout.getvalue())
+
+        self.assertEqual(exit_code, 3)
+        self.assertEqual(report["validation"]["status"], "pending_review")
+        self.assertFalse(report["validation"]["decision_ready"])
+        self.assertEqual(report["validation"]["decision_progress"]["pending_decision_count"], 0)
+        self.assertEqual(report["validation"]["decision_progress"]["inconsistent_decision_count"], 1)
+        self.assertEqual(report["validation"]["decision_progress"]["inconsistent_decisions"][0]["decisions"], ["approved", "rejected"])
         self.assertFalse(operator_handoff_ready_to_finish(report))
 
     def test_batch_handoff_strict_ready_fails_when_checklist_missing(self):
