@@ -23,6 +23,7 @@ from .batch import (
     prove_batch,
     verify_batch_decision_board,
     verify_batch_manifest,
+    verify_batch_review_pack,
     write_batch_decision_board,
     write_batch_review_pack,
 )
@@ -192,6 +193,13 @@ def build_parser() -> argparse.ArgumentParser:
     batch_review_pack.add_argument("--no-zip", action="store_true", help="Skip creating the .zip archive")
     batch_review_pack.add_argument("--zip-path", type=Path, help="Optional zip output path")
     batch_review_pack.add_argument("--json", action="store_true", help="Print machine-readable review-pack report")
+    batch_verify_review_pack = batch_sub.add_parser(
+        "verify-review-pack",
+        help="Verify a portable review pack manifest, hashes, board controls, and raw-audio boundary",
+    )
+    batch_verify_review_pack.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_verify_review_pack.add_argument("--pack-dir", type=Path, help="Review pack directory; defaults beside the proof report")
+    batch_verify_review_pack.add_argument("--json", action="store_true", help="Print machine-readable verification report")
 
     brief = subparsers.add_parser("brief", help="Create a composed readiness and action brief for a meeting batch")
     brief.add_argument("root", type=Path)
@@ -835,6 +843,26 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"artifact_manifest_sha256: {result.artifact_manifest_sha256}")
                 print(f"raw_audio_copied: {str(result.raw_audio_copied).lower()}")
             return 0
+        if args.batch_command == "verify-review-pack":
+            try:
+                result = verify_batch_review_pack(args.proof_report, pack_dir=args.pack_dir)
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+            else:
+                print(f"passed: {str(result.passed).lower()}")
+                print(f"pack_dir: {result.pack_dir}")
+                print(f"manifest_path: {result.manifest_path}")
+                print(f"readme_path: {result.readme_path}")
+                print(f"zip_path: {result.zip_path}")
+                print(f"artifact_count: {result.artifact_count}")
+                print(f"missing_artifact_count: {result.missing_artifact_count}")
+                print(f"artifact_manifest_sha256: {result.artifact_manifest_sha256}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+            return 0 if result.passed else 3
 
     if args.command == "brief":
         if not args.root.exists():

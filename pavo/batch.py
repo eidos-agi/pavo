@@ -534,6 +534,39 @@ class BatchReviewPackResult:
 
 
 @dataclass(frozen=True)
+class BatchReviewPackVerifyResult:
+    proof_report_path: Path
+    pack_dir: Path
+    manifest_path: Path
+    readme_path: Path
+    zip_path: Path | None
+    passed: bool
+    artifact_count: int
+    missing_artifact_count: int
+    checks: list[dict[str, Any]]
+    blockers: list[str]
+    artifact_manifest_sha256: str | None
+    board_verification: dict[str, Any] | None
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "proof_report_path": str(self.proof_report_path),
+            "pack_dir": str(self.pack_dir),
+            "manifest_path": str(self.manifest_path),
+            "readme_path": str(self.readme_path),
+            "zip_path": str(self.zip_path) if self.zip_path else None,
+            "passed": self.passed,
+            "artifact_count": self.artifact_count,
+            "missing_artifact_count": self.missing_artifact_count,
+            "checks": self.checks,
+            "blockers": self.blockers,
+            "artifact_manifest_sha256": self.artifact_manifest_sha256,
+            "board_verification": self.board_verification,
+            "safety_boundary": "Review-pack verification proves the handoff package is complete and integrity-checked. It does not copy raw audio or approve speaker identity.",
+        }
+
+
+@dataclass(frozen=True)
 class BatchDecisionBoardAuditApplyResult:
     proof_report_path: Path
     audit_path: Path
@@ -2183,17 +2216,7 @@ def write_batch_review_pack(
         "zip_path": str(zip_target) if zip_output else None,
         "safety_boundary": "This pack intentionally excludes raw audio, signed URLs, credentials, voiceprints, and identity approvals.",
     }
-    manifest["artifact_manifest_sha256"] = _handoff_artifact_manifest_sha256(
-        {
-            name: {
-                "path": payload.get("packed_relative_path"),
-                "exists": True,
-                "bytes": (payload.get("packed") or {}).get("bytes"),
-                "sha256": (payload.get("packed") or {}).get("sha256"),
-            }
-            for name, payload in copied.items()
-        }
-    )
+    manifest["artifact_manifest_sha256"] = _review_pack_artifact_manifest_sha256(copied)
     readme_path.write_text(_render_batch_review_pack_readme(manifest), encoding="utf-8")
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     copied["review_pack_readme"] = {
@@ -2208,17 +2231,7 @@ def write_batch_review_pack(
     }
     manifest["artifacts"] = copied
     manifest["copied_artifact_count"] = len(copied)
-    manifest["artifact_manifest_sha256"] = _handoff_artifact_manifest_sha256(
-        {
-            name: {
-                "path": payload.get("packed_relative_path"),
-                "exists": True,
-                "bytes": (payload.get("packed") or {}).get("bytes"),
-                "sha256": (payload.get("packed") or {}).get("sha256"),
-            }
-            for name, payload in copied.items()
-        }
-    )
+    manifest["artifact_manifest_sha256"] = _review_pack_artifact_manifest_sha256(copied)
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     if zip_output:
@@ -2246,6 +2259,124 @@ def write_batch_review_pack(
         artifacts=copied,
         missing_artifacts=missing,
     )
+
+
+def _review_pack_artifact_manifest_sha256(copied: dict[str, dict[str, Any]]) -> str:
+    entries = {
+        name: {
+            "path": payload.get("packed_relative_path"),
+            "exists": True,
+            "bytes": (payload.get("packed") or {}).get("bytes"),
+            "sha256": (payload.get("packed") or {}).get("sha256"),
+        }
+        for name, payload in copied.items()
+        if name != "review_pack_manifest"
+    }
+    return _handoff_artifact_manifest_sha256(entries)
+
+
+def verify_batch_review_pack(
+    proof_report_path: Path | str,
+    *,
+    pack_dir: Path | str | None = None,
+) -> BatchReviewPackVerifyResult:
+    proof_path = Path(proof_report_path)
+    resolved_pack_dir = Path(pack_dir) if pack_dir else proof_path.with_name("pavo-batch-review-pack")
+    manifest_path = resolved_pack_dir / "manifest.json"
+    readme_path = resolved_pack_dir / "README.md"
+    manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
+    artifacts = manifest.get("artifacts") if isinstance(manifest.get("artifacts"), dict) else {}
+    missing_artifacts = manifest.get("missing_artifacts") if isinstance(manifest.get("missing_artifacts"), list) else []
+    readme_text = readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""
+    zip_value = manifest.get("zip_path")
+    zip_path = Path(str(zip_value)) if zip_value else resolved_pack_dir.with_suffix(".zip")
+    checks = [
+        _check("pack_dir_exists", resolved_pack_dir.exists() and resolved_pack_dir.is_dir(), str(resolved_pack_dir)),
+        _check("manifest_exists", manifest_path.exists() and manifest_path.is_file(), str(manifest_path)),
+        _check("readme_exists", readme_path.exists() and readme_path.is_file(), str(readme_path)),
+        _check("raw_audio_copied_false", manifest.get("raw_audio_copied") is False, str(manifest.get("raw_audio_copied"))),
+        _check("readme_has_finalize_board_audit", "pavo batch finalize-board-audit" in readme_text, "finalize-board-audit"),
+        _check("readme_has_safety_boundary", "excludes raw audio" in readme_text, "raw-audio boundary"),
+        _check("zip_exists", zip_path.exists() and zip_path.is_file(), str(zip_path)),
+    ]
+    artifact_checks, artifact_manifest_sha256 = _verify_review_pack_artifacts(resolved_pack_dir, artifacts)
+    checks.extend(artifact_checks)
+    raw_audio_files = _review_pack_raw_audio_files(resolved_pack_dir)
+    checks.append(_check("no_raw_audio_files", not raw_audio_files, ", ".join(raw_audio_files) or "none"))
+    expected_manifest_sha256 = manifest.get("artifact_manifest_sha256")
+    checks.append(
+        _check(
+            "artifact_manifest_sha256_matches",
+            bool(artifact_manifest_sha256 and artifact_manifest_sha256 == expected_manifest_sha256),
+            f"{artifact_manifest_sha256}/{expected_manifest_sha256}",
+        )
+    )
+    board_verification: dict[str, Any] | None = None
+    try:
+        board = verify_batch_decision_board(proof_path)
+        board_verification = board.as_report()
+        checks.append(_check("decision_board_verifies", board.passed, str(board.decision_board_path)))
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        board_verification = {"passed": False, "error": str(exc)}
+        checks.append(_check("decision_board_verifies", False, str(exc)))
+    blockers = [f"{check['name']}: {check['detail']}" for check in checks if not check.get("passed")]
+    return BatchReviewPackVerifyResult(
+        proof_report_path=proof_path,
+        pack_dir=resolved_pack_dir,
+        manifest_path=manifest_path,
+        readme_path=readme_path,
+        zip_path=zip_path,
+        passed=not blockers,
+        artifact_count=len(artifacts),
+        missing_artifact_count=len(missing_artifacts),
+        checks=checks,
+        blockers=blockers,
+        artifact_manifest_sha256=artifact_manifest_sha256,
+        board_verification=board_verification,
+    )
+
+
+def _verify_review_pack_artifacts(
+    pack_dir: Path, artifacts: dict[str, Any]
+) -> tuple[list[dict[str, Any]], str | None]:
+    checks: list[dict[str, Any]] = []
+    manifest_entries: dict[str, dict[str, Any]] = {}
+    if not artifacts:
+        return [_check("artifacts_present", False, "no artifacts in manifest")], None
+    checks.append(_check("artifacts_present", True, f"{len(artifacts)} artifacts"))
+    for name, payload in sorted(artifacts.items()):
+        packed = payload.get("packed") if isinstance(payload, dict) else {}
+        relative = str(payload.get("packed_relative_path") or "") if isinstance(payload, dict) else ""
+        path = pack_dir / relative if relative else None
+        exists = bool(path and path.exists() and path.is_file())
+        checks.append(_check(f"artifact_exists:{name}", exists, str(path) if path else "missing path"))
+        if not exists or path is None:
+            continue
+        fingerprint = _file_fingerprint(path)
+        if name == "review_pack_manifest":
+            continue
+        sha_matches = fingerprint.get("sha256") == packed.get("sha256")
+        bytes_matches = fingerprint.get("bytes") == packed.get("bytes")
+        checks.append(_check(f"artifact_sha256_matches:{name}", sha_matches, str(path)))
+        checks.append(_check(f"artifact_bytes_match:{name}", bytes_matches, str(path)))
+        manifest_entries[name] = {
+            "path": relative,
+            "exists": True,
+            "bytes": fingerprint.get("bytes"),
+            "sha256": fingerprint.get("sha256"),
+        }
+    return checks, _handoff_artifact_manifest_sha256(manifest_entries)
+
+
+def _review_pack_raw_audio_files(pack_dir: Path) -> list[str]:
+    raw_audio_suffixes = {".aac", ".aif", ".aiff", ".flac", ".m4a", ".mp3", ".ogg", ".wav", ".wma"}
+    if not pack_dir.exists():
+        return []
+    return [
+        str(path.relative_to(pack_dir))
+        for path in sorted(pack_dir.rglob("*"))
+        if path.is_file() and path.suffix.lower() in raw_audio_suffixes
+    ]
 
 
 def _batch_review_pack_artifacts(

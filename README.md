@@ -110,6 +110,7 @@ pavo batch speaker-memory-candidates \
   /path/to/meeting-batch/pavo-batch-proof.json \
   --out /path/to/meeting-batch/pavo-speaker-memory-candidates.json
 pavo batch review-pack /path/to/meeting-batch/pavo-batch-proof.json
+pavo batch verify-review-pack /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch finalize-reviewed-proof /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --check-validation
 pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --strict-ready
@@ -192,6 +193,13 @@ review pages into `pavo-batch-review-pack/`, then writes a manifest with
 SHA-256 fingerprints and a README with the exact next commands. It intentionally
 does not copy raw audio, signed URLs, credentials, voiceprints, or identity
 approvals.
+
+Use `pavo batch verify-review-pack` before sending or archiving a handoff pack.
+It rehashes every packed artifact against the manifest, checks the review-pack
+README and zip exist, verifies no raw audio files were copied, recomputes the
+artifact manifest hash, and runs `verify-decision-board` against the source
+proof. It exits `3` if the pack is stale, tampered, incomplete, or missing the
+safe finish commands.
 
 Use `pavo batch finalize-reviewed-proof` when the proof slate has been reviewed.
 It validates the proof slate, materializes the cluster decisions, writes speaker

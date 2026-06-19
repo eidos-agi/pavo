@@ -31,6 +31,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("pavo batch decision-board", readme)
         self.assertIn("pavo batch verify-decision-board", readme)
         self.assertIn("pavo batch review-pack", readme)
+        self.assertIn("pavo batch verify-review-pack", readme)
         self.assertIn("pavo batch finalize-reviewed-proof", readme)
         self.assertIn("stale-validation detection", readme)
         self.assertIn("it exits `0` only when all", readme)
@@ -605,6 +606,64 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("pavo-batch-proof.decision-board.audit.json", readme)
         self.assertIn("pavo batch prove", readme)
         self.assertRegex(report["artifact_manifest_sha256"], r"^[0-9a-f]{64}$")
+
+    def test_batch_verify_review_pack_cli_passes_for_fresh_pack(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            out_dir = root / "handoff-pack"
+            main(["batch", "review-pack", str(result.proof_report_path), "--out-dir", str(out_dir), "--json"])
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "batch",
+                        "verify-review-pack",
+                        str(result.proof_report_path),
+                        "--pack-dir",
+                        str(out_dir),
+                        "--json",
+                    ]
+                )
+
+            report = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(report["passed"])
+        self.assertFalse(report["blockers"])
+        self.assertGreaterEqual(report["artifact_count"], 10)
+        self.assertRegex(report["artifact_manifest_sha256"], r"^[0-9a-f]{64}$")
+        self.assertTrue(report["board_verification"]["passed"])
+
+    def test_batch_verify_review_pack_cli_fails_when_artifact_tampered(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            out_dir = root / "handoff-pack"
+            main(["batch", "review-pack", str(result.proof_report_path), "--out-dir", str(out_dir), "--json"])
+            (out_dir / "artifacts" / "proof_json.json").write_text("{}\n")
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "batch",
+                        "verify-review-pack",
+                        str(result.proof_report_path),
+                        "--pack-dir",
+                        str(out_dir),
+                        "--json",
+                    ]
+                )
+
+            report = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 3)
+        self.assertFalse(report["passed"])
+        self.assertIn("artifact_sha256_matches:proof_json", "\n".join(report["blockers"]))
 
     def test_batch_finalize_reviewed_proof_fails_closed_when_pending(self):
         with tempfile.TemporaryDirectory() as tmp:
