@@ -249,7 +249,8 @@ structured `review_reason`; Pavo rejects approved/rejected board-audit imports
 when that reason is missing, so final identity decisions have a defensible
 human rationale. The browser board also blocks audit JSON download for final
 decisions that are missing a reason, surfacing the issue before the operator
-leaves the review page.
+leaves the review page. Its header updates live with reviewed count, progress
+percent, missing reasons, and export-ready status as the reviewer works.
 
 Use `pavo batch finalize-reviewed-proof` when the proof slate has been reviewed.
 It validates the proof slate, materializes the cluster decisions, writes speaker

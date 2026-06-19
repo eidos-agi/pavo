@@ -2320,6 +2320,11 @@ def verify_batch_decision_board(
             "validateAuditReady" in html and "Missing review reason" in html,
             "client-side reason gate before audit export",
         ),
+        _check(
+            "has_live_review_completion",
+            "missing-reason-count" in html and "export-ready-status" in html and "review-progress-percent" in html,
+            "live review completion scorecards",
+        ),
         _check("has_autosave", "localStorage" in html and "Autosaved locally" in html, "localStorage autosave"),
         _check("has_audit_events", "auditEvents" in html and "auditPayload" in html, "audit event export"),
         _check("has_finalize_board_audit_command", "pavo batch finalize-board-audit" in html, "finalize-board-audit command"),
@@ -3199,6 +3204,9 @@ def _render_batch_decision_board_html(
       <div class="score"><strong>{len(decisions)}</strong> decisions</div>
       <div class="score"><strong id="pending-count">{pending_count}</strong> pending</div>
       <div class="score"><strong id="reviewed-count">0</strong> reviewed</div>
+      <div class="score"><strong id="review-progress-percent">0%</strong> complete</div>
+      <div class="score"><strong id="missing-reason-count">0</strong> missing reasons</div>
+      <div class="score"><strong id="export-ready-status">No</strong> export ready</div>
       <div class="score"><strong>{supporting_count}</strong> supporting clips</div>
       <div class="score"><strong id="sprint-minutes">{estimated_minutes}</strong> est. minutes</div>
     </div>
@@ -3294,9 +3302,15 @@ pavo batch finalize-reviewed-proof {escape(str(proof_report_path))}</div>
     function updateProgress() {{
       const pending = rows.filter(row => row.decision === "pending").length;
       const reviewed = rows.length - pending;
+      const missingReasons = rows.filter(row => ["approved", "rejected"].includes(row.decision) && !row.review_reason).length;
+      const progress = rows.length ? Math.round((reviewed / rows.length) * 1000) / 10 : 100;
+      const exportReady = pending === 0 && missingReasons === 0;
       document.getElementById("pending-count").textContent = String(pending);
       document.getElementById("reviewed-count").textContent = String(reviewed);
-      document.getElementById("autosave-status").textContent = `Autosaved locally. ${{reviewed}}/${{rows.length}} decisions reviewed.`;
+      document.getElementById("review-progress-percent").textContent = `${{progress}}%`;
+      document.getElementById("missing-reason-count").textContent = String(missingReasons);
+      document.getElementById("export-ready-status").textContent = exportReady ? "Yes" : "No";
+      document.getElementById("autosave-status").textContent = `Autosaved locally. ${{reviewed}}/${{rows.length}} decisions reviewed; ${{missingReasons}} missing reason(s); export ready: ${{exportReady ? "yes" : "no"}}.`;
     }}
     function recordAudit(event) {{
       auditEvents.push({{ ...event, at: new Date().toISOString() }});
