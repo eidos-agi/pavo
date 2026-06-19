@@ -42,6 +42,7 @@ from .review import (
     materialize_cluster_question_decisions,
     prepare_cluster_review,
     serve_anchor_review_bundle,
+    status_cluster_review,
     status_anchor_review,
     summarize_anchor_review_sheet,
     verify_anchor_review_page,
@@ -172,6 +173,9 @@ def build_parser() -> argparse.ArgumentParser:
     review_clusters_prepare.add_argument("--clip-padding", type=float, default=0.25)
     review_clusters_prepare.add_argument("--min-strong-coverage", type=float, default=0.25)
     review_clusters_prepare.add_argument("--min-dominant-share", type=float, default=0.85)
+    review_clusters_status = review_clusters_sub.add_parser("status", help="Inspect active cluster review loop state without mutating artifacts")
+    review_clusters_status.add_argument("batch_root", type=Path)
+    review_clusters_status.add_argument("--review-sheet", type=Path, help="Override cluster question review sheet")
     review_clusters_audit = review_clusters_sub.add_parser("audit", help="Write a cluster identity propagation audit")
     review_clusters_audit.add_argument("batch_root", type=Path)
     review_clusters_audit.add_argument("--out", type=Path, help="Cluster audit JSON path")
@@ -599,6 +603,26 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"estimated_unlockable_segments: {result.estimated_unlockable_segments}")
                 print(f"estimated_unlockable_seconds: {result.estimated_unlockable_seconds}")
                 return 0 if result.page_verified and result.candidate_count and result.missing_clip_count == 0 else 2
+            if args.review_clusters_command == "status":
+                result = status_cluster_review(args.batch_root, review_sheet_path=args.review_sheet)
+                print(f"state: {result.state}")
+                print(f"review_sheet: {result.review_sheet_path}")
+                print(f"candidate_count: {result.candidate_count}")
+                print(f"approved_count: {result.approved_count}")
+                print(f"rejected_count: {result.rejected_count}")
+                print(f"pending_count: {result.pending_count}")
+                print(f"page_verified: {str(result.page_verified).lower()}")
+                print(f"top_cluster_id: {result.top_cluster_id}")
+                print(f"estimated_unlockable_segments: {result.estimated_unlockable_segments}")
+                print(f"estimated_unlockable_seconds: {result.estimated_unlockable_seconds}")
+                print(f"constraints_count: {result.constraints_count}")
+                print(f"hint_count: {result.hint_count}")
+                print(f"review_pressure_reduction: {result.review_pressure_reduction}")
+                print(f"routeable_named_span_gain: {result.routeable_named_span_gain}")
+                print(f"next_command: {result.next_command}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+                return 0
             if args.review_clusters_command == "audit":
                 result = create_cluster_identity_audit(
                     args.batch_root,

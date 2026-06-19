@@ -26,6 +26,7 @@ from pavo.review import (
     parse_plain_english_review,
     prepare_cluster_review,
     save_anchor_review_sheet_payload,
+    status_cluster_review,
     status_anchor_review,
     summarize_anchor_review_sheet,
     verify_anchor_review_page,
@@ -643,6 +644,95 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(sheet["rows"][0]["cluster_question"]["cluster_id"], "S-big")
         self.assertTrue(impact_json_exists)
         self.assertTrue(impact_markdown_exists)
+
+    def test_cluster_review_status_reports_missing_prepare_state(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            result = status_cluster_review(root)
+
+        self.assertEqual(result.state, "needs_prepare")
+        self.assertEqual(result.candidate_count, 0)
+        self.assertIn("prepare", result.next_command)
+        self.assertIn("review sheet is missing", "; ".join(result.blockers))
+
+    def test_cluster_review_status_reports_pending_queue(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            recording = root / "rec-1"
+            recording.mkdir()
+            _write_test_wav(recording / "rec-1.wav")
+            work = root / "_work"
+            work.mkdir()
+            (work / "diarization-segments.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "recording_id": "rec-1",
+                            "start": 1.0,
+                            "end": 5.0,
+                            "speaker": "S1",
+                            "candidate_name": "Daniel",
+                            "text": "Review me.",
+                        }
+                    ]
+                )
+            )
+            (work / "named-speaker-evidence.json").write_text(
+                json.dumps(
+                    {
+                        "segments": [
+                            {
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 5.0,
+                                "speaker": "Daniel",
+                                "confidence": "medium",
+                                "text": "Review me.",
+                            }
+                        ]
+                    }
+                )
+            )
+
+            prepare_cluster_review(root, min_strong_coverage=0.0, min_dominant_share=0.5)
+            result = status_cluster_review(root)
+
+        self.assertEqual(result.state, "review_pending")
+        self.assertEqual(result.candidate_count, 1)
+        self.assertEqual(result.pending_count, 1)
+        self.assertTrue(result.page_verified)
+        self.assertIn("open", result.next_command)
+
+    def test_cluster_review_status_reports_ready_to_finalize(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bundle = root / "pavo-cluster-question-bundle"
+            bundle.mkdir()
+            sheet = bundle / "pavo-cluster-question-review-sheet.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "approved",
+                                "approved": True,
+                                "target_speaker_label": "Daniel",
+                                "cluster_question": {"cluster_id": "S1", "dominant_speaker": "Daniel"},
+                            }
+                        ]
+                    }
+                )
+            )
+            create_anchor_review_page(sheet, out_path=bundle / "index.html")
+            result = status_cluster_review(root)
+
+        self.assertEqual(result.state, "ready_to_finalize")
+        self.assertEqual(result.approved_count, 1)
+        self.assertEqual(result.pending_count, 0)
+        self.assertTrue(result.page_verified)
+        self.assertIn("finalize", result.next_command)
 
     def test_create_cluster_question_bundle_writes_review_page(self):
         with tempfile.TemporaryDirectory() as tmp:

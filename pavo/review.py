@@ -272,6 +272,27 @@ class ClusterReviewFinalizeResult:
 
 
 @dataclass(frozen=True)
+class ClusterReviewStatusResult:
+    batch_root: Path
+    review_sheet_path: Path | None
+    state: str
+    candidate_count: int
+    approved_count: int
+    rejected_count: int
+    pending_count: int
+    page_verified: bool
+    top_cluster_id: str | None
+    estimated_unlockable_segments: int | None
+    estimated_unlockable_seconds: float | None
+    constraints_count: int | None
+    hint_count: int | None
+    review_pressure_reduction: int | None
+    routeable_named_span_gain: int | None
+    next_command: str
+    blockers: list[str]
+
+
+@dataclass(frozen=True)
 class ClusterQuestionMaterializeResult:
     decision_report_path: Path
     out_dir: Path
@@ -1312,6 +1333,109 @@ def finalize_cluster_review(
         hint_count=materialized.hint_count,
         review_pressure_reduction=review_pressure_reduction,
         routeable_named_span_gain=routeable_named_span_gain,
+        blockers=list(dict.fromkeys(blockers)),
+    )
+
+
+def status_cluster_review(
+    batch_root: Path | str,
+    *,
+    review_sheet_path: Path | str | None = None,
+) -> ClusterReviewStatusResult:
+    root = Path(batch_root)
+    sheet_path = Path(review_sheet_path) if review_sheet_path else root / "pavo-cluster-question-bundle" / "pavo-cluster-question-review-sheet.json"
+    if not sheet_path.exists():
+        return ClusterReviewStatusResult(
+            batch_root=root,
+            review_sheet_path=None,
+            state="needs_prepare",
+            candidate_count=0,
+            approved_count=0,
+            rejected_count=0,
+            pending_count=0,
+            page_verified=False,
+            top_cluster_id=None,
+            estimated_unlockable_segments=None,
+            estimated_unlockable_seconds=None,
+            constraints_count=None,
+            hint_count=None,
+            review_pressure_reduction=None,
+            routeable_named_span_gain=None,
+            next_command=f"pavo review clusters prepare {root}",
+            blockers=["cluster question review sheet is missing"],
+        )
+
+    sheet = json.loads(sheet_path.read_text())
+    rows = [row for row in sheet.get("rows") or [] if isinstance(row, dict)]
+    approved = [row for row in rows if row.get("status") == "approved" and row.get("approved") is True]
+    rejected = [row for row in rows if row.get("status") == "rejected"]
+    pending = [row for row in rows if row.get("status") == "pending"]
+    page_path = sheet_path.with_name("index.html")
+    page_verified = False
+    if page_path.exists():
+        try:
+            page_verified = verify_anchor_review_page(sheet_path, page_path).passed
+        except Exception:
+            page_verified = False
+
+    impact_path = sheet_path.with_name(sheet_path.stem.replace("-sheet", "-impact") + ".json")
+    impact = _load_optional_json(impact_path)
+    constraints = _load_optional_json(root / "pavo-cluster-question-artifacts" / "pavo-cluster-constraints.json")
+    hints = _load_optional_json(root / "pavo-cluster-question-artifacts" / "pavo-cluster-reviewed-hints.json")
+    improvement = _load_optional_json(root / "pavo-cluster-question-artifacts" / "pavo-brief-improvement-report.json")
+
+    blockers: list[str] = []
+    if not page_verified:
+        blockers.append("cluster review page is not verified")
+    if pending:
+        blockers.append(f"{len(pending)} cluster question rows are still pending")
+
+    constraints_count = constraints.get("constraint_count") if constraints else None
+    hint_count = hints.get("hint_count") if hints else None
+    deltas = improvement.get("deltas") if isinstance(improvement.get("deltas"), dict) else {}
+    review_delta = deltas.get("review_pressure_reduction") if deltas else None
+    routeable_delta = deltas.get("routeable_named_span_gain") if deltas else None
+
+    if pending:
+        state = "review_pending"
+        next_command = f"open {page_path}"
+    elif not rows:
+        state = "needs_prepare"
+        blockers.append("cluster review sheet has no rows")
+        next_command = f"pavo review clusters prepare {root}"
+    elif not constraints.get("passed") or not improvement:
+        state = "ready_to_finalize"
+        next_command = f"pavo review clusters finalize {sheet_path} {root}"
+    elif improvement.get("passed"):
+        state = "finalized_passed"
+        next_command = f"pavo brief {root}"
+    else:
+        state = "finalized_attention"
+        blockers.extend(improvement.get("blockers") or [])
+        next_command = f"pavo review clusters impact {sheet_path}"
+
+    top_cluster = impact.get("top_cluster_id")
+    if not top_cluster and rows:
+        question = rows[0].get("cluster_question") if isinstance(rows[0].get("cluster_question"), dict) else {}
+        top_cluster = question.get("cluster_id")
+
+    return ClusterReviewStatusResult(
+        batch_root=root,
+        review_sheet_path=sheet_path,
+        state=state,
+        candidate_count=len(rows),
+        approved_count=len(approved),
+        rejected_count=len(rejected),
+        pending_count=len(pending),
+        page_verified=page_verified,
+        top_cluster_id=top_cluster,
+        estimated_unlockable_segments=impact.get("estimated_unlockable_segments") if impact else None,
+        estimated_unlockable_seconds=impact.get("estimated_unlockable_seconds") if impact else None,
+        constraints_count=int(constraints_count) if constraints_count is not None else None,
+        hint_count=int(hint_count) if hint_count is not None else None,
+        review_pressure_reduction=int(review_delta) if review_delta is not None else None,
+        routeable_named_span_gain=int(routeable_delta) if routeable_delta is not None else None,
+        next_command=next_command,
         blockers=list(dict.fromkeys(blockers)),
     )
 
