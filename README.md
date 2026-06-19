@@ -74,6 +74,20 @@ can wrap Plaud CLI/MCP today, and it can also process imported local media. For
 the audio intelligence layer, Pavo uses `eidos-transcribe` as an installable
 package that can improve independently.
 
+## Briefing Readout
+
+After a batch is processed, use one command to get the operational truth:
+
+```bash
+pavo brief /path/to/meeting-batch
+```
+
+The brief writes `pavo-meeting-brief.json` and `pavo-meeting-brief.md` with
+source counts, verification gates, a readiness score, review pressure,
+speaker-confidence counts, deduped candidate work packets, next actions, resume
+commands, and the privacy boundary. It is the simple front door before routing
+anything into tasks or other systems.
+
 The problems Pavo is built around:
 
 1. **The notes were not enough.** We needed the real recording, not just a

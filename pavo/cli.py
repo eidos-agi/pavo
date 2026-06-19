@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from .audio import run_audio_doctor
+from .brief import build_meeting_brief, write_meeting_brief
 from .config import DEFAULT_HOME, home_from_arg, init_home
 from .download import save_audio
 from .overlap import SeparateOverlapsRequest, separate_overlaps
@@ -43,6 +44,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("init", help="Create local Pavo config and state")
     subparsers.add_parser("doctor", help="Check local Pavo and Plaud readiness")
+
+    brief = subparsers.add_parser("brief", help="Create a composed readiness and action brief for a meeting batch")
+    brief.add_argument("root", type=Path)
+    brief.add_argument("--out-dir", type=Path, help="Output directory; defaults to the batch root")
+    brief.add_argument("--review-limit", type=int, default=200)
+    brief.add_argument("--packet-limit", type=int, default=25)
+    brief.add_argument("--json", action="store_true", help="Print the full brief payload as JSON")
 
     audio = subparsers.add_parser("audio", help="Audio intelligence checks")
     audio_sub = audio.add_subparsers(dest="audio_command", required=True)
@@ -218,6 +226,34 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "doctor":
         return run_doctor(home)
+
+    if args.command == "brief":
+        if not args.root.exists():
+            print(f"batch root not found: {args.root}", file=sys.stderr)
+            return 2
+        brief_payload = build_meeting_brief(args.root, review_limit=args.review_limit, packet_limit=args.packet_limit)
+        outputs = write_meeting_brief(brief_payload, args.out_dir or args.root)
+        if args.json:
+            print(
+                __import__("json").dumps(
+                    {
+                        "brief_json": str(outputs.json_path),
+                        "brief_markdown": str(outputs.markdown_path),
+                        **brief_payload,
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+        else:
+            print(f"state: {brief_payload['state']}")
+            print(f"readiness_score: {brief_payload['readiness_score']['score']}")
+            print(f"readiness_grade: {brief_payload['readiness_score']['grade']}")
+            print(f"review_items: {brief_payload['review']['item_count']}")
+            print(f"work_packets: {brief_payload['work_packets']['packet_count']}")
+            print(f"brief_json: {outputs.json_path}")
+            print(f"brief_markdown: {outputs.markdown_path}")
+        return 0
 
     if args.command == "audio":
         if args.audio_command == "doctor":
