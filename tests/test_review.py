@@ -20,6 +20,7 @@ from pavo.review import (
     compile_anchor_review_corrections,
     create_anchor_review_sheet,
     export_cluster_question_decisions,
+    export_cluster_review_slate,
     export_anchor_review_decisions,
     finalize_cluster_review,
     gate_anchor_review,
@@ -753,6 +754,59 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("Priority reason:", markdown)
         self.assertIn("Transcript excerpt: Review me.", markdown)
         self.assertIn("Clip:", markdown)
+
+    def test_cluster_review_slate_exports_markdown_and_tsv(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            work = root / "pavo-work"
+            work.mkdir()
+            (work / "diarization-segments.json").write_text(
+                json.dumps(
+                    {
+                        "segments": [
+                            {
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 5.0,
+                                "speaker": "S1",
+                                "text": "Review me.",
+                            }
+                        ]
+                    }
+                )
+            )
+            (work / "named-speaker-evidence.json").write_text(
+                json.dumps(
+                    {
+                        "segments": [
+                            {
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 5.0,
+                                "speaker": "Daniel",
+                                "confidence": "medium",
+                                "text": "Review me.",
+                            }
+                        ]
+                    }
+                )
+            )
+
+            prepare_cluster_review(root, min_strong_coverage=0.0, min_dominant_share=0.5)
+            result = export_cluster_review_slate(root)
+            markdown = result.markdown_path.read_text()
+            tsv = result.tsv_path.read_text()
+            markdown_exists = result.markdown_path.exists()
+            tsv_exists = result.tsv_path.exists()
+
+        self.assertEqual(result.item_count, 1)
+        self.assertTrue(markdown_exists)
+        self.assertTrue(tsv_exists)
+        self.assertIn("Pavo Cluster Review Decision Slate", markdown)
+        self.assertIn("Safety boundary", markdown)
+        self.assertIn("Review me.", markdown)
+        self.assertIn("row_index\tcluster_id\tdecision\tspeaker\tnote", tsv)
+        self.assertIn("\tpending\tDaniel\t", tsv)
 
     def test_cluster_review_advance_stops_at_human_review_boundary(self):
         with tempfile.TemporaryDirectory() as tmp:

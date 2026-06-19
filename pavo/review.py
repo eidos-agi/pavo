@@ -312,6 +312,17 @@ class ClusterReviewPrepareResult:
 
 
 @dataclass(frozen=True)
+class ClusterReviewSlateResult:
+    batch_root: Path
+    review_sheet_path: Path | None
+    markdown_path: Path
+    tsv_path: Path
+    item_count: int
+    state: str
+    blockers: list[str]
+
+
+@dataclass(frozen=True)
 class ClusterReviewFinalizeResult:
     review_sheet_path: Path
     batch_root: Path
@@ -2063,6 +2074,31 @@ def status_cluster_review(
         next_command=next_command,
         completion_commands=completion_commands,
         blockers=list(dict.fromkeys(blockers)),
+    )
+
+
+def export_cluster_review_slate(
+    batch_root: Path | str,
+    *,
+    review_sheet_path: Path | str | None = None,
+    out_dir: Path | str | None = None,
+) -> ClusterReviewSlateResult:
+    status = status_cluster_review(batch_root, review_sheet_path=review_sheet_path)
+    target_dir = Path(out_dir) if out_dir else Path(batch_root) / "pavo-cluster-question-bundle"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    markdown_path = target_dir / "pavo-cluster-review-decision-slate.md"
+    tsv_path = target_dir / "pavo-cluster-review-decision-slate.tsv"
+
+    markdown_path.write_text(_render_cluster_review_slate_markdown(status), encoding="utf-8")
+    tsv_path.write_text(_render_cluster_review_slate_tsv(status), encoding="utf-8")
+    return ClusterReviewSlateResult(
+        batch_root=Path(batch_root),
+        review_sheet_path=status.review_sheet_path,
+        markdown_path=markdown_path,
+        tsv_path=tsv_path,
+        item_count=len(status.next_review_plan),
+        state=status.state,
+        blockers=list(status.blockers),
     )
 
 
@@ -5544,6 +5580,99 @@ def _rank_next_review_plan_with_ensemble(plan: list[dict[str, Any]]) -> list[dic
             str(item.get("cluster_id") or ""),
         ),
     )
+
+
+def _render_cluster_review_slate_markdown(status: ClusterReviewStatusResult) -> str:
+    lines = [
+        "# Pavo Cluster Review Decision Slate",
+        "",
+        f"- Batch root: `{status.batch_root}`",
+        f"- Review sheet: `{status.review_sheet_path}`",
+        f"- State: `{status.state}`",
+        f"- Minimum reviews: {status.next_review_count}",
+        f"- Review effort: {status.review_effort.get('summary')}",
+        f"- Safety boundary: this slate asks for human decisions. It does not approve identity or mutate evidence.",
+        "",
+        "Decision values for TSV: `approved`, `rejected`, or `pending`.",
+        "",
+    ]
+    if status.blockers:
+        lines.extend(["## Current Blockers", ""])
+        lines.extend(f"- {blocker}" for blocker in status.blockers)
+        lines.append("")
+    lines.extend(["## Review Items", ""])
+    if not status.next_review_plan:
+        lines.append("- No review items remain.")
+        return "\n".join(lines).rstrip() + "\n"
+    for item in status.next_review_plan:
+        transcript = str(item.get("text") or "").strip()
+        if len(transcript) > 260:
+            transcript = transcript[:257].rstrip() + "..."
+        lines.extend(
+            [
+                f"### {item.get('cluster_id')} row {item.get('row_index')} - {item.get('target_speaker')}",
+                "",
+                f"- Priority: `{item.get('review_priority_tier')}` / {item.get('review_priority_score')}",
+                f"- Why this is next: {item.get('review_priority_reason')}",
+                f"- Question: {item.get('question')}",
+                f"- Expected impact: {item.get('expected_impact')}",
+                f"- Acoustic verdict: `{item.get('acoustic_verdict') or 'unknown'}`",
+                f"- Acoustic caution: {item.get('acoustic_caution')}",
+                f"- Closure rule: {item.get('closure_rule')}",
+                f"- Approve effect: {item.get('approve_effect')}",
+                f"- Reject effect: {item.get('reject_effect')}",
+                f"- Clip: `{item.get('clip_path')}`",
+                f"- Transcript: {transcript or 'None'}",
+                "",
+                "Fill in TSV row with:",
+                "- `decision`: approved/rejected/pending",
+                "- `speaker`: the correct speaker name/label if known",
+                "- `note`: short reason, especially if rejecting",
+                "",
+            ]
+        )
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _render_cluster_review_slate_tsv(status: ClusterReviewStatusResult) -> str:
+    headers = [
+        "row_index",
+        "cluster_id",
+        "decision",
+        "speaker",
+        "note",
+        "priority_tier",
+        "priority_score",
+        "priority_reason",
+        "question",
+        "expected_impact",
+        "acoustic_verdict",
+        "clip_path",
+        "transcript",
+    ]
+    rows = ["\t".join(headers)]
+    for item in status.next_review_plan:
+        values = [
+            item.get("row_index"),
+            item.get("cluster_id"),
+            "pending",
+            item.get("target_speaker"),
+            "",
+            item.get("review_priority_tier"),
+            item.get("review_priority_score"),
+            item.get("review_priority_reason"),
+            item.get("question"),
+            item.get("expected_impact"),
+            item.get("acoustic_verdict"),
+            item.get("clip_path"),
+            item.get("text"),
+        ]
+        rows.append("\t".join(_tsv_cell(value) for value in values))
+    return "\n".join(rows).rstrip() + "\n"
+
+
+def _tsv_cell(value: Any) -> str:
+    return str(value or "").replace("\t", " ").replace("\r", " ").replace("\n", " ").strip()
 
 
 def _bundle_clip_name(row: dict[str, Any], source: Path) -> str:

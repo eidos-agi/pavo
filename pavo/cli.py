@@ -37,6 +37,7 @@ from .review import (
     create_cluster_review_forecast,
     compile_anchor_review_corrections,
     export_cluster_question_decisions,
+    export_cluster_review_slate,
     export_anchor_review_decisions,
     finalize_cluster_review,
     gate_anchor_review,
@@ -182,6 +183,10 @@ def build_parser() -> argparse.ArgumentParser:
     review_clusters_status.add_argument("--json", action="store_true", help="Print full machine-readable status JSON")
     review_clusters_status.add_argument("--report", type=Path, help="Write machine-readable status JSON report")
     review_clusters_status.add_argument("--markdown-report", type=Path, help="Write human-readable status Markdown report")
+    review_clusters_slate = review_clusters_sub.add_parser("slate", help="Export a compact human decision slate for the minimal cluster queue")
+    review_clusters_slate.add_argument("batch_root", type=Path)
+    review_clusters_slate.add_argument("--review-sheet", type=Path, help="Override cluster question review sheet")
+    review_clusters_slate.add_argument("--out-dir", type=Path, help="Directory for Markdown and TSV slate outputs")
     review_clusters_advance = review_clusters_sub.add_parser("advance", help="Run the next safe cluster-review machine step")
     review_clusters_advance.add_argument("batch_root", type=Path)
     review_clusters_advance.add_argument("--review-sheet", type=Path, help="Override cluster question review sheet")
@@ -667,6 +672,16 @@ def main(argv: list[str] | None = None) -> int:
                 if result.blockers:
                     print("blockers: " + "; ".join(result.blockers))
                 return 0
+            if args.review_clusters_command == "slate":
+                result = export_cluster_review_slate(args.batch_root, review_sheet_path=args.review_sheet, out_dir=args.out_dir)
+                print(f"state: {result.state}")
+                print(f"review_sheet: {result.review_sheet_path}")
+                print(f"item_count: {result.item_count}")
+                print(f"markdown: {result.markdown_path}")
+                print(f"tsv: {result.tsv_path}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+                return 0 if result.item_count or result.state in {"ready_to_finalize", "finalized_passed"} else 2
             if args.review_clusters_command == "advance":
                 result = advance_cluster_review(args.batch_root, review_sheet_path=args.review_sheet)
                 if args.report:
