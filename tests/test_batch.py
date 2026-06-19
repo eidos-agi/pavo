@@ -27,6 +27,8 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("Source Recordings", markdown)
         self.assertEqual(report["source_recording_count"], 2)
         self.assertRegex(report["source_manifest_sha256"], r"^[0-9a-f]{64}$")
+        self.assertRegex(report["generated_manifest_sha256"], r"^[0-9a-f]{64}$")
+        self.assertIn("cluster_review_page", report["generated_artifacts"])
         first = report["source_recordings"][0]
         self.assertRegex(first["recording_manifest_sha256"], r"^[0-9a-f]{64}$")
         self.assertEqual(first["artifacts"]["audio"]["bytes"], len(b"fake audio"))
@@ -87,7 +89,7 @@ class BatchDoctorTests(unittest.TestCase):
             result = verify_batch_manifest(report_path)
 
         self.assertTrue(result.passed)
-        self.assertEqual(result.checked_artifact_count, 7)
+        self.assertEqual(result.checked_artifact_count, 22)
         self.assertEqual(result.mismatches, [])
 
     def test_batch_manifest_verifier_fails_when_artifact_changes(self):
@@ -104,6 +106,21 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertFalse(result.passed)
         self.assertIn("fingerprint_mismatch", reasons)
         self.assertIn("source_manifest_mismatch", reasons)
+
+    def test_batch_manifest_verifier_fails_when_generated_artifact_changes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            report_path = root / "batch-doctor.json"
+            report_path.write_text(json.dumps(doctor_batch(root, refresh_cluster_gate=False).as_report()))
+            (root / "pavo-meeting-brief.json").write_text(json.dumps({"state": "changed"}))
+
+            result = verify_batch_manifest(report_path)
+            reasons = {mismatch["reason"] for mismatch in result.mismatches}
+
+        self.assertFalse(result.passed)
+        self.assertIn("generated_fingerprint_mismatch", reasons)
+        self.assertIn("generated_manifest_mismatch", reasons)
 
     def test_batch_manifest_verifier_cli_writes_markdown(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -180,6 +197,17 @@ def _write_processed_batch(root: Path, *, recording_ids: list[str]) -> None:
             }
         )
     )
+    (root / "pavo-cluster-review-gate.md").write_text("# Cluster Gate\n")
+    bundle = root / "pavo-cluster-question-bundle"
+    bundle.mkdir()
+    (bundle / "index.html").write_text("<!doctype html><title>Review</title>\n")
+    (bundle / "pavo-cluster-question-review-sheet.json").write_text(json.dumps({"questions": []}))
+    (bundle / "pavo-cluster-question-acoustic-evidence.json").write_text(json.dumps({"clusters": []}))
+    (bundle / "pavo-cluster-review-forecast.json").write_text(json.dumps({"risk_adjusted_segments": 0}))
+    (bundle / "pavo-cluster-review-decision-slate.tsv").write_text("cluster_id\tdecision\n")
+    (bundle / "pavo-cluster-review-decision-slate.md").write_text("# Decision Slate\n")
+    (bundle / "pavo-cluster-review-validation.json").write_text(json.dumps({"passed": False, "fresh": True}))
+    (bundle / "pavo-cluster-review-decision-brief.html").write_text("<!doctype html><title>Decision Brief</title>\n")
 
 
 class _FakeClusterGate:

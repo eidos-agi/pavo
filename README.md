@@ -102,17 +102,19 @@ anything into tasks or other systems.
 proves every source recording directory has audio, transcript JSON, transcript
 Markdown, diarized Markdown, speaker-attributed Markdown, README, and fetch
 manifest coverage. It records byte counts and SHA-256 fingerprints for each
-source artifact, plus a rollup source manifest hash for the batch. It then
-checks batch-level work artifacts, run report, brief, and the cluster gate
-report. By default it refreshes the cluster gate before scoring the batch so
-stale review artifacts cannot silently pass. Use `--no-refresh-cluster-gate`
-only when intentionally inspecting an existing gate report. Its `passed` field
-means machine plumbing is healthy. Its `complete` field remains false until
-downstream human speaker review gates are actually cleared.
+source artifact, plus a rollup source manifest hash for the batch. It also
+fingerprints required generated outputs: the run report, meeting brief, work
+JSONs, cluster gate, and cluster review bundle artifacts. By default it
+refreshes the cluster gate before scoring the batch so stale review artifacts
+cannot silently pass. Use `--no-refresh-cluster-gate` only when intentionally
+inspecting an existing gate report. Its `passed` field means machine plumbing
+is healthy. Its `complete` field remains false until downstream human speaker
+review gates are actually cleared.
 
 Use `pavo batch verify-manifest` later to re-read the doctor JSON and verify
-that the source files still match their recorded byte counts and SHA-256 hashes.
-It exits nonzero if any source artifact is missing or changed.
+that the source files and generated outputs still match their recorded byte
+counts and SHA-256 hashes. It exits nonzero if any tracked artifact is missing
+or changed.
 
 When `--review-plan` is passed, Pavo also writes
 `pavo-review-cluster-plan.json` and `pavo-review-cluster-plan.md`. The plan

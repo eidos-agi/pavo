@@ -19,6 +19,24 @@ SOURCE_REQUIRED_FILES = [
     "fetch_manifest",
 ]
 
+GENERATED_ARTIFACT_PATHS = {
+    "run_report": "pavo-run-report.json",
+    "meeting_brief": "pavo-meeting-brief.json",
+    "diarization_segments": "_work/diarization-segments.json",
+    "speaker_attribution": "_work/speaker-attribution.json",
+    "named_speaker_evidence": "_work/named-speaker-evidence.json",
+    "cluster_gate_json": "pavo-cluster-review-gate.json",
+    "cluster_gate_markdown": "pavo-cluster-review-gate.md",
+    "cluster_review_page": "pavo-cluster-question-bundle/index.html",
+    "cluster_review_sheet": "pavo-cluster-question-bundle/pavo-cluster-question-review-sheet.json",
+    "cluster_acoustic_evidence": "pavo-cluster-question-bundle/pavo-cluster-question-acoustic-evidence.json",
+    "cluster_forecast": "pavo-cluster-question-bundle/pavo-cluster-review-forecast.json",
+    "cluster_slate_tsv": "pavo-cluster-question-bundle/pavo-cluster-review-decision-slate.tsv",
+    "cluster_slate_markdown": "pavo-cluster-question-bundle/pavo-cluster-review-decision-slate.md",
+    "cluster_validation": "pavo-cluster-question-bundle/pavo-cluster-review-validation.json",
+    "cluster_decision_brief": "pavo-cluster-question-bundle/pavo-cluster-review-decision-brief.html",
+}
+
 
 @dataclass(frozen=True)
 class BatchDoctorResult:
@@ -29,6 +47,8 @@ class BatchDoctorResult:
     source_recording_count: int
     source_recordings: list[dict[str, Any]]
     source_manifest_sha256: str | None
+    generated_artifacts: dict[str, dict[str, Any]]
+    generated_manifest_sha256: str | None
     checks: list[dict[str, Any]]
     blockers: list[str]
     next_command: str
@@ -43,6 +63,8 @@ class BatchDoctorResult:
             "source_recording_count": self.source_recording_count,
             "source_manifest_sha256": self.source_manifest_sha256,
             "source_recordings": self.source_recordings,
+            "generated_artifacts": self.generated_artifacts,
+            "generated_manifest_sha256": self.generated_manifest_sha256,
             "checks": self.checks,
             "blockers": self.blockers,
             "next_command": self.next_command,
@@ -60,6 +82,7 @@ class BatchDoctorResult:
             f"- Complete: `{str(self.complete).lower()}`",
             f"- Source recordings: {self.source_recording_count}",
             f"- Source manifest SHA-256: `{self.source_manifest_sha256}`",
+            f"- Generated manifest SHA-256: `{self.generated_manifest_sha256}`",
             f"- Next command: `{self.next_command}`",
             "",
             "## Checks",
@@ -77,6 +100,14 @@ class BatchDoctorResult:
                     f"transcript `{item.get('transcript_json_present')}`, diarized `{item.get('diarized_markdown_present')}`, "
                     f"attributed `{item.get('speaker_attributed_markdown_present')}`, missing `{missing}`, "
                     f"manifest `{item.get('recording_manifest_sha256')}`"
+                )
+        else:
+            lines.append("- None")
+        lines.extend(["", "## Generated Artifacts", ""])
+        if self.generated_artifacts:
+            for name, payload in sorted(self.generated_artifacts.items()):
+                lines.append(
+                    f"- `{name}`: {payload.get('bytes')} bytes, SHA-256 `{payload.get('sha256')}`"
                 )
         else:
             lines.append("- None")
@@ -102,6 +133,8 @@ class BatchManifestVerificationResult:
     passed: bool
     source_manifest_sha256: str | None
     expected_source_manifest_sha256: str | None
+    generated_manifest_sha256: str | None
+    expected_generated_manifest_sha256: str | None
     checked_artifact_count: int
     mismatches: list[dict[str, Any]]
 
@@ -111,6 +144,8 @@ class BatchManifestVerificationResult:
             "passed": self.passed,
             "source_manifest_sha256": self.source_manifest_sha256,
             "expected_source_manifest_sha256": self.expected_source_manifest_sha256,
+            "generated_manifest_sha256": self.generated_manifest_sha256,
+            "expected_generated_manifest_sha256": self.expected_generated_manifest_sha256,
             "checked_artifact_count": self.checked_artifact_count,
             "mismatches": self.mismatches,
         }
@@ -123,6 +158,8 @@ class BatchManifestVerificationResult:
             f"- Passed: `{str(self.passed).lower()}`",
             f"- Source manifest SHA-256: `{self.source_manifest_sha256}`",
             f"- Expected source manifest SHA-256: `{self.expected_source_manifest_sha256}`",
+            f"- Generated manifest SHA-256: `{self.generated_manifest_sha256}`",
+            f"- Expected generated manifest SHA-256: `{self.expected_generated_manifest_sha256}`",
             f"- Checked artifacts: {self.checked_artifact_count}",
             "",
             "## Mismatches",
@@ -158,6 +195,7 @@ def doctor_batch(batch_root: Path | str, *, refresh_cluster_gate: bool = True) -
         cluster_gate = _load_optional_json(cluster_gate_path)
     run_report = _load_optional_json(root / "pavo-run-report.json")
     meeting_brief = _load_optional_json(root / "pavo-meeting-brief.json")
+    generated_artifacts = _generated_artifacts(root)
 
     source_count = len(recordings)
     source_missing = {
@@ -166,6 +204,7 @@ def doctor_batch(batch_root: Path | str, *, refresh_cluster_gate: bool = True) -
         if item["missing"]
     }
     source_manifest_sha256 = _source_manifest_sha256(recordings)
+    generated_manifest_sha256 = _artifact_manifest_sha256(generated_artifacts)
     work_dir = root / "_work"
     checks = [
         _check("batch_root", root.exists(), str(root)),
@@ -202,6 +241,11 @@ def doctor_batch(batch_root: Path | str, *, refresh_cluster_gate: bool = True) -
         _check("speaker_attribution", (work_dir / "speaker-attribution.json").exists(), str(work_dir / "speaker-attribution.json")),
         _check("named_speaker_evidence", (work_dir / "named-speaker-evidence.json").exists(), str(work_dir / "named-speaker-evidence.json")),
         _check("cluster_gate_report", bool(cluster_gate), str(root / "pavo-cluster-review-gate.json")),
+        _check(
+            "generated_fingerprints",
+            _required_generated_artifacts_present(generated_artifacts),
+            f"{len(generated_artifacts)}/{len(GENERATED_ARTIFACT_PATHS)}",
+        ),
         _check(
             "cluster_gate_refresh",
             not cluster_gate_refresh_error,
@@ -248,6 +292,8 @@ def doctor_batch(batch_root: Path | str, *, refresh_cluster_gate: bool = True) -
         source_recording_count=source_count,
         source_recordings=recordings,
         source_manifest_sha256=source_manifest_sha256,
+        generated_artifacts=generated_artifacts,
+        generated_manifest_sha256=generated_manifest_sha256,
         checks=checks,
         blockers=list(dict.fromkeys(blockers)),
         next_command=next_command,
@@ -259,7 +305,9 @@ def verify_batch_manifest(report_path: Path | str) -> BatchManifestVerificationR
     path = Path(report_path)
     report = json.loads(path.read_text())
     source_recordings = report.get("source_recordings") or []
+    expected_generated_artifacts = report.get("generated_artifacts") or {}
     verified_recordings: list[dict[str, Any]] = []
+    verified_generated_artifacts: dict[str, dict[str, Any]] = {}
     mismatches: list[dict[str, Any]] = []
     checked_artifact_count = 0
 
@@ -309,6 +357,41 @@ def verify_batch_manifest(report_path: Path | str) -> BatchManifestVerificationR
             }
         )
 
+    for name, expected in sorted(expected_generated_artifacts.items()):
+        artifact_path = Path(str(expected.get("path") or ""))
+        checked_artifact_count += 1
+        if not artifact_path.exists():
+            mismatches.append(
+                {
+                    "recording_id": None,
+                    "artifact": name,
+                    "path": str(artifact_path),
+                    "reason": "missing_generated_artifact",
+                    "expected": expected,
+                    "actual": None,
+                }
+            )
+            continue
+        actual = _file_fingerprint(artifact_path)
+        verified_generated_artifacts[name] = actual
+        if actual.get("bytes") != expected.get("bytes") or actual.get("sha256") != expected.get("sha256"):
+            mismatches.append(
+                {
+                    "recording_id": None,
+                    "artifact": name,
+                    "path": str(artifact_path),
+                    "reason": "generated_fingerprint_mismatch",
+                    "expected": {
+                        "bytes": expected.get("bytes"),
+                        "sha256": expected.get("sha256"),
+                    },
+                    "actual": {
+                        "bytes": actual.get("bytes"),
+                        "sha256": actual.get("sha256"),
+                    },
+                }
+            )
+
     source_manifest_sha256 = _source_manifest_sha256(verified_recordings)
     expected_source_manifest_sha256 = report.get("source_manifest_sha256")
     if source_manifest_sha256 != expected_source_manifest_sha256:
@@ -322,12 +405,27 @@ def verify_batch_manifest(report_path: Path | str) -> BatchManifestVerificationR
                 "actual": source_manifest_sha256,
             }
         )
+    generated_manifest_sha256 = _artifact_manifest_sha256(verified_generated_artifacts)
+    expected_generated_manifest_sha256 = report.get("generated_manifest_sha256")
+    if generated_manifest_sha256 != expected_generated_manifest_sha256:
+        mismatches.append(
+            {
+                "recording_id": None,
+                "artifact": "generated_manifest",
+                "path": str(path),
+                "reason": "generated_manifest_mismatch",
+                "expected": expected_generated_manifest_sha256,
+                "actual": generated_manifest_sha256,
+            }
+        )
 
     return BatchManifestVerificationResult(
         report_path=path,
         passed=not mismatches,
         source_manifest_sha256=source_manifest_sha256,
         expected_source_manifest_sha256=expected_source_manifest_sha256,
+        generated_manifest_sha256=generated_manifest_sha256,
+        expected_generated_manifest_sha256=expected_generated_manifest_sha256,
         checked_artifact_count=checked_artifact_count,
         mismatches=mismatches,
     )
@@ -403,6 +501,19 @@ def _source_recordings(root: Path) -> list[dict[str, Any]]:
     return recordings
 
 
+def _generated_artifacts(root: Path) -> dict[str, dict[str, Any]]:
+    artifacts: dict[str, dict[str, Any]] = {}
+    for name, relative_path in GENERATED_ARTIFACT_PATHS.items():
+        path = root / relative_path
+        if path.exists() and path.is_file():
+            artifacts[name] = _file_fingerprint(path)
+    return artifacts
+
+
+def _required_generated_artifacts_present(artifacts: dict[str, dict[str, Any]]) -> bool:
+    return all(name in artifacts for name in GENERATED_ARTIFACT_PATHS)
+
+
 def _load_optional_json(path: Path) -> dict[str, Any] | None:
     try:
         return json.loads(path.read_text()) if path.exists() else None
@@ -433,6 +544,10 @@ def _file_fingerprint(path: Path) -> dict[str, Any]:
 
 
 def _recording_manifest_sha256(artifacts: dict[str, dict[str, Any]]) -> str | None:
+    return _artifact_manifest_sha256(artifacts)
+
+
+def _artifact_manifest_sha256(artifacts: dict[str, dict[str, Any]]) -> str | None:
     if not artifacts:
         return None
     manifest = [
