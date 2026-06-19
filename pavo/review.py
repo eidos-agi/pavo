@@ -18,6 +18,7 @@ from .brief import (
     _apply_temporal_speaker_continuity,
     _ensemble_speaker_segments,
     _is_unknown_speaker,
+    _load_diarization_segments,
     _load_named_evidence_segments,
     _load_speaker_attribution_segments,
     _rounded_time,
@@ -483,6 +484,7 @@ def create_anchor_review_assistant(
     )
     by_recording: dict[str, list[dict[str, Any]]] = {}
     by_key: dict[tuple[str, float | None, float | None], dict[str, Any]] = {}
+    cluster_by_key = _diarization_cluster_by_key(root)
     for segment in ensemble:
         recording_id = str(segment.get("recording_id") or segment.get("source_id") or "")
         by_recording.setdefault(recording_id, []).append(segment)
@@ -494,7 +496,12 @@ def create_anchor_review_assistant(
     recommendations = []
     counts: dict[str, int] = {}
     for row in sheet.get("rows") or []:
-        assistant = _review_assistant_row(row, by_key=by_key, by_recording=by_recording)
+        assistant = _review_assistant_row(
+            row,
+            by_key=by_key,
+            by_recording=by_recording,
+            cluster_by_key=cluster_by_key,
+        )
         action = str(assistant["recommendation"])
         counts[action] = counts.get(action, 0) + 1
         assisted = dict(row)
@@ -2085,6 +2092,7 @@ def _review_assistant_row(
     *,
     by_key: dict[tuple[str, float | None, float | None], dict[str, Any]],
     by_recording: dict[str, list[dict[str, Any]]],
+    cluster_by_key: dict[tuple[str, float | None, float | None], dict[str, Any]],
 ) -> dict[str, Any]:
     segment = by_key.get(_review_segment_key(row))
     recording_id = str(row.get("recording_id") or "")
@@ -2094,6 +2102,7 @@ def _review_assistant_row(
     recommendation = "listen_required"
     assistant_confidence = "low"
     why = "No deterministic speaker decision is strong enough to pre-fill this row."
+    cluster = _review_cluster_context(row, by_key=by_key, cluster_by_key=cluster_by_key)
 
     if segment and not _is_unknown_review_speaker(segment.get("speaker")) and str(segment.get("confidence")) in {"medium", "high", "manual_confirmed"}:
         suggested = str(segment.get("speaker"))
@@ -2120,11 +2129,18 @@ def _review_assistant_row(
             assistant_confidence = "medium"
             why = f"All nearby trusted context points to {suggested}; listen before assigning because this row is currently unknown."
 
+    conflict = _cluster_conflicts_with_suggestion(cluster, suggested)
+    if conflict:
+        recommendation = "listen_required_cluster_conflict"
+        assistant_confidence = "low"
+        why = f"{why} Cluster candidate is {cluster.get('candidate_name')}, so this needs explicit listening before assignment."
+
     return {
         "recommendation": recommendation,
         "assistant_confidence": assistant_confidence,
         "suggested_speaker": suggested,
         "why": why,
+        "cluster_context": cluster,
         "context_summary": _review_context_summary(neighbors),
         "matched_segment": _assistant_segment_summary(segment) if segment else None,
         "neighbor_segments": [_assistant_segment_summary(item) for item in neighbors],
@@ -2156,6 +2172,61 @@ def _review_context_neighbors(segments: list[dict[str, Any]], row: dict[str, Any
         if gap <= window_seconds:
             context.append({**segment, "_pavo_context_gap": round(gap, 2)})
     return sorted(context, key=lambda item: float(item.get("_pavo_context_gap") or 0.0))[:6]
+
+
+def _diarization_cluster_by_key(root: Path) -> dict[tuple[str, float | None, float | None], dict[str, Any]]:
+    clusters = _load_voice_clusters(root)
+    by_key: dict[tuple[str, float | None, float | None], dict[str, Any]] = {}
+    for segment in _load_diarization_segments(root):
+        cluster_id = str(segment.get("speaker") or "")
+        cluster = clusters.get(cluster_id) if isinstance(clusters.get(cluster_id), dict) else {}
+        by_key[_review_segment_key(segment)] = {
+            "cluster_id": cluster_id,
+            "candidate_name": segment.get("candidate_name") or cluster.get("candidate_name"),
+            "candidate_confidence": cluster.get("candidate_confidence"),
+            "candidate_reason": cluster.get("candidate_reason"),
+            "segment_count": cluster.get("segment_count"),
+            "duration_seconds": cluster.get("duration_seconds"),
+        }
+    return by_key
+
+
+def _load_voice_clusters(root: Path) -> dict[str, Any]:
+    for path in root.rglob("voice-clusters.json"):
+        if path.is_file():
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                return {}
+            return payload if isinstance(payload, dict) else {}
+    return {}
+
+
+def _review_cluster_context(
+    row: dict[str, Any],
+    *,
+    by_key: dict[tuple[str, float | None, float | None], dict[str, Any]],
+    cluster_by_key: dict[tuple[str, float | None, float | None], dict[str, Any]],
+) -> dict[str, Any] | None:
+    cluster = cluster_by_key.get(_review_segment_key(row))
+    if not cluster:
+        return None
+    matched = by_key.get(_review_segment_key(row))
+    return {
+        **cluster,
+        "matched_speaker": matched.get("speaker") if matched else None,
+        "matched_confidence": matched.get("confidence") if matched else None,
+        "matched_source": matched.get("ensemble_source") if matched else None,
+    }
+
+
+def _cluster_conflicts_with_suggestion(cluster: dict[str, Any] | None, suggested: str | None) -> bool:
+    if not cluster or not suggested:
+        return False
+    candidate = str(cluster.get("candidate_name") or "")
+    if _is_unknown_review_speaker(candidate) or _is_unknown_review_speaker(suggested):
+        return False
+    return candidate != suggested
 
 
 def _review_context_summary(neighbors: list[dict[str, Any]]) -> str:
@@ -2190,12 +2261,21 @@ def _assistant_review_block(row: dict[str, Any]) -> str:
     assistant = row.get("assistant_review") if isinstance(row.get("assistant_review"), dict) else None
     if not assistant:
         return ""
+    cluster = assistant.get("cluster_context") if isinstance(assistant.get("cluster_context"), dict) else {}
+    cluster_text = ""
+    if cluster:
+        cluster_text = (
+            f"<p class=\"context\">Cluster {escape(str(cluster.get('cluster_id') or ''))}: "
+            f"candidate {escape(str(cluster.get('candidate_name') or 'unknown'))} "
+            f"({escape(str(cluster.get('candidate_confidence') or 'unknown'))})</p>"
+        )
     return f"""  <section class="assistant-review">
     <strong>Pavo assistant:</strong>
     <span>{escape(str(assistant.get('recommendation') or 'listen_required'))}</span>
     <span>confidence {escape(str(assistant.get('assistant_confidence') or 'low'))}</span>
     <p>{escape(str(assistant.get('why') or ''))}</p>
     <p class="context">{escape(str(assistant.get('context_summary') or ''))}</p>
+    {cluster_text}
   </section>"""
 
 

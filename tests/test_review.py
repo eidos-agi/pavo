@@ -361,6 +361,93 @@ class ReviewTests(unittest.TestCase):
             self.assertTrue(verification.passed)
             self.assertIn("Pavo assistant", page.review_page_path.read_text())
 
+    def test_create_anchor_review_assistant_downgrades_cluster_conflicts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            work = root / "_work"
+            work.mkdir()
+            (work / "voice-clusters.json").write_text(
+                json.dumps(
+                    {
+                        "S1": {
+                            "candidate_name": "Daniel",
+                            "candidate_confidence": "high",
+                            "candidate_reason": "operator-language cue",
+                            "segment_count": 4,
+                        }
+                    }
+                )
+            )
+            (work / "diarization-segments.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "recording_id": "rec-1",
+                            "start": 2.2,
+                            "end": 3.0,
+                            "speaker": "S1",
+                            "candidate_name": "Daniel",
+                        }
+                    ]
+                )
+            )
+            (work / "speaker-attribution.json").write_text(
+                json.dumps(
+                    {
+                        "segments": [
+                            {
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 2.0,
+                                "speaker": "Alex",
+                                "confidence": "medium",
+                                "text": "Trusted context.",
+                            },
+                            {
+                                "recording_id": "rec-1",
+                                "start": 2.2,
+                                "end": 3.0,
+                                "speaker": "Unknown office speaker",
+                                "confidence": "low",
+                                "text": "Unclear segment.",
+                            },
+                        ]
+                    }
+                )
+            )
+            sheet = root / "review-sheet.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "review_title": "Pavo Review Clusters",
+                        "display_mode": "human_review",
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "pending",
+                                "approved": False,
+                                "case": "Unknown office speaker / unattributed_speaker",
+                                "target_speaker_label": "Unknown office speaker",
+                                "start": 2.2,
+                                "end": 3.0,
+                                "text": "Unclear segment.",
+                                "clip_path": "clips/unknown.mp3",
+                                "recording_id": "rec-1",
+                            }
+                        ],
+                    }
+                )
+            )
+
+            result = create_anchor_review_assistant(sheet, root)
+            report = json.loads(result.json_path.read_text())
+
+        row = report["recommendations"][0]
+        self.assertEqual(result.recommendation_counts, {"listen_required_cluster_conflict": 1})
+        self.assertEqual(row["suggested_speaker"], "Alex")
+        self.assertEqual(row["cluster_context"]["candidate_name"], "Daniel")
+        self.assertIn("Cluster candidate is Daniel", row["why"])
+
     def test_materialize_anchor_review_decisions_writes_hints_and_enrollment(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
