@@ -19,6 +19,7 @@ from pavo.review import (
     create_cluster_review_forecast,
     compile_anchor_review_corrections,
     create_anchor_review_sheet,
+    doctor_cluster_review,
     export_cluster_question_decisions,
     export_cluster_review_slate,
     export_anchor_review_decisions,
@@ -759,6 +760,80 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("Priority reason:", markdown)
         self.assertIn("Transcript excerpt: Review me.", markdown)
         self.assertIn("Clip:", markdown)
+
+    def test_cluster_review_doctor_passes_plumbing_while_waiting_for_review(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            recording = root / "rec-1"
+            recording.mkdir()
+            _write_test_wav(recording / "rec-1.wav")
+            work = root / "_work"
+            work.mkdir()
+            (work / "diarization-segments.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "recording_id": "rec-1",
+                            "start": 1.0,
+                            "end": 5.0,
+                            "speaker": "S1",
+                            "candidate_name": "Daniel",
+                            "text": "Review me.",
+                        }
+                    ]
+                )
+            )
+            (work / "named-speaker-evidence.json").write_text(
+                json.dumps(
+                    {
+                        "segments": [
+                            {
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 5.0,
+                                "speaker": "Daniel",
+                                "confidence": "medium",
+                                "text": "Review me.",
+                            }
+                        ]
+                    }
+                )
+            )
+
+            prepare_cluster_review(root, min_strong_coverage=0.0, min_dominant_share=0.5)
+            export_cluster_review_slate(root)
+            result = doctor_cluster_review(root)
+            report = result.as_report()
+            markdown = result.as_markdown()
+
+        self.assertTrue(result.passed)
+        self.assertFalse(result.complete)
+        self.assertEqual(result.state, "review_pending")
+        self.assertEqual({check["name"] for check in result.checks if check["passed"]}, {check["name"] for check in result.checks})
+        self.assertIn("cluster questions still need review before terminal consensus", "; ".join(result.blockers))
+        self.assertIn("open", result.next_command)
+        self.assertIn("finish_from_slate", result.status.completion_commands)
+        self.assertTrue(report["passed"])
+        self.assertFalse(report["complete"])
+        self.assertIn("Pavo Cluster Review Doctor", markdown)
+        self.assertIn("Non-human plumbing passed: `true`", markdown)
+        self.assertIn("Complete: `false`", markdown)
+
+    def test_cluster_review_doctor_fails_when_prepare_artifacts_are_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            result = doctor_cluster_review(root)
+            failed = {check["name"] for check in result.checks if not check["passed"]}
+            markdown = result.as_markdown()
+
+        self.assertFalse(result.passed)
+        self.assertFalse(result.complete)
+        self.assertEqual(result.state, "needs_prepare")
+        self.assertIn("review_sheet", failed)
+        self.assertIn("review_sheet failed", result.blockers)
+        self.assertIn("Pavo Cluster Review Doctor", markdown)
+        self.assertIn("Non-human plumbing passed: `false`", markdown)
 
     def test_cluster_review_slate_exports_markdown_and_tsv(self):
         with tempfile.TemporaryDirectory() as tmp:

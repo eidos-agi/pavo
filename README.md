@@ -104,6 +104,16 @@ spans into local audio clips, writes `pavo-review-cluster-clips.json`, creates
 `pavo-review-cluster-sheet.json`, renders `pavo-review-cluster.html`, and builds
 `pavo-review-cluster-bundle/` for localhost review.
 
+For the newer impact-ranked cluster workflow, `pavo review clusters prepare
+<batch-root>` builds the listening bundle, acoustic evidence, forecast, and
+browser-safe review page. `pavo review clusters status <batch-root>` explains
+what remains. `pavo review clusters doctor <batch-root>` verifies the
+non-human plumbing: review sheet, page, clips, acoustic evidence, forecast,
+decision slate, and finish command. Passing doctor means Pavo is operationally
+ready for the required human speaker decisions; it does not mean Pavo has
+approved identities by itself. To finish from a reviewed TSV, run
+`pavo review clusters finish-from-slate <batch-root> <review-sheet> <slate.tsv>`.
+
 `pavo brief-improvement` compares two meeting briefs and writes
 `pavo-brief-improvement-report.json` plus Markdown. It gates on review-pressure
 reduction, routeable named-span gain, readiness score, and recording parity. It

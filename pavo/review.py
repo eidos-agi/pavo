@@ -535,6 +535,55 @@ class ClusterReviewStatusResult:
 
 
 @dataclass(frozen=True)
+class ClusterReviewDoctorResult:
+    batch_root: Path
+    review_sheet_path: Path | None
+    passed: bool
+    complete: bool
+    state: str
+    checks: list[dict[str, Any]]
+    blockers: list[str]
+    next_command: str
+    status: ClusterReviewStatusResult
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "batch_root": str(self.batch_root),
+            "review_sheet": str(self.review_sheet_path) if self.review_sheet_path else None,
+            "passed": self.passed,
+            "complete": self.complete,
+            "state": self.state,
+            "checks": self.checks,
+            "blockers": self.blockers,
+            "next_command": self.next_command,
+            "status": self.status.as_report(),
+        }
+
+    def as_markdown(self) -> str:
+        lines = [
+            "# Pavo Cluster Review Doctor",
+            "",
+            f"- Batch root: `{self.batch_root}`",
+            f"- State: `{self.state}`",
+            f"- Non-human plumbing passed: `{str(self.passed).lower()}`",
+            f"- Complete: `{str(self.complete).lower()}`",
+            f"- Next command: `{self.next_command}`",
+            "",
+            "## Checks",
+            "",
+        ]
+        for check in self.checks:
+            status = "pass" if check.get("passed") else "fail"
+            lines.append(f"- `{status}` {check.get('name')}: {check.get('detail')}")
+        lines.extend(["", "## Blockers", ""])
+        if self.blockers:
+            lines.extend(f"- {blocker}" for blocker in self.blockers)
+        else:
+            lines.append("- None")
+        return "\n".join(lines).rstrip() + "\n"
+
+
+@dataclass(frozen=True)
 class ClusterReviewAdvanceResult:
     batch_root: Path
     before_state: str
@@ -2106,6 +2155,64 @@ def status_cluster_review(
         next_command=next_command,
         completion_commands=completion_commands,
         blockers=list(dict.fromkeys(blockers)),
+    )
+
+
+def doctor_cluster_review(
+    batch_root: Path | str,
+    *,
+    review_sheet_path: Path | str | None = None,
+) -> ClusterReviewDoctorResult:
+    root = Path(batch_root)
+    status = status_cluster_review(root, review_sheet_path=review_sheet_path)
+    sheet_path = status.review_sheet_path
+    bundle_dir = sheet_path.parent if sheet_path else root / "pavo-cluster-question-bundle"
+    clip_count = len(list((bundle_dir / "clips").glob("*"))) if (bundle_dir / "clips").exists() else 0
+    slate_tsv = bundle_dir / "pavo-cluster-review-decision-slate.tsv"
+    slate_md = bundle_dir / "pavo-cluster-review-decision-slate.md"
+    page_path = bundle_dir / "index.html"
+    finish_command = status.completion_commands.get("finish_from_slate")
+    checks = [
+        _doctor_check(
+            "review_sheet",
+            bool(sheet_path and sheet_path.exists()),
+            str(sheet_path) if sheet_path else "missing",
+        ),
+        _doctor_check("review_page_verified", status.page_verified, str(page_path)),
+        _doctor_check("candidate_clips", status.candidate_count > 0, f"{status.candidate_count} candidate rows"),
+        _doctor_check(
+            "clip_files",
+            clip_count >= status.candidate_count > 0,
+            f"{clip_count} clip files for {status.candidate_count} candidates",
+        ),
+        _doctor_check(
+            "acoustic_evidence",
+            bool(status.acoustic_report_path and status.acoustic_analyzed_count == status.candidate_count),
+            f"{status.acoustic_analyzed_count} analyzed; report={status.acoustic_report_path}",
+        ),
+        _doctor_check(
+            "forecast",
+            bool(status.forecast_report_path and status.forecast_risk_adjusted_segments is not None),
+            f"risk_adjusted_segments={status.forecast_risk_adjusted_segments}; report={status.forecast_report_path}",
+        ),
+        _doctor_check("static_slate_tsv", slate_tsv.exists(), str(slate_tsv)),
+        _doctor_check("static_slate_markdown", slate_md.exists(), str(slate_md)),
+        _doctor_check("finish_from_slate_command", bool(finish_command), finish_command or "missing"),
+    ]
+    plumbing_passed = all(check["passed"] for check in checks)
+    complete = status.state.startswith("finalized_") and not status.blockers
+    blockers = [] if plumbing_passed else [f"{check['name']} failed" for check in checks if not check["passed"]]
+    blockers.extend(status.blockers)
+    return ClusterReviewDoctorResult(
+        batch_root=root,
+        review_sheet_path=sheet_path,
+        passed=plumbing_passed,
+        complete=complete,
+        state=status.state,
+        checks=checks,
+        blockers=list(dict.fromkeys(blockers)),
+        next_command=status.next_command,
+        status=status,
     )
 
 
@@ -5779,6 +5886,10 @@ def _rank_next_review_plan_with_ensemble(plan: list[dict[str, Any]]) -> list[dic
             str(item.get("cluster_id") or ""),
         ),
     )
+
+
+def _doctor_check(name: str, passed: bool, detail: str) -> dict[str, Any]:
+    return {"name": name, "passed": bool(passed), "detail": detail}
 
 
 def _render_cluster_review_slate_markdown(status: ClusterReviewStatusResult) -> str:

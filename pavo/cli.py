@@ -36,6 +36,7 @@ from .review import (
     create_cluster_question_plan,
     create_cluster_review_forecast,
     compile_anchor_review_corrections,
+    doctor_cluster_review,
     export_cluster_question_decisions,
     export_cluster_review_slate,
     export_anchor_review_decisions,
@@ -185,6 +186,12 @@ def build_parser() -> argparse.ArgumentParser:
     review_clusters_status.add_argument("--json", action="store_true", help="Print full machine-readable status JSON")
     review_clusters_status.add_argument("--report", type=Path, help="Write machine-readable status JSON report")
     review_clusters_status.add_argument("--markdown-report", type=Path, help="Write human-readable status Markdown report")
+    review_clusters_doctor = review_clusters_sub.add_parser("doctor", help="Check cluster review artifact and gate readiness")
+    review_clusters_doctor.add_argument("batch_root", type=Path)
+    review_clusters_doctor.add_argument("--review-sheet", type=Path, help="Override cluster question review sheet")
+    review_clusters_doctor.add_argument("--json", action="store_true", help="Print full machine-readable doctor JSON")
+    review_clusters_doctor.add_argument("--report", type=Path, help="Write machine-readable doctor JSON report")
+    review_clusters_doctor.add_argument("--markdown-report", type=Path, help="Write human-readable doctor Markdown report")
     review_clusters_slate = review_clusters_sub.add_parser("slate", help="Export a compact human decision slate for the minimal cluster queue")
     review_clusters_slate.add_argument("batch_root", type=Path)
     review_clusters_slate.add_argument("--review-sheet", type=Path, help="Override cluster question review sheet")
@@ -685,6 +692,27 @@ def main(argv: list[str] | None = None) -> int:
                 if result.blockers:
                     print("blockers: " + "; ".join(result.blockers))
                 return 0
+            if args.review_clusters_command == "doctor":
+                result = doctor_cluster_review(args.batch_root, review_sheet_path=args.review_sheet)
+                if args.report:
+                    args.report.parent.mkdir(parents=True, exist_ok=True)
+                    args.report.write_text(__import__("json").dumps(result.as_report(), indent=2, sort_keys=True) + "\n")
+                if args.markdown_report:
+                    args.markdown_report.parent.mkdir(parents=True, exist_ok=True)
+                    args.markdown_report.write_text(result.as_markdown())
+                if args.json:
+                    print(__import__("json").dumps(result.as_report(), indent=2, sort_keys=True))
+                    return 0 if result.passed else 2
+                print(f"passed: {str(result.passed).lower()}")
+                print(f"complete: {str(result.complete).lower()}")
+                print(f"state: {result.state}")
+                print(f"review_sheet: {result.review_sheet_path}")
+                print(f"next_command: {result.next_command}")
+                for check in result.checks:
+                    print(f"check_{check['name']}: {'pass' if check['passed'] else 'fail'} - {check['detail']}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+                return 0 if result.passed else 2
             if args.review_clusters_command == "slate":
                 result = export_cluster_review_slate(args.batch_root, review_sheet_path=args.review_sheet, out_dir=args.out_dir)
                 print(f"state: {result.state}")
