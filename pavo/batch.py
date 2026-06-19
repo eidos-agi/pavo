@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shlex
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -218,6 +219,8 @@ class BatchProofResult:
         }
 
     def as_markdown(self) -> str:
+        validate_proof_slate_command = self.review_packet.get("validate_proof_slate_command")
+        finish_proof_slate_command = self.review_packet.get("finish_proof_slate_command")
         lines = [
             "# Pavo Batch Proof",
             "",
@@ -247,6 +250,8 @@ class BatchProofResult:
             f"- Review page: `{self.review_packet.get('review_page')}`",
             f"- Validate slate: `{self.review_packet.get('validate_command')}`",
             f"- Finish from slate: `{self.review_packet.get('finish_command')}`",
+            f"- Validate proof slate: `{validate_proof_slate_command}`",
+            f"- Finish from proof slate: `{finish_proof_slate_command}`",
             "",
             "## Speaker Review Queue",
             "",
@@ -279,7 +284,7 @@ class BatchProofResult:
                 "",
                 "## Fillable Review Slate",
                 "",
-                "Copy this block into a TSV file, change `decision` from `pending` to `approved` or `rejected`, adjust `speaker` if needed, then run the validate and finish commands above.",
+                f"Edit `{self.proof_review_slate_path}`, change `decision` from `pending` to `approved` or `rejected`, adjust `speaker` if needed, then run the proof-slate validate and finish commands above.",
                 "",
                 "```tsv",
             ]
@@ -472,6 +477,11 @@ def prove_batch(
     proof_review_slate_path.write_text(
         "\n".join(_review_packet_slate_tsv_lines(review_packet.get("top_items") or [])) + "\n"
     )
+    _add_proof_slate_commands(
+        review_packet,
+        batch_root=root,
+        proof_review_slate_path=proof_review_slate_path,
+    )
 
     result = BatchProofResult(
         batch_root=root,
@@ -541,6 +551,34 @@ def _review_packet_summary(batch_root: Path, cluster_gate: dict[str, Any] | None
         ],
         "safety_boundary": "Review packet lists required human speaker decisions; it does not approve identity.",
     }
+
+
+def _add_proof_slate_commands(
+    review_packet: dict[str, Any],
+    *,
+    batch_root: Path,
+    proof_review_slate_path: Path,
+) -> None:
+    review_sheet = str(review_packet.get("review_sheet") or "").strip()
+    if not review_sheet:
+        review_packet["proof_review_slate_tsv"] = str(proof_review_slate_path)
+        review_packet["validate_proof_slate_command"] = None
+        review_packet["finish_proof_slate_command"] = None
+        return
+    validation_report = proof_review_slate_path.with_suffix(".validation.json")
+    review_packet["proof_review_slate_tsv"] = str(proof_review_slate_path)
+    review_packet["validate_proof_slate_command"] = (
+        "pavo review clusters validate-slate "
+        f"{shlex.quote(review_sheet)} "
+        f"{shlex.quote(str(proof_review_slate_path))} "
+        f"--report {shlex.quote(str(validation_report))}"
+    )
+    review_packet["finish_proof_slate_command"] = (
+        "pavo review clusters finish-from-slate "
+        f"{shlex.quote(str(batch_root))} "
+        f"{shlex.quote(review_sheet)} "
+        f"{shlex.quote(str(proof_review_slate_path))}"
+    )
 
 
 def _review_packet_slate_tsv_lines(items: list[dict[str, Any]]) -> list[str]:
