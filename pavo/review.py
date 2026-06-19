@@ -139,6 +139,7 @@ class AnchorReviewPageVerificationResult:
     cluster_summary_present: bool
     next_review_plan_present: bool
     review_effort_present: bool
+    completion_handoff_present: bool
     embedded_sheet_present: bool
     import_instruction_present: bool
     rerun_instruction_present: bool
@@ -164,6 +165,7 @@ class AnchorReviewPageVerificationResult:
             "cluster_summary_present": self.cluster_summary_present,
             "next_review_plan_present": self.next_review_plan_present,
             "review_effort_present": self.review_effort_present,
+            "completion_handoff_present": self.completion_handoff_present,
             "embedded_sheet_present": self.embedded_sheet_present,
             "import_instruction_present": self.import_instruction_present,
             "rerun_instruction_present": self.rerun_instruction_present,
@@ -1955,6 +1957,20 @@ def create_anchor_review_page(
     export_label = sheet.get("export_label") or "Export reviewed JSON"
     reset_label = sheet.get("reset_label") or "Reset page decisions"
     status_labels_json = json.dumps(labels["status"])
+    cluster_batch_root = sheet_path.parent.parent if sheet_path.parent.name == "pavo-cluster-question-bundle" else sheet_path.parent
+    decision_report_path = sheet_path.with_name(sheet_path.stem.replace("-sheet", "-decisions") + ".json")
+    cluster_decision_command_json = json.dumps(
+        f"pavo review clusters decisions {shlex.quote(str(sheet_path))} --out {shlex.quote(str(decision_report_path))}"
+    )
+    cluster_finalize_command_json = json.dumps(
+        f"pavo review clusters finalize {shlex.quote(str(sheet_path))} {shlex.quote(str(cluster_batch_root))}"
+    )
+    cluster_status_command_json = json.dumps(
+        "pavo review clusters status "
+        f"{shlex.quote(str(cluster_batch_root))} --json "
+        f"--report {shlex.quote(str(cluster_batch_root / 'pavo-cluster-review-status.json'))} "
+        f"--markdown-report {shlex.quote(str(cluster_batch_root / 'pavo-cluster-review-status.md'))}"
+    )
     html = f"""<!doctype html>
 <html lang="en">
 <head>
@@ -2134,6 +2150,41 @@ def create_anchor_review_page(
       background: #f4f9f2;
       color: #315044;
       font-weight: 700;
+    }}
+    .completion-handoff {{
+      display: grid;
+      gap: 10px;
+      margin: 0 0 18px;
+      padding: 12px 16px;
+      border: 1px solid #c7d9cc;
+      background: #ffffff;
+      color: #315044;
+    }}
+    .completion-handoff.ready {{
+      border-left: 4px solid #4c9560;
+      background: #edf8ef;
+    }}
+    .completion-handoff.blocked {{
+      border-left: 4px solid #d2b35f;
+      background: #fff8df;
+    }}
+    .completion-handoff h2 {{
+      margin: 0;
+      font-size: 16px;
+      color: #17211c;
+    }}
+    .completion-handoff ol {{
+      margin: 0;
+      padding-left: 20px;
+    }}
+    .completion-handoff pre {{
+      margin: 6px 0 10px;
+      padding: 10px;
+      overflow-x: auto;
+      border-radius: 6px;
+      background: #10251b;
+      color: #f9fff7;
+      white-space: pre-wrap;
     }}
     .save-status {{
       color: #315044;
@@ -2343,6 +2394,10 @@ def create_anchor_review_page(
     <section class="review-effort" id="review-effort" aria-live="polite">
       Calculating review effort...
     </section>
+    <section class="completion-handoff" id="completion-handoff" aria-live="polite">
+      <h2>Completion handoff</h2>
+      <div id="completion-handoff-body">Waiting for cluster consensus...</div>
+    </section>
     <section class="actions">
       <button type="button" id="save-review">Save review</button>
       <button type="button" id="export-json">{escape(str(export_label))}</button>
@@ -2362,6 +2417,9 @@ def create_anchor_review_page(
     let saveTimer = null;
     let activeRecording = null;
     const reviewDraftKey = {draft_key_json};
+    const clusterDecisionCommand = {cluster_decision_command_json};
+    const clusterFinalizeCommand = {cluster_finalize_command_json};
+    const clusterStatusCommand = {cluster_status_command_json};
 
     function initializeDecisionsFromSheet(sheet) {{
       originalSheet = sheet;
@@ -2730,6 +2788,66 @@ def create_anchor_review_page(
       target.textContent = `Review effort: ${{minimum}} minimum reviews vs ${{pending}} pending clips; up to ${{saved}} clips can be skipped by terminal cluster consensus (${{reduction}}% reduction).`;
     }}
 
+    function clusterConsensusSnapshot() {{
+      const clusters = new Map();
+      buildReviewedSheet().rows.forEach((row) => {{
+        const question = row.cluster_question || {{}};
+        const clusterId = String(question.cluster_id || row.case || "unknown");
+        const cluster = clusters.get(clusterId) || {{
+          clusterId,
+          approvedRows: 0,
+          rejectedRows: 0,
+          pendingRows: 0,
+          totalRows: 0
+        }};
+        cluster.totalRows += 1;
+        if (row.status === "approved" && row.approved === true) {{
+          cluster.approvedRows += 1;
+        }} else if (row.status === "rejected") {{
+          cluster.rejectedRows += 1;
+        }} else {{
+          cluster.pendingRows += 1;
+        }}
+        clusters.set(clusterId, cluster);
+      }});
+      const items = Array.from(clusters.values()).map((cluster) => {{
+        const [state] = clusterConsensusState(cluster);
+        return {{ ...cluster, state }};
+      }});
+      return {{
+        clusters: items,
+        ready: items.filter((cluster) => ["ready_for_must_link", "ready_for_cannot_link"].includes(cluster.state)).length,
+        conflict: items.filter((cluster) => cluster.state === "conflicting_review").length,
+        unresolved: items.filter((cluster) => !["ready_for_must_link", "ready_for_cannot_link", "conflicting_review"].includes(cluster.state)).length
+      }};
+    }}
+
+    function renderCompletionHandoff() {{
+      const panel = document.getElementById("completion-handoff");
+      const body = document.getElementById("completion-handoff-body");
+      if (!panel || !body) return;
+      const plan = minimalNextReviewPlan();
+      const snapshot = clusterConsensusSnapshot();
+      panel.classList.toggle("ready", snapshot.unresolved === 0 && snapshot.conflict === 0);
+      panel.classList.toggle("blocked", snapshot.unresolved > 0 || snapshot.conflict > 0);
+      if (snapshot.conflict > 0) {{
+        body.innerHTML = `<p><strong>${{snapshot.conflict}} cluster(s) conflict.</strong> Re-listen, add samples, or reject the contradicted cluster before materializing constraints.</p>`;
+        return;
+      }}
+      if (plan.length > 0) {{
+        body.innerHTML = `<p><strong>${{plan.length}} minimal review(s) remain.</strong> Press <code>N</code> to jump to the next highest-impact clip. When this count reaches zero, Pavo will show the finish commands here.</p>`;
+        return;
+      }}
+      body.innerHTML = `
+        <p><strong>Cluster consensus is ready.</strong> Export/save the reviewed sheet, then run:</p>
+        <ol>
+          <li>Write the decision report:<pre>${{escapeHtml(clusterDecisionCommand)}}</pre></li>
+          <li>Finalize constraints and rebuild the brief:<pre>${{escapeHtml(clusterFinalizeCommand)}}</pre></li>
+          <li>Refresh the status proof:<pre>${{escapeHtml(clusterStatusCommand)}}</pre></li>
+        </ol>
+      `;
+    }}
+
     function focusNextRecommendedReview() {{
       const plan = minimalNextReviewPlan();
       if (!plan.length) return;
@@ -2893,6 +3011,7 @@ def create_anchor_review_page(
       renderClusterSummary();
       renderNextReviewPlan();
       renderReviewEffort();
+      renderCompletionHandoff();
     }}
 
     function applyDecisionToCard(card, status) {{
@@ -3499,6 +3618,7 @@ def verify_anchor_review_page(
         "cluster summary": 'id="cluster-summary"' in html and "renderClusterSummary" in html and "clusterConsensusState" in html,
         "next review plan": 'id="next-review-plan"' in html and "minimalNextReviewPlan" in html and "focusNextRecommendedReview" in html,
         "review effort": 'id="review-effort"' in html and "renderReviewEffort" in html,
+        "completion handoff": 'id="completion-handoff"' in html and "renderCompletionHandoff" in html and "clusterFinalizeCommand" in html,
         "embedded sheet JSON": embedded_sheet_present,
         "import instruction": (not requires_import) or "pavo review anchors import" in html,
         "rerun instruction": (not requires_rerun) or "pavo review anchors rerun-command" in html,
@@ -3525,6 +3645,7 @@ def verify_anchor_review_page(
         cluster_summary_present=checks["cluster summary"],
         next_review_plan_present=checks["next review plan"],
         review_effort_present=checks["review effort"],
+        completion_handoff_present=checks["completion handoff"],
         embedded_sheet_present=embedded_sheet_present,
         import_instruction_present=checks["import instruction"],
         rerun_instruction_present=checks["rerun instruction"],
