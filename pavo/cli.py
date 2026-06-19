@@ -131,6 +131,26 @@ def _batch_operator_review_paths(proof_report: Path, handoff: dict) -> dict[str,
     }
 
 
+def _batch_priority_queue_top(review_sprint: dict, *, limit: int = 3) -> list[dict]:
+    priority_queue = review_sprint.get("priority_queue") if isinstance(review_sprint.get("priority_queue"), dict) else {}
+    items = priority_queue.get("items") if isinstance(priority_queue.get("items"), list) else []
+    return [item for item in items[:limit] if isinstance(item, dict)]
+
+
+def _format_batch_priority_queue_top(items: list[dict]) -> str:
+    if not items:
+        return "none"
+    parts = []
+    for item in items:
+        cluster = str(item.get("cluster_id") or "unknown")
+        risk = str(item.get("decision_risk") or "unknown")
+        speaker = str(item.get("speaker") or "unknown")
+        reason = str(item.get("why_queued") or "").strip()
+        reason_text = f" ({reason})" if reason else ""
+        parts.append(f"{cluster}->{speaker}:{risk}{reason_text}")
+    return "; ".join(parts)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="pavo")
     parser.add_argument("--home", help="Override Pavo home directory")
@@ -844,6 +864,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.open_sprint:
                 webbrowser.open(Path(review_paths["open_review_sprint"]).resolve().as_uri())
                 opened.append("review_sprint")
+            priority_queue_top = _batch_priority_queue_top(readiness.review_sprint)
             report = {
                 "state": readiness.state,
                 "complete": readiness.complete,
@@ -854,6 +875,7 @@ def main(argv: list[str] | None = None) -> int:
                 "pending_decisions": readiness.pending_decision_count,
                 "pending_clips": readiness.review_sprint.get("pending_clip_count"),
                 "estimated_review_minutes": readiness.review_sprint.get("estimated_minutes"),
+                "priority_queue_top": priority_queue_top,
                 "review_completion": readiness.review_completion,
                 "decision_board_written": board_result.as_report(),
                 "review_sprint_written": sprint_result.as_report(),
@@ -873,6 +895,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"pending_decisions: {readiness.pending_decision_count}")
                 print(f"pending_clips: {readiness.review_sprint.get('pending_clip_count')}")
                 print(f"estimated_review_minutes: {readiness.review_sprint.get('estimated_minutes')}")
+                print(f"priority_queue_top: {_format_batch_priority_queue_top(priority_queue_top)}")
                 print(f"review_progress_percent: {readiness.review_completion.get('progress_percent')}")
                 print(f"review_export_ready: {str(bool(readiness.review_completion.get('export_ready'))).lower()}")
                 print(f"missing_reason_decision_count: {readiness.review_completion.get('missing_reason_decision_count')}")
