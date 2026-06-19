@@ -178,6 +178,7 @@ def build_parser() -> argparse.ArgumentParser:
     review_clusters_status.add_argument("--review-sheet", type=Path, help="Override cluster question review sheet")
     review_clusters_status.add_argument("--json", action="store_true", help="Print full machine-readable status JSON")
     review_clusters_status.add_argument("--report", type=Path, help="Write machine-readable status JSON report")
+    review_clusters_status.add_argument("--markdown-report", type=Path, help="Write human-readable status Markdown report")
     review_clusters_audit = review_clusters_sub.add_parser("audit", help="Write a cluster identity propagation audit")
     review_clusters_audit.add_argument("batch_root", type=Path)
     review_clusters_audit.add_argument("--out", type=Path, help="Cluster audit JSON path")
@@ -610,6 +611,9 @@ def main(argv: list[str] | None = None) -> int:
                 if args.report:
                     args.report.parent.mkdir(parents=True, exist_ok=True)
                     args.report.write_text(__import__("json").dumps(result.as_report(), indent=2, sort_keys=True) + "\n")
+                if args.markdown_report:
+                    args.markdown_report.parent.mkdir(parents=True, exist_ok=True)
+                    args.markdown_report.write_text(result.as_markdown())
                 if args.json:
                     print(__import__("json").dumps(result.as_report(), indent=2, sort_keys=True))
                     return 0

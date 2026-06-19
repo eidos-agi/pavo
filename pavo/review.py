@@ -75,7 +75,6 @@ class AnchorReviewDecisionExportResult:
             "blockers": self.blockers,
         }
 
-
 @dataclass(frozen=True)
 class AnchorReviewMaterializeResult:
     decision_report_path: Path
@@ -311,6 +310,33 @@ class ClusterReviewStatusResult:
             "next_command": self.next_command,
             "blockers": self.blockers,
         }
+
+    def as_markdown(self) -> str:
+        blockers = self.blockers or ["None"]
+        lines = [
+            "# Pavo Cluster Review Status",
+            "",
+            f"- Batch root: `{self.batch_root}`",
+            f"- State: `{self.state}`",
+            f"- Review sheet: `{self.review_sheet_path}`",
+            f"- Candidate clips: {self.candidate_count}",
+            f"- Approved / rejected / pending: {self.approved_count} / {self.rejected_count} / {self.pending_count}",
+            f"- Page verified: `{str(self.page_verified).lower()}`",
+            f"- Top cluster: `{self.top_cluster_id}`",
+            f"- Estimated unlock: {self.estimated_unlockable_segments} segments / {self.estimated_unlockable_seconds} seconds",
+            f"- Constraints / hints: {self.constraints_count} / {self.hint_count}",
+            f"- Review pressure reduction: {self.review_pressure_reduction}",
+            f"- Routeable named span gain: {self.routeable_named_span_gain}",
+            "",
+            "## Next Action",
+            "",
+            f"`{self.next_command}`",
+            "",
+            "## Blockers",
+            "",
+        ]
+        lines.extend(f"- {item}" for item in blockers)
+        return "\n".join(lines).rstrip() + "\n"
 
 
 @dataclass(frozen=True)
