@@ -577,9 +577,15 @@ def enrich_operator_handoff_with_validation(handoff: dict[str, Any]) -> dict[str
             passed = bool(payload.get("passed"))
             ready = bool(payload.get("ready_to_finalize"))
             pending = int(payload.get("pending_count") or 0)
+            slate_mtime = Path(slate).stat().st_mtime if slate and Path(slate).exists() else None
+            validation_mtime = validation_path.stat().st_mtime
+            fresh = slate_mtime is None or validation_mtime >= slate_mtime
             validation.update(
                 {
-                    "status": "ready_to_finish" if ready else "pending_review",
+                    "status": "stale_validation" if not fresh else ("ready_to_finish" if ready else "pending_review"),
+                    "fresh": fresh,
+                    "slate_mtime": slate_mtime,
+                    "validation_mtime": validation_mtime,
                     "passed": passed,
                     "ready_to_finalize": ready,
                     "applied_count": payload.get("applied_count"),
@@ -639,6 +645,7 @@ def format_operator_handoff(handoff: dict[str, Any]) -> str:
                 f"path: {validation.get('path')}",
                 f"exists: {str(bool(validation.get('exists'))).lower()}",
                 f"status: {validation.get('status')}",
+                f"fresh: {str(bool(validation.get('fresh'))).lower() if validation.get('fresh') is not None else None}",
             ]
         )
         if validation.get("exists"):

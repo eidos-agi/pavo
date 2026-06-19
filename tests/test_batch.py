@@ -1,5 +1,6 @@
 import json
 import io
+import os
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -273,6 +274,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(checked_stdout.getvalue(), format_operator_handoff(enriched))
         self.assertIn("validation:", checked_stdout.getvalue())
         self.assertIn("status: pending_review", checked_stdout.getvalue())
+        self.assertIn("fresh: true", checked_stdout.getvalue())
         self.assertIn("pending_count: 2", checked_stdout.getvalue())
         self.assertIn("artifact_checks:", checked_stdout.getvalue())
         self.assertIn("proof_review_slate_tsv: exists=true", checked_stdout.getvalue())
@@ -284,8 +286,42 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertTrue(json_report["artifact_checks"]["review_page"]["exists"])
         self.assertTrue(json_report["artifact_checks"]["validation_report"]["exists"])
         self.assertEqual(json_report["validation"]["status"], "pending_review")
+        self.assertTrue(json_report["validation"]["fresh"])
         self.assertEqual(json_report["validation"]["pending_count"], 2)
         self.assertIn("finish-from-slate", json_report["finish_command"])
+
+    def test_batch_handoff_validation_marks_stale_when_slate_is_newer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            validation_path = result.proof_review_slate_path.with_suffix(".validation.json")
+            validation_path.write_text(
+                json.dumps(
+                    {
+                        "passed": False,
+                        "ready_to_finalize": False,
+                        "applied_count": 2,
+                        "approved_count": 0,
+                        "rejected_count": 0,
+                        "pending_count": 2,
+                        "blockers": ["2 cluster questions still need review"],
+                    }
+                )
+            )
+            os.utime(validation_path, (1000, 1000))
+            os.utime(result.proof_review_slate_path, (2000, 2000))
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(["batch", "handoff", str(result.proof_report_path), "--check-validation", "--json"])
+
+            report = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(report["validation"]["status"], "stale_validation")
+        self.assertFalse(report["validation"]["fresh"])
+        self.assertLess(report["validation"]["validation_mtime"], report["validation"]["slate_mtime"])
 
     def test_batch_proof_cli_strict_complete_fails_when_human_gate_pending(self):
         with tempfile.TemporaryDirectory() as tmp:
