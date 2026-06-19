@@ -1066,6 +1066,49 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(status.acoustic_analyzed_count, 2)
         self.assertEqual(status.acoustic_attention_cluster_count, 0)
 
+    def test_anchor_review_page_embeds_cluster_acoustic_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            clip_a = root / "clip-a.wav"
+            clip_b = root / "clip-b.wav"
+            _write_test_wav(clip_a)
+            _write_test_wav(clip_b)
+            sheet = root / "cluster-review-sheet.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "display_mode": "human_review",
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "pending",
+                                "approved": False,
+                                "clip_path": str(clip_a),
+                                "cluster_question": {"cluster_id": "S1", "dominant_speaker": "Daniel"},
+                            },
+                            {
+                                "index": 2,
+                                "status": "pending",
+                                "approved": False,
+                                "clip_path": str(clip_b),
+                                "cluster_question": {"cluster_id": "S1", "dominant_speaker": "Daniel"},
+                            },
+                        ],
+                    }
+                )
+            )
+            create_cluster_question_acoustic_report(sheet)
+
+            page = create_anchor_review_page(sheet).review_page_path
+            html = page.read_text()
+            embedded = html.split('<script type="application/json" id="review-sheet-data">', 1)[1].split("</script>", 1)[0]
+            payload = json.loads(embedded)
+
+        self.assertIn("Acoustic evidence:", html)
+        self.assertIn("consistent_acoustic_shape", html)
+        self.assertIn("not speaker identity or auto-approval", html)
+        self.assertEqual(payload["rows"][0]["acoustic_review"]["verdict"], "consistent_acoustic_shape")
+
     def test_cli_cluster_review_acoustics_writes_reports(self):
         from pavo.cli import main
 

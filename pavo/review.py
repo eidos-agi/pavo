@@ -1645,7 +1645,9 @@ def create_anchor_review_page(
     sheet_path = Path(review_sheet_path)
     sheet = json.loads(sheet_path.read_text())
     page_path = Path(out_path) if out_path else sheet_path.with_suffix(".html")
-    rows = sheet.get("rows", [])
+    acoustic_rows = _load_acoustic_review_rows(sheet_path)
+    rows = [_with_acoustic_review(row, acoustic_rows) for row in sheet.get("rows", [])]
+    sheet = {**sheet, "rows": rows}
     pending = [row for row in rows if row.get("status") == "pending"]
     labels = _review_labels(sheet)
     display_mode = sheet.get("display_mode") or "anchor_review"
@@ -1715,6 +1717,33 @@ def create_anchor_review_page(
     .assistant-review .context {{
       color: #496458;
       font-size: 13px;
+    }}
+    .acoustic-review {{
+      margin: 12px 0;
+      padding: 12px;
+      border-left: 4px solid #d2b35f;
+      background: #fff8df;
+    }}
+    .acoustic-review strong {{
+      color: #5c4300;
+    }}
+    .acoustic-review span {{
+      display: inline-block;
+      margin-left: 8px;
+      color: #5c4300;
+      font-weight: 700;
+    }}
+    .acoustic-review p {{
+      margin: 6px 0 0;
+      color: #544a2d;
+    }}
+    .acoustic-review.acoustic-drift {{
+      border-left-color: #b86b5f;
+      background: #fff0ea;
+    }}
+    .acoustic-review.acoustic-consistent {{
+      border-left-color: #4c9560;
+      background: #edf8ef;
     }}
     .actions {{
       display: flex;
@@ -3527,6 +3556,51 @@ def _resolve_review_clip_path(sheet_path: Path, value: Any) -> Path | None:
     return path
 
 
+def _load_acoustic_review_rows(sheet_path: Path) -> dict[int, dict[str, Any]]:
+    report_path = sheet_path.with_name("pavo-cluster-question-acoustic-evidence.json")
+    report = _load_optional_json(report_path)
+    if not report:
+        return {}
+    clusters = {
+        str(item.get("cluster_id") or ""): item
+        for item in report.get("clusters") or []
+        if isinstance(item, dict)
+    }
+    by_index: dict[int, dict[str, Any]] = {}
+    for row in report.get("rows") or []:
+        if not isinstance(row, dict) or row.get("index") is None:
+            continue
+        try:
+            index = int(row.get("index"))
+        except (TypeError, ValueError):
+            continue
+        cluster_id = str(row.get("cluster_id") or "")
+        cluster = clusters.get(cluster_id, {})
+        by_index[index] = {
+            "cluster_id": cluster_id,
+            "verdict": cluster.get("verdict"),
+            "min_pair_similarity": cluster.get("min_pair_similarity"),
+            "average_pair_similarity": cluster.get("average_pair_similarity"),
+            "recommended_next_action": cluster.get("recommended_next_action"),
+            "signature": row.get("signature"),
+            "source_report": str(report_path),
+        }
+    return by_index
+
+
+def _with_acoustic_review(row: dict[str, Any], acoustic_rows: dict[int, dict[str, Any]]) -> dict[str, Any]:
+    if not isinstance(row, dict) or row.get("index") is None:
+        return row
+    try:
+        index = int(row.get("index"))
+    except (TypeError, ValueError):
+        return row
+    acoustic = acoustic_rows.get(index)
+    if not acoustic:
+        return row
+    return {**row, "acoustic_review": acoustic}
+
+
 def _acoustic_signature_for_clip(clip_path: Path | None) -> dict[str, Any]:
     if not clip_path or not clip_path.exists():
         return {"analyzed": False, "reason": "clip_missing"}
@@ -3857,6 +3931,28 @@ def _assistant_review_block(row: dict[str, Any]) -> str:
   </section>"""
 
 
+def _acoustic_review_block(row: dict[str, Any]) -> str:
+    acoustic = row.get("acoustic_review") if isinstance(row.get("acoustic_review"), dict) else None
+    if not acoustic:
+        return ""
+    verdict = str(acoustic.get("verdict") or "unknown")
+    css = "acoustic-review"
+    if verdict == "listen_carefully_acoustic_drift":
+        css += " acoustic-drift"
+    elif verdict == "consistent_acoustic_shape":
+        css += " acoustic-consistent"
+    similarity = acoustic.get("min_pair_similarity")
+    similarity_text = "unknown" if similarity is None else str(similarity)
+    action = acoustic.get("recommended_next_action") or "Use this as reviewer evidence only."
+    return f"""  <section class="{css}">
+    <strong>Acoustic evidence:</strong>
+    <span>{escape(verdict)}</span>
+    <span>cluster min similarity {escape(similarity_text)}</span>
+    <p>{escape(str(action))}</p>
+    <p>Safety boundary: this is not speaker identity or auto-approval. Listen before deciding.</p>
+  </section>"""
+
+
 def _now_iso() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
@@ -3916,6 +4012,7 @@ def _anchor_review_card(row: dict[str, Any], *, labels: dict[str, Any]) -> str:
     pending_label = labels["buttons"]["pending"]
     spoken_review = _spoken_review_controls(row)
     assistant_review = _assistant_review_block(row)
+    acoustic_review = _acoustic_review_block(row)
     expected = row.get("expected_behavior")
     correction_rows = (
         f"""    <dt>Expected behavior</dt><dd>{escape(str(expected))}</dd>"""
@@ -3934,6 +4031,7 @@ def _anchor_review_card(row: dict[str, Any], *, labels: dict[str, Any]) -> str:
     <button type="button" data-decision="pending" class="secondary" data-pending="{index}">{escape(str(pending_label))}</button>
   </div>
   {assistant_review}
+  {acoustic_review}
   {spoken_review}
   <textarea data-note="{index}" placeholder="Reviewer note">{note}</textarea>
   <dl>
@@ -3958,6 +4056,7 @@ def _human_review_card(row: dict[str, Any], *, labels: dict[str, Any]) -> str:
     pending_label = labels["buttons"]["pending"]
     spoken_review = _spoken_review_controls(row)
     assistant_review = _assistant_review_block(row)
+    acoustic_review = _acoustic_review_block(row)
     title = row.get("review_heading") or f"Clip {row.get('index')}"
     prompt = row.get("review_prompt") or row.get("expected_behavior") or row.get("text") or "Listen to this clip and decide whether it matches the expected behavior."
     subtitle = row.get("review_subtitle") or row.get("case") or ""
@@ -3997,6 +4096,7 @@ def _human_review_card(row: dict[str, Any], *, labels: dict[str, Any]) -> str:
     <button type="button" data-decision="pending" class="secondary" data-pending="{index}">{escape(str(pending_label))}</button>
   </div>
   {assistant_review}
+  {acoustic_review}
   {spoken_review}
   <textarea data-note="{index}" placeholder="Optional note">{note}</textarea>
   <details>
