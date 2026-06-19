@@ -60,8 +60,11 @@ def build_meeting_brief(root: Path, *, review_limit: int = 200, packet_limit: in
         lambda path: "named-speaker" in path.name.lower() or "speaker-characterization" in path.name.lower(),
     )
     attribution_segments = _load_speaker_attribution_segments(root)
+    named_evidence_segments = _load_named_evidence_segments(root)
+    ensemble_segments = _ensemble_speaker_segments(attribution_segments, named_evidence_segments)
     diarization_segments = _load_diarization_segments(root)
-    review_items = _build_review_items(root, attribution_segments, limit=review_limit)
+    review_items, review_summary = _build_review_items(root, ensemble_segments, limit=review_limit)
+    review_clusters = _build_review_clusters(ensemble_segments)
     packets = _extract_task_packets(root, limit=packet_limit)
     gates = _brief_gates(
         audio_files=audio_files,
@@ -95,24 +98,28 @@ def build_meeting_brief(root: Path, *, review_limit: int = 200, packet_limit: in
         "root": str(root),
         "state": state,
         "readiness_score": readiness,
-        "summary": _brief_summary(gates, review_items, packets),
+        "summary": _brief_summary(gates, review_summary["total_count"], packets),
         "counts": counts,
         "verification": {
             "ok": verification_ok,
             "gates": gates,
         },
+        "speaker_ensemble": _speaker_ensemble_summary(attribution_segments, named_evidence_segments, ensemble_segments),
         "review": {
-            "item_count": len(review_items),
+            "item_count": review_summary["sampled_count"],
+            "total_count": review_summary["total_count"],
+            "capped": review_summary["capped"],
             "by_type": dict(Counter(str(item.get("type") or "unknown") for item in review_items)),
             "by_reason": dict(Counter(str(item.get("reason") or "unknown") for item in review_items)),
             "top_items": review_items[:10],
+            "clusters": review_clusters[:10],
         },
-        "speaker_confidence": dict(Counter(str(segment.get("confidence") or "unknown") for segment in attribution_segments)),
+        "speaker_confidence": dict(Counter(str(segment.get("confidence") or "unknown") for segment in ensemble_segments)),
         "work_packets": {
             "packet_count": len(packets),
             "top_packets": packets[:10],
         },
-        "next_actions": _rank_actions(str(root), gates, review_items, packets),
+        "next_actions": _rank_actions(str(root), gates, review_summary["total_count"], packets),
         "resume_commands": [
             f"pavo brief {root}",
             f"pavo review anchors status <review-sheet>",
@@ -155,7 +162,8 @@ def render_meeting_brief_markdown(brief: dict[str, Any]) -> str:
         f"- Diarized segments: {counts['diarized_segments']}",
         f"- Attributed speaker segments: {counts['attributed_segments']}",
         f"- Named speaker artifacts: {counts['named_speaker_artifacts']}",
-        f"- Review items: {brief['review']['item_count']}",
+        f"- Sampled review items: {brief['review']['item_count']}",
+        f"- Total review pressure: {brief['review'].get('total_count', brief['review']['item_count'])}",
         f"- Candidate work packets: {brief['work_packets']['packet_count']}",
         "",
         "## Gate Results",
@@ -163,6 +171,20 @@ def render_meeting_brief_markdown(brief: dict[str, Any]) -> str:
     ]
     for gate in brief["verification"]["gates"]:
         lines.append(f"- {gate['name']}: `{gate['status']}` - {gate['message']}")
+    ensemble = brief.get("speaker_ensemble", {})
+    if ensemble:
+        lines.extend(
+            [
+                "",
+                "## Speaker Ensemble",
+                "",
+                f"- Raw attribution segments: {ensemble.get('raw_segment_count', 0)}",
+                f"- Named-evidence segments: {ensemble.get('named_evidence_segment_count', 0)}",
+                f"- Routeable named spans: {ensemble.get('routeable_named_segment_count', 0)}",
+                f"- Routeable speaker counts: `{json.dumps(ensemble.get('routeable_speaker_counts', {}), sort_keys=True)}`",
+                f"- Ensemble source counts: `{json.dumps(ensemble.get('source_counts', {}), sort_keys=True)}`",
+            ]
+        )
     lines.extend(["", "## Next Actions", ""])
     for index, action in enumerate(brief["next_actions"], start=1):
         lines.extend(
@@ -183,6 +205,13 @@ def render_meeting_brief_markdown(brief: dict[str, Any]) -> str:
                     f"  Source: `{packet['source']}:{packet['line']}`",
                     f"  Evidence: {packet['excerpt']}",
                 ]
+            )
+        lines.append("")
+    if brief["review"].get("clusters"):
+        lines.extend(["## Review Clusters", ""])
+        for cluster in brief["review"]["clusters"]:
+            lines.append(
+                f"- {cluster['speaker']} / {cluster['reason']}: {cluster['segment_count']} spans, {cluster['duration_seconds']:.1f}s across {cluster['recording_count']} recordings"
             )
         lines.append("")
     lines.extend(
@@ -224,6 +253,78 @@ def _load_speaker_attribution_segments(root: Path) -> list[dict[str, Any]]:
     return segments
 
 
+def _load_named_evidence_segments(root: Path) -> list[dict[str, Any]]:
+    segments: list[dict[str, Any]] = []
+    for path in _find_named(root, lambda p: p.name == "named-speaker-evidence.json"):
+        payload = _read_json(path)
+        candidate = payload.get("segments") if isinstance(payload, dict) else None
+        if isinstance(candidate, list):
+            for item in candidate:
+                if isinstance(item, dict):
+                    enriched = dict(item)
+                    enriched["_pavo_source"] = str(path)
+                    segments.append(enriched)
+    return segments
+
+
+def _ensemble_speaker_segments(primary: list[dict[str, Any]], named: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    named_by_key = {_segment_key(segment): segment for segment in named}
+    output: list[dict[str, Any]] = []
+    for segment in primary:
+        candidate = named_by_key.get(_segment_key(segment))
+        output.append(_choose_segment(segment, candidate))
+    primary_keys = {_segment_key(segment) for segment in primary}
+    for segment in named:
+        if _segment_key(segment) not in primary_keys:
+            enriched = dict(segment)
+            enriched["ensemble_source"] = "named_speaker_evidence_only"
+            output.append(enriched)
+    return output
+
+
+def _choose_segment(primary: dict[str, Any], named: dict[str, Any] | None) -> dict[str, Any]:
+    enriched = dict(primary)
+    enriched["raw_speaker"] = primary.get("speaker")
+    enriched["raw_confidence"] = primary.get("confidence")
+    if named is None:
+        enriched["ensemble_source"] = "speaker_attribution"
+        return enriched
+    named_speaker = str(named.get("speaker") or "")
+    named_confidence = str(named.get("confidence") or "unknown")
+    raw_confidence = str(primary.get("confidence") or "unknown")
+    if _confidence_rank(named_confidence) > _confidence_rank(raw_confidence) or (
+        _is_unknown_speaker(primary.get("speaker")) and not _is_unknown_speaker(named_speaker)
+    ):
+        enriched["speaker"] = named_speaker
+        enriched["confidence"] = named_confidence
+        enriched["reason"] = named.get("reason")
+        enriched["ensemble_source"] = "named_speaker_evidence"
+    else:
+        enriched["ensemble_source"] = "speaker_attribution"
+        if named.get("reason"):
+            enriched["secondary_reason"] = named.get("reason")
+    return enriched
+
+
+def _segment_key(segment: dict[str, Any]) -> tuple[str, float | None, float | None]:
+    return (
+        str(segment.get("recording_id") or segment.get("source_id") or ""),
+        _rounded_time(segment.get("start")),
+        _rounded_time(segment.get("end")),
+    )
+
+
+def _rounded_time(value: Any) -> float | None:
+    try:
+        return round(float(value), 2)
+    except (TypeError, ValueError):
+        return None
+
+
+def _confidence_rank(value: str) -> int:
+    return {"manual_confirmed": 4, "high": 3, "medium": 2, "low": 1}.get(value, 0)
+
+
 def _load_diarization_segments(root: Path) -> list[dict[str, Any]]:
     segments: list[dict[str, Any]] = []
     for path in _find_named(root, lambda p: p.name in {"diarization-segments.json", "diarization.json"}):
@@ -241,31 +342,123 @@ def _read_json(path: Path) -> Any:
         return None
 
 
-def _build_review_items(root: Path, segments: list[dict[str, Any]], *, limit: int) -> list[dict[str, Any]]:
+def _build_review_items(root: Path, segments: list[dict[str, Any]], *, limit: int) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     items: list[dict[str, Any]] = []
     source = root / "_work" / "speaker-attribution.json"
+    total = 0
     for segment in segments:
         confidence = str(segment.get("confidence") or "unknown")
         speaker = str(segment.get("speaker") or segment.get("speaker_name") or "UNKNOWN")
-        if confidence not in {"high", "manual_confirmed"} or speaker.lower().startswith("unknown"):
+        if _needs_speaker_review(speaker, confidence):
+            total += 1
+            if len(items) >= limit:
+                continue
             items.append(
                 {
                     "type": "speaker_identity",
                     "state": "review_needed",
-                    "reason": "low_or_unknown_speaker_confidence",
+                    "reason": _review_reason(speaker, confidence),
                     "recording_id": segment.get("recording_id") or segment.get("source_id"),
                     "start": segment.get("start"),
                     "end": segment.get("end"),
                     "speaker": speaker,
                     "confidence": confidence,
                     "text": str(segment.get("text") or "")[:500],
-                    "source": str(source),
+                    "source": str(segment.get("_pavo_source") or source),
+                    "ensemble_source": str(segment.get("ensemble_source") or "unknown"),
+                    "raw_speaker": segment.get("raw_speaker"),
+                    "raw_confidence": segment.get("raw_confidence"),
                     "allowed_actions": ["confirm_speaker", "assign_speaker", "mark_unassigned", "ignore"],
                 }
             )
-            if len(items) >= limit:
-                break
-    return items
+    return items, {"total_count": total, "sampled_count": len(items), "capped": total > len(items)}
+
+
+def _needs_speaker_review(speaker: str, confidence: str) -> bool:
+    if _is_unknown_speaker(speaker):
+        return True
+    return confidence not in {"high", "manual_confirmed", "medium"}
+
+
+def _is_unknown_speaker(value: Any) -> bool:
+    lower = str(value or "").lower()
+    return lower.startswith("unknown") or lower.startswith("unattributed") or lower.endswith("-mentioned")
+
+
+def _review_reason(speaker: str, confidence: str) -> str:
+    if _is_unknown_speaker(speaker):
+        return "unattributed_speaker"
+    return f"{confidence}_confidence_named_speaker"
+
+
+def _build_review_clusters(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    clusters: dict[tuple[str, str], dict[str, Any]] = {}
+    for segment in segments:
+        confidence = str(segment.get("confidence") or "unknown")
+        speaker = str(segment.get("speaker") or "UNKNOWN")
+        if not _needs_speaker_review(speaker, confidence):
+            continue
+        reason = _review_reason(speaker, confidence)
+        key = (speaker, reason)
+        cluster = clusters.setdefault(
+            key,
+            {
+                "speaker": speaker,
+                "reason": reason,
+                "segment_count": 0,
+                "duration_seconds": 0.0,
+                "recordings": set(),
+                "sample_text": [],
+            },
+        )
+        cluster["segment_count"] += 1
+        cluster["duration_seconds"] += _duration(segment)
+        recording_id = segment.get("recording_id") or segment.get("source_id")
+        if recording_id:
+            cluster["recordings"].add(str(recording_id))
+        text = str(segment.get("text") or "").strip()
+        if text and len(cluster["sample_text"]) < 3:
+            cluster["sample_text"].append(text[:180])
+    results = []
+    for cluster in clusters.values():
+        results.append(
+            {
+                "speaker": cluster["speaker"],
+                "reason": cluster["reason"],
+                "segment_count": cluster["segment_count"],
+                "duration_seconds": round(cluster["duration_seconds"], 2),
+                "recording_count": len(cluster["recordings"]),
+                "sample_text": cluster["sample_text"],
+            }
+        )
+    return sorted(results, key=lambda item: (-item["segment_count"], item["speaker"]))
+
+
+def _duration(segment: dict[str, Any]) -> float:
+    try:
+        return max(0.0, float(segment.get("end")) - float(segment.get("start")))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _speaker_ensemble_summary(
+    primary: list[dict[str, Any]],
+    named: list[dict[str, Any]],
+    ensemble: list[dict[str, Any]],
+) -> dict[str, Any]:
+    routeable = [
+        segment
+        for segment in ensemble
+        if not _needs_speaker_review(str(segment.get("speaker") or ""), str(segment.get("confidence") or "unknown"))
+    ]
+    return {
+        "raw_segment_count": len(primary),
+        "named_evidence_segment_count": len(named),
+        "ensemble_segment_count": len(ensemble),
+        "source_counts": dict(Counter(str(segment.get("ensemble_source") or "unknown") for segment in ensemble)),
+        "routeable_named_segment_count": len(routeable),
+        "routeable_speaker_counts": dict(Counter(str(segment.get("speaker") or "unknown") for segment in routeable)),
+    }
 
 
 def _extract_task_packets(root: Path, *, limit: int) -> list[dict[str, Any]]:
@@ -381,18 +574,18 @@ def _score_grade(score: int, *, has_review_items: bool, verification_ok: bool) -
     return "not_ready"
 
 
-def _brief_summary(gates: list[dict[str, str]], review_items: list[dict[str, Any]], packets: list[dict[str, Any]]) -> str:
+def _brief_summary(gates: list[dict[str, str]], review_count: int, packets: list[dict[str, Any]]) -> str:
     failed = [gate["name"] for gate in gates if gate["status"] != "pass"]
     if failed:
-        return f"This batch is not ready to route because {', '.join(failed)} still needs proof. Pavo found {len(review_items)} review items and {len(packets)} candidate work packets."
-    if review_items:
-        return f"This batch has source evidence and transcripts, but {len(review_items)} review items should be cleared before routing work outside Pavo."
+        return f"This batch is not ready to route because {', '.join(failed)} still needs proof. Pavo found {review_count} review-pressure spans and {len(packets)} candidate work packets."
+    if review_count:
+        return f"This batch has source evidence and transcripts, but {review_count} review-pressure spans should be cleared or clustered before routing work outside Pavo."
     if packets:
         return f"This batch is evidence-ready and has {len(packets)} candidate work packets ready for human-approved routing."
     return "This batch is evidence-ready and has no obvious review queue or task packet pressure."
 
 
-def _rank_actions(root: str, gates: list[dict[str, str]], review_items: list[dict[str, Any]], packets: list[dict[str, Any]]) -> list[dict[str, str]]:
+def _rank_actions(root: str, gates: list[dict[str, str]], review_count: int, packets: list[dict[str, Any]]) -> list[dict[str, str]]:
     failed = {gate["name"] for gate in gates if gate["status"] != "pass"}
     actions: list[dict[str, str]] = []
     if "source_truth" in failed:
@@ -401,8 +594,8 @@ def _rank_actions(root: str, gates: list[dict[str, str]], review_items: list[dic
         actions.append({"priority": "P0", "title": "Generate local transcripts", "why": "Task extraction and speaker review are weak without local transcript JSON.", "command": "pavo transcribe <recording-id>"})
     if failed & {"diarization", "speaker_attribution", "named_speaker_evidence"}:
         actions.append({"priority": "P1", "title": "Run or repair speaker evidence", "why": "Speaker-aware tasks should not route until speaker evidence is present.", "command": "pavo audio decompose <audio-path> --source-id <source-id>"})
-    if review_items:
-        actions.append({"priority": "P1", "title": "Clear the review queue", "why": f"{len(review_items)} review items are waiting.", "command": "pavo review anchors status <review-sheet>"})
+    if review_count:
+        actions.append({"priority": "P1", "title": "Clear the review clusters", "why": f"{review_count} review-pressure spans remain; use the clusters to approve by evidence bucket instead of reading every row.", "command": f"pavo brief {root}"})
     if packets:
         actions.append({"priority": "P2", "title": "Turn candidate work packets into approved tasks", "why": f"{len(packets)} candidate packets were found; external writes remain approval-gated.", "command": f"pavo brief {root}"})
     if not actions:
