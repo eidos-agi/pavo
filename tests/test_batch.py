@@ -552,9 +552,12 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("Keyboard", html)
         self.assertIn("Review Sprint", html)
         self.assertIn("Focus next pending", html)
+        self.assertIn("Focus high risk", html)
         self.assertIn("focusNextPending", html)
+        self.assertIn("focusNextHighRisk", html)
         self.assertIn("est. minutes", html)
         self.assertIn("review-progress-percent", html)
+        self.assertIn("high-risk-count", html)
         self.assertIn("missing-reason-count", html)
         self.assertIn("export-ready-status", html)
         self.assertIn("reviewCompletion", html)
@@ -576,6 +579,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("Review guidance", html)
         self.assertIn("Decision shape: confirm_or_reject_proposed_identity", html)
         self.assertIn("Decision risk: high", html)
+        self.assertIn('data-risk="high"', html)
         self.assertIn("Suggested action", html)
         self.assertIn("Evidence hints", html)
         self.assertIn("approval requires every clip to match", html)
@@ -619,6 +623,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("has_review_sprint", {check["name"] for check in report["checks"] if check["passed"]})
         self.assertIn("has_audit_completion_summary", {check["name"] for check in report["checks"] if check["passed"]})
         self.assertIn("has_inline_evidence_hints", {check["name"] for check in report["checks"] if check["passed"]})
+        self.assertIn("has_risk_aware_focus", {check["name"] for check in report["checks"] if check["passed"]})
         self.assertFalse(report["blockers"])
 
     def test_batch_verify_decision_board_cli_fails_when_control_missing(self):

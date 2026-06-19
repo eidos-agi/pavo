@@ -2330,6 +2330,14 @@ def verify_batch_decision_board(
             "inline speaker evidence guidance",
         ),
         _check(
+            "has_risk_aware_focus",
+            "Focus high risk" in html
+            and "focusNextHighRisk" in html
+            and "high-risk-count" in html
+            and "data-risk" in html,
+            "risk-aware review navigation",
+        ),
+        _check(
             "has_review_reason_export_gate",
             "validateAuditReady" in html and "Missing review reason" in html,
             "client-side reason gate before audit export",
@@ -3274,6 +3282,7 @@ def _render_batch_decision_board_html(
     .sprint {{ margin-top:14px; border:1px solid #c7d7fe; background:#eff5ff; border-radius:14px; padding:12px; display:flex; gap:12px; align-items:center; justify-content:space-between; }}
     .sprint strong {{ display:block; font-size:15px; }}
     .sprint button {{ background:var(--brand); }}
+    .sprint-actions {{ display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; }}
     .rubric {{ margin-top:12px; background:#fff7ed; border:1px solid #fed7aa; border-radius:14px; padding:12px 14px; }}
     .rubric strong {{ display:block; margin-bottom:6px; }}
     .rubric ul {{ margin:0; padding-left:20px; color:#4b5563; font-size:13px; line-height:1.45; }}
@@ -3320,6 +3329,8 @@ def _render_batch_decision_board_html(
       <div class="score"><strong id="review-progress-percent">0%</strong> complete</div>
       <div class="score"><strong id="missing-reason-count">0</strong> missing reasons</div>
       <div class="score"><strong id="export-ready-status">No</strong> export ready</div>
+      <div class="score"><strong id="high-risk-count">0</strong> high risk</div>
+      <div class="score"><strong id="medium-risk-count">0</strong> medium risk</div>
       <div class="score"><strong>{supporting_count}</strong> supporting clips</div>
       <div class="score"><strong id="sprint-minutes">{estimated_minutes}</strong> est. minutes</div>
     </div>
@@ -3328,7 +3339,10 @@ def _render_batch_decision_board_html(
         <strong>Review Sprint</strong>
         <div class="sub">Listen to every supporting clip, decide the grouped speaker question, then download the audit JSON. Pavo will not approve identity by itself.</div>
       </div>
-      <button onclick="focusNextPending()">Focus next pending</button>
+      <div class="sprint-actions">
+        <button onclick="focusNextHighRisk()">Focus high risk</button>
+        <button onclick="focusNextPending()">Focus next pending</button>
+      </div>
     </div>
     <div class="rubric" id="decision-rubric">
       <strong>Decision Rubric</strong>
@@ -3427,11 +3441,14 @@ pavo batch finalize-reviewed-proof {escape(str(proof_report_path))}</div>
     }}
     function updateProgress() {{
       const completion = reviewCompletion();
+      const risk = riskCompletion();
       document.getElementById("pending-count").textContent = String(completion.pendingCount);
       document.getElementById("reviewed-count").textContent = String(completion.reviewedCount);
       document.getElementById("review-progress-percent").textContent = `${{completion.progressPercent}}%`;
       document.getElementById("missing-reason-count").textContent = String(completion.missingReasonCount);
       document.getElementById("export-ready-status").textContent = completion.exportReady ? "Yes" : "No";
+      document.getElementById("high-risk-count").textContent = String(risk.highPendingCount);
+      document.getElementById("medium-risk-count").textContent = String(risk.mediumPendingCount);
       document.getElementById("autosave-status").textContent = `Autosaved locally. ${{completion.reviewedCount}}/${{completion.decisionCount}} decisions reviewed; ${{completion.missingReasonCount}} missing reason(s); export ready: ${{completion.exportReady ? "yes" : "no"}}.`;
     }}
     function reviewCompletion() {{
@@ -3451,6 +3468,18 @@ pavo batch finalize-reviewed-proof {escape(str(proof_report_path))}</div>
         progressPercent: progress,
         exportReady: pending === 0 && missingReasons === 0
       }};
+    }}
+    function riskCompletion() {{
+      const cards = Array.from(document.querySelectorAll("[data-group]"));
+      let highPendingCount = 0;
+      let mediumPendingCount = 0;
+      for (const card of cards) {{
+        const row = rows.find(item => item.decision_group === card.dataset.group);
+        if (!row || row.decision !== "pending") continue;
+        if (card.dataset.risk === "high") highPendingCount += 1;
+        if (card.dataset.risk === "medium") mediumPendingCount += 1;
+      }}
+      return {{ highPendingCount, mediumPendingCount }};
     }}
     function recordAudit(event) {{
       auditEvents.push({{ ...event, at: new Date().toISOString() }});
@@ -3501,6 +3530,15 @@ pavo batch finalize-reviewed-proof {escape(str(proof_report_path))}</div>
         const group = card.dataset.group;
         const row = rows.find(item => item.decision_group === group);
         return row && row.decision === "pending";
+      }});
+      focusCard(index >= 0 ? index : 0);
+    }}
+    function focusNextHighRisk() {{
+      const cards = Array.from(document.querySelectorAll("[data-group]"));
+      const index = cards.findIndex(card => {{
+        const group = card.dataset.group;
+        const row = rows.find(item => item.decision_group === group);
+        return row && row.decision === "pending" && card.dataset.risk === "high";
       }});
       focusCard(index >= 0 ? index : 0);
     }}
@@ -3574,6 +3612,9 @@ def _render_batch_decision_card(decision: dict[str, str], proof_rows: list[dict[
     current = str(decision.get("decision") or "pending").strip().lower() or "pending"
     speaker = str(decision.get("speaker") or "")
     review_reason = str(decision.get("review_reason") or "")
+    clip_count = _optional_int(decision.get("clip_count")) or len(proof_rows)
+    risk = _batch_speaker_decision_risk(decision, clip_count=clip_count)
+    shape = _batch_speaker_decision_shape(decision)
     reason_options = ['<option value="">Choose review reason...</option>'] + [
         (
             f'<option value="{escape(value)}"'
@@ -3585,7 +3626,7 @@ def _render_batch_decision_card(decision: dict[str, str], proof_rows: list[dict[
     if not samples:
         samples = '<div class="sample"><p class="notice">No supporting proof rows found for this decision group.</p></div>'
     guidance = _render_batch_decision_guidance(decision, proof_rows)
-    return f"""<article class="card" data-group="{escape(group)}">
+    return f"""<article class="card" data-group="{escape(group)}" data-risk="{escape(risk)}" data-shape="{escape(shape)}">
   <div class="card-head">
     <div>
       <h2>{escape(group)} · {escape(str(decision.get('cluster_id') or 'unknown cluster'))}</h2>
