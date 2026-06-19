@@ -176,6 +176,8 @@ def build_parser() -> argparse.ArgumentParser:
     review_clusters_status = review_clusters_sub.add_parser("status", help="Inspect active cluster review loop state without mutating artifacts")
     review_clusters_status.add_argument("batch_root", type=Path)
     review_clusters_status.add_argument("--review-sheet", type=Path, help="Override cluster question review sheet")
+    review_clusters_status.add_argument("--json", action="store_true", help="Print full machine-readable status JSON")
+    review_clusters_status.add_argument("--report", type=Path, help="Write machine-readable status JSON report")
     review_clusters_audit = review_clusters_sub.add_parser("audit", help="Write a cluster identity propagation audit")
     review_clusters_audit.add_argument("batch_root", type=Path)
     review_clusters_audit.add_argument("--out", type=Path, help="Cluster audit JSON path")
@@ -605,6 +607,12 @@ def main(argv: list[str] | None = None) -> int:
                 return 0 if result.page_verified and result.candidate_count and result.missing_clip_count == 0 else 2
             if args.review_clusters_command == "status":
                 result = status_cluster_review(args.batch_root, review_sheet_path=args.review_sheet)
+                if args.report:
+                    args.report.parent.mkdir(parents=True, exist_ok=True)
+                    args.report.write_text(__import__("json").dumps(result.as_report(), indent=2, sort_keys=True) + "\n")
+                if args.json:
+                    print(__import__("json").dumps(result.as_report(), indent=2, sort_keys=True))
+                    return 0
                 print(f"state: {result.state}")
                 print(f"review_sheet: {result.review_sheet_path}")
                 print(f"candidate_count: {result.candidate_count}")

@@ -291,6 +291,27 @@ class ClusterReviewStatusResult:
     next_command: str
     blockers: list[str]
 
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "batch_root": str(self.batch_root),
+            "review_sheet": str(self.review_sheet_path) if self.review_sheet_path else None,
+            "state": self.state,
+            "candidate_count": self.candidate_count,
+            "approved_count": self.approved_count,
+            "rejected_count": self.rejected_count,
+            "pending_count": self.pending_count,
+            "page_verified": self.page_verified,
+            "top_cluster_id": self.top_cluster_id,
+            "estimated_unlockable_segments": self.estimated_unlockable_segments,
+            "estimated_unlockable_seconds": self.estimated_unlockable_seconds,
+            "constraints_count": self.constraints_count,
+            "hint_count": self.hint_count,
+            "review_pressure_reduction": self.review_pressure_reduction,
+            "routeable_named_span_gain": self.routeable_named_span_gain,
+            "next_command": self.next_command,
+            "blockers": self.blockers,
+        }
+
 
 @dataclass(frozen=True)
 class ClusterQuestionMaterializeResult:

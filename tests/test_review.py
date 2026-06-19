@@ -734,6 +734,33 @@ class ReviewTests(unittest.TestCase):
         self.assertTrue(result.page_verified)
         self.assertIn("finalize", result.next_command)
 
+    def test_cluster_review_status_report_is_machine_readable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = status_cluster_review(root)
+            report = result.as_report()
+
+        self.assertEqual(report["state"], "needs_prepare")
+        self.assertIsNone(report["review_sheet"])
+        self.assertEqual(report["candidate_count"], 0)
+        self.assertIn("next_command", report)
+        self.assertIn("blockers", report)
+
+    def test_cli_cluster_review_status_writes_report_json(self):
+        from pavo.cli import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            report = root / "status.json"
+
+            exit_code = main(["review", "clusters", "status", str(root), "--report", str(report), "--json"])
+            payload = json.loads(report.read_text())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["state"], "needs_prepare")
+        self.assertEqual(payload["candidate_count"], 0)
+        self.assertIn("pavo review clusters prepare", payload["next_command"])
+
     def test_create_cluster_question_bundle_writes_review_page(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
