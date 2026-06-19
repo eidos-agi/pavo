@@ -290,7 +290,8 @@ separated stems, a score report for each stem, and `pavo-overlap-manifest.json`.
 
 `pavo review clusters decision-brief` writes JSON, Markdown, and a light-mode
 HTML dashboard for the ranked cluster-review queue, with embedded local audio
-clips, expected unlock, acoustic caution, and finish commands.
+clips, expected unlock, acoustic caution, finish commands, and browser-side
+export of an import-ready reviewed TSV.
 
 `pavo review anchors init` creates a pending review sheet from speaker-anchor
 clips. After a human marks clean rows as `approved`, `pavo review anchors

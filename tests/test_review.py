@@ -949,6 +949,10 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("Cluster Review Decision Brief", html)
         self.assertIn("<audio", html)
         self.assertIn("Pavo Active Speaker Correction", html)
+        self.assertIn("Export reviewed TSV", html)
+        self.assertIn("data-review-card", html)
+        self.assertIn("pavo-cluster-review-decision-slate.reviewed.tsv", html)
+        self.assertIn("Generated decision TSV", html)
 
     def test_cli_cluster_review_decision_brief_writes_json_and_markdown(self):
         from pavo.cli import main

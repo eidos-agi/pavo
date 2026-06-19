@@ -6100,9 +6100,23 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
         if len(transcript) > 360:
             transcript = transcript[:357].rstrip() + "..."
         audio_src = _audio_src(item.get("clip_path"))
+        row_index = escape(str(item.get("row_index") or ""))
+        cluster_id = escape(str(item.get("cluster_id") or ""))
+        target_speaker = escape(str(item.get("target_speaker") or ""))
+        metadata = {
+            "priority_tier": item.get("priority_tier"),
+            "priority_score": item.get("priority_score"),
+            "priority_reason": item.get("priority_reason"),
+            "question": item.get("question"),
+            "expected_impact": item.get("expected_impact"),
+            "acoustic_verdict": item.get("acoustic_verdict"),
+            "clip_path": item.get("clip_path"),
+            "transcript": item.get("transcript_excerpt"),
+        }
+        metadata_json = escape(json.dumps(metadata, sort_keys=True))
         item_cards.append(
             f"""
-      <article class="card {escape(str(item.get('priority_tier') or 'standard'))}">
+      <article class="card {escape(str(item.get('priority_tier') or 'standard'))}" data-review-card data-row-index="{row_index}" data-cluster-id="{cluster_id}" data-metadata="{metadata_json}">
         <div class="card-top">
           <div>
             <p class="eyebrow">Decision {item.get('rank')} · cluster {escape(str(item.get('cluster_id')))}</p>
@@ -6116,6 +6130,13 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
           <div><strong>{escape(str(item.get('priority_score')))}</strong><span>priority</span></div>
         </div>
         <audio controls preload="metadata" src="{escape(audio_src)}"></audio>
+        <div class="decision-controls">
+          <label><input type="radio" name="decision-{row_index}" value="approved"> Approve</label>
+          <label><input type="radio" name="decision-{row_index}" value="rejected"> Reject</label>
+          <label><input type="radio" name="decision-{row_index}" value="pending" checked> Pending</label>
+          <label class="speaker-field">Speaker <input data-speaker value="{target_speaker}" aria-label="Speaker for row {row_index}"></label>
+        </div>
+        <textarea data-note placeholder="Reviewer note, especially if rejecting or changing speaker"></textarea>
         <dl>
           <dt>Target</dt><dd>{escape(str(item.get('target_speaker') or 'unknown'))}</dd>
           <dt>Acoustic</dt><dd>{escape(str(item.get('acoustic_verdict')))} · min similarity {escape(str(item.get('acoustic_min_pair_similarity')))}</dd>
@@ -6158,7 +6179,12 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
     .stat strong {{ display: block; font-size: 25px; }}
     .stat span {{ color: var(--muted); }}
     .commands, .blockers {{ background: white; border: 1px solid var(--line); border-radius: 18px; padding: 18px; margin: 18px 0; }}
+    .export-panel {{ background: #fffdf5; border: 1px solid #f2d79b; border-radius: 18px; padding: 18px; margin: 18px 0; }}
     code {{ background: #f1f5f9; border: 1px solid #dbe3ee; border-radius: 8px; padding: 2px 5px; overflow-wrap: anywhere; }}
+    button {{ border: 0; border-radius: 12px; background: var(--blue); color: white; padding: 10px 14px; font-weight: 800; cursor: pointer; margin-right: 8px; }}
+    button.secondary {{ background: #475467; }}
+    textarea {{ width: 100%; min-height: 74px; border: 1px solid var(--line); border-radius: 12px; padding: 10px; font: inherit; margin: 10px 0 12px; }}
+    input[type="text"], .speaker-field input {{ border: 1px solid var(--line); border-radius: 10px; padding: 7px 9px; font: inherit; min-width: 140px; }}
     .pill, .badge {{ display: inline-flex; align-items: center; border-radius: 999px; padding: 5px 10px; margin: 4px 6px 4px 0; font-weight: 700; background: #e8f0ff; color: #1d4ed8; }}
     .cards {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 20px; }}
     .card {{ background: white; border: 1px solid var(--line); border-left: 7px solid var(--blue); border-radius: 22px; padding: 20px; box-shadow: 0 12px 35px rgba(15, 23, 42, 0.07); }}
@@ -6172,6 +6198,9 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
     .metrics strong {{ display: block; font-size: 20px; }}
     .metrics span {{ color: var(--muted); font-size: 12px; }}
     audio {{ width: 100%; margin: 8px 0 14px; }}
+    .decision-controls {{ display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; padding: 12px; background: #f8fafc; border: 1px solid var(--line); border-radius: 14px; margin-bottom: 10px; }}
+    .decision-controls label {{ font-weight: 750; }}
+    .speaker-field {{ margin-left: auto; }}
     dl {{ display: grid; grid-template-columns: 88px 1fr; gap: 8px 12px; margin: 0; }}
     dt {{ color: var(--muted); font-weight: 800; }}
     dd {{ margin: 0; }}
@@ -6181,6 +6210,7 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
       body {{ background: white; }}
       main {{ max-width: none; padding: 0; }}
       header, .commands, .blockers, .card {{ box-shadow: none; break-inside: avoid; }}
+      .export-panel {{ display: none; }}
       .cards {{ grid-template-columns: 1fr; }}
       audio {{ display: none; }}
     }}
@@ -6208,6 +6238,14 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
       <p>Open full review page: <code>{escape(str(payload.get('open_review_page_command') or ''))}</code></p>
       <p>Finish after TSV review: <code>{escape(str(payload.get('finish_command') or ''))}</code></p>
     </section>
+    <section class="export-panel">
+      <h2>Decision Export</h2>
+      <p>Mark each card, adjust speaker if needed, add notes, then export the TSV. The output is compatible with <code>pavo review clusters finish-from-slate</code>.</p>
+      <button type="button" id="export-tsv">Export reviewed TSV</button>
+      <button type="button" class="secondary" id="copy-tsv">Copy TSV</button>
+      <button type="button" class="secondary" id="reset-decisions">Reset to pending</button>
+      <textarea id="tsv-output" aria-label="Generated decision TSV" placeholder="Generated TSV appears here"></textarea>
+    </section>
     <section class="blockers">
       <h2>Current Blockers</h2>
       <ul>{blocker_bits}</ul>
@@ -6216,6 +6254,73 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
       {cards}
     </section>
   </main>
+  <script>
+    const HEADERS = ["row_index", "cluster_id", "decision", "speaker", "note", "priority_tier", "priority_score", "priority_reason", "question", "expected_impact", "acoustic_verdict", "clip_path", "transcript"];
+    function cell(value) {{
+      return String(value ?? "").replace(/\\t/g, " ").replace(/\\r?\\n/g, " ").trim();
+    }}
+    function selectedDecision(card) {{
+      const selected = card.querySelector("input[type=radio]:checked");
+      return selected ? selected.value : "pending";
+    }}
+    function rowFromCard(card) {{
+      const metadata = JSON.parse(card.dataset.metadata || "{{}}");
+      return {{
+        row_index: card.dataset.rowIndex || "",
+        cluster_id: card.dataset.clusterId || "",
+        decision: selectedDecision(card),
+        speaker: (card.querySelector("[data-speaker]") || {{ value: "" }}).value,
+        note: (card.querySelector("[data-note]") || {{ value: "" }}).value,
+        priority_tier: metadata.priority_tier,
+        priority_score: metadata.priority_score,
+        priority_reason: metadata.priority_reason,
+        question: metadata.question,
+        expected_impact: metadata.expected_impact,
+        acoustic_verdict: metadata.acoustic_verdict,
+        clip_path: metadata.clip_path,
+        transcript: metadata.transcript
+      }};
+    }}
+    function buildTsv() {{
+      const rows = Array.from(document.querySelectorAll("[data-review-card]")).map(rowFromCard);
+      return [HEADERS.join("\\t"), ...rows.map(row => HEADERS.map(key => cell(row[key])).join("\\t"))].join("\\n") + "\\n";
+    }}
+    function writeTsv() {{
+      const output = document.getElementById("tsv-output");
+      output.value = buildTsv();
+      return output.value;
+    }}
+    document.getElementById("export-tsv").addEventListener("click", () => {{
+      const text = writeTsv();
+      const blob = new Blob([text], {{ type: "text/tab-separated-values" }});
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "pavo-cluster-review-decision-slate.reviewed.tsv";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }});
+    document.getElementById("copy-tsv").addEventListener("click", async () => {{
+      const text = writeTsv();
+      if (navigator.clipboard) await navigator.clipboard.writeText(text);
+    }});
+    document.getElementById("reset-decisions").addEventListener("click", () => {{
+      document.querySelectorAll("[data-review-card]").forEach(card => {{
+        const pending = card.querySelector("input[value=pending]");
+        if (pending) pending.checked = true;
+        const note = card.querySelector("[data-note]");
+        if (note) note.value = "";
+      }});
+      writeTsv();
+    }});
+    document.querySelectorAll("[data-review-card] input, [data-review-card] textarea").forEach(element => {{
+      element.addEventListener("change", writeTsv);
+      element.addEventListener("input", writeTsv);
+    }});
+    writeTsv();
+  </script>
 </body>
 </html>
 """
