@@ -93,6 +93,10 @@ pavo batch verify-manifest /path/to/meeting-batch/pavo-batch-doctor.json --json 
 
 pavo batch prove /path/to/meeting-batch --json
 pavo batch prove /path/to/meeting-batch --strict-complete
+pavo batch apply-decision-slate \
+  /path/to/meeting-batch/pavo-batch-proof.json \
+  /path/to/meeting-batch/pavo-batch-proof.decision-slate.tsv \
+  --out /path/to/meeting-batch/pavo-batch-proof.review-slate.tsv
 pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --check-validation
 pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --strict-ready
 ```
@@ -124,12 +128,17 @@ or changed.
 Use `pavo batch prove` as the simple operator front door. It refreshes the
 batch doctor, writes the doctor reports, verifies the manifest immediately, and
 writes `pavo-batch-proof.json`, `pavo-batch-proof.md`,
-`pavo-batch-proof.review-slate.tsv`, and
+`pavo-batch-proof.review-slate.tsv`, `pavo-batch-proof.decision-slate.tsv`, and
 `pavo-batch-proof.review-checklist.md`. The checklist groups proof rows into
 the smallest pending speaker decisions, with clips and transcript samples, so
 the reviewer can work top-to-bottom without reverse-engineering the TSV. By
 default it exits zero when machine proof passes. With `--strict-complete`, it
 exits nonzero until the human speaker review gate is complete.
+
+Use `pavo batch apply-decision-slate` after editing the compact decision slate.
+It expands each grouped `approved` / `rejected` / `pending` decision back onto
+every supporting row in `pavo-batch-proof.review-slate.tsv`, preserving the
+existing validation and finish gates instead of bypassing them.
 
 Use `pavo batch handoff` when you already have a proof packet and need to know
 what to do next without re-running the batch. It reads `pavo-batch-proof.json`

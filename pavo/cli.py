@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .audio import run_audio_doctor
 from .batch import (
+    apply_batch_decision_slate,
     doctor_batch,
     enrich_operator_handoff_with_validation,
     format_operator_handoff,
@@ -116,6 +117,14 @@ def build_parser() -> argparse.ArgumentParser:
     batch_handoff.add_argument("--check-validation", action="store_true", help="Include current proof-slate validation report status when present")
     batch_handoff.add_argument("--strict-ready", action="store_true", help="Exit nonzero unless validation is fresh and ready to finish")
     batch_handoff.add_argument("--json", action="store_true", help="Print machine-readable handoff JSON")
+    batch_apply_decision_slate = batch_sub.add_parser(
+        "apply-decision-slate",
+        help="Apply grouped proof decisions to the row-level proof review slate",
+    )
+    batch_apply_decision_slate.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_apply_decision_slate.add_argument("decision_slate", type=Path, help="Path to pavo-batch-proof.decision-slate.tsv")
+    batch_apply_decision_slate.add_argument("--out", type=Path, required=True, help="Output proof review slate TSV")
+    batch_apply_decision_slate.add_argument("--json", action="store_true", help="Print machine-readable apply report")
 
     brief = subparsers.add_parser("brief", help="Create a composed readiness and action brief for a meeting batch")
     brief.add_argument("root", type=Path)
@@ -583,6 +592,26 @@ def main(argv: list[str] | None = None) -> int:
             if args.strict_ready:
                 return 0 if operator_handoff_ready_to_finish(handoff) else 3
             return 0
+        if args.batch_command == "apply-decision-slate":
+            try:
+                result = apply_batch_decision_slate(args.proof_report, args.decision_slate, out_path=args.out)
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+            else:
+                print(f"out: {result.out_path}")
+                print(f"row_count: {result.row_count}")
+                print(f"decision_count: {result.decision_count}")
+                print(f"applied_row_count: {result.applied_row_count}")
+                print(f"approved_row_count: {result.approved_row_count}")
+                print(f"rejected_row_count: {result.rejected_row_count}")
+                print(f"pending_row_count: {result.pending_row_count}")
+                print(f"skipped_row_count: {result.skipped_row_count}")
+                if result.missing_decision_groups:
+                    print("missing_decision_groups: " + ", ".join(result.missing_decision_groups))
+            return 0 if not result.missing_decision_groups else 2
 
     if args.command == "brief":
         if not args.root.exists():

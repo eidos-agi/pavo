@@ -336,6 +336,41 @@ class BatchProofResult:
         return "\n".join(lines).rstrip() + "\n"
 
 
+@dataclass(frozen=True)
+class BatchDecisionSlateApplyResult:
+    proof_report_path: Path
+    proof_review_slate_path: Path
+    decision_slate_path: Path
+    out_path: Path
+    row_count: int
+    decision_count: int
+    applied_row_count: int
+    approved_row_count: int
+    rejected_row_count: int
+    pending_row_count: int
+    skipped_row_count: int
+    missing_decision_groups: list[str]
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "proof_report_path": str(self.proof_report_path),
+            "proof_review_slate_path": str(self.proof_review_slate_path),
+            "decision_slate_path": str(self.decision_slate_path),
+            "out_path": str(self.out_path),
+            "row_count": self.row_count,
+            "decision_count": self.decision_count,
+            "applied_row_count": self.applied_row_count,
+            "approved_row_count": self.approved_row_count,
+            "rejected_row_count": self.rejected_row_count,
+            "pending_row_count": self.pending_row_count,
+            "skipped_row_count": self.skipped_row_count,
+            "missing_decision_groups": self.missing_decision_groups,
+        }
+
+
+VALID_REVIEW_DECISIONS = {"pending", "approved", "rejected"}
+
+
 def doctor_batch(batch_root: Path | str, *, refresh_cluster_gate: bool = True) -> BatchDoctorResult:
     root = Path(batch_root)
     recordings = _source_recordings(root)
@@ -1370,6 +1405,114 @@ def _review_packet_decision_slate_tsv_lines(items: list[dict[str, Any]]) -> list
             )
         )
     return lines
+
+
+def apply_batch_decision_slate(
+    proof_report_path: Path | str,
+    decision_slate_path: Path | str,
+    *,
+    out_path: Path | str,
+) -> BatchDecisionSlateApplyResult:
+    proof_path = Path(proof_report_path)
+    proof_report = json.loads(proof_path.read_text())
+    review_slate_value = (
+        proof_report.get("proof_review_slate_path")
+        or (proof_report.get("review_packet") or {}).get("proof_review_slate_tsv")
+        or (proof_report.get("operator_handoff") or {}).get("proof_review_slate_tsv")
+    )
+    if not review_slate_value:
+        raise ValueError(f"proof report does not name a proof review slate: {proof_path}")
+    review_slate_path = Path(str(review_slate_value))
+    if not review_slate_path.exists():
+        raise FileNotFoundError(f"proof review slate not found: {review_slate_path}")
+
+    decision_path = Path(decision_slate_path)
+    decisions = _read_decision_slate_tsv(decision_path)
+    review_rows, fieldnames = _read_tsv(review_slate_path)
+    missing_decision_groups: list[str] = []
+    applied_row_count = 0
+    approved_row_count = 0
+    rejected_row_count = 0
+    pending_row_count = 0
+    skipped_row_count = 0
+
+    for row in review_rows:
+        decision_group = str(row.get("decision_group") or "").strip()
+        if not decision_group:
+            skipped_row_count += 1
+            continue
+        decision = decisions.get(decision_group)
+        if decision is None:
+            if decision_group not in missing_decision_groups:
+                missing_decision_groups.append(decision_group)
+            skipped_row_count += 1
+            continue
+        applied_row_count += 1
+        row["decision"] = decision["decision"]
+        if decision.get("speaker"):
+            row["speaker"] = decision["speaker"]
+        if decision["decision"] == "approved":
+            approved_row_count += 1
+        elif decision["decision"] == "rejected":
+            rejected_row_count += 1
+        else:
+            pending_row_count += 1
+
+    target = Path(out_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    _write_tsv(target, review_rows, fieldnames)
+    return BatchDecisionSlateApplyResult(
+        proof_report_path=proof_path,
+        proof_review_slate_path=review_slate_path,
+        decision_slate_path=decision_path,
+        out_path=target,
+        row_count=len(review_rows),
+        decision_count=len(decisions),
+        applied_row_count=applied_row_count,
+        approved_row_count=approved_row_count,
+        rejected_row_count=rejected_row_count,
+        pending_row_count=pending_row_count,
+        skipped_row_count=skipped_row_count,
+        missing_decision_groups=missing_decision_groups,
+    )
+
+
+def _read_decision_slate_tsv(path: Path) -> dict[str, dict[str, str]]:
+    rows, _fieldnames = _read_tsv(path)
+    decisions: dict[str, dict[str, str]] = {}
+    for row_number, row in enumerate(rows, start=2):
+        decision_group = str(row.get("decision_group") or "").strip()
+        if not decision_group:
+            raise ValueError(f"decision slate row {row_number} is missing decision_group")
+        decision = str(row.get("decision") or "").strip().lower()
+        if decision not in VALID_REVIEW_DECISIONS:
+            raise ValueError(
+                f"decision slate row {row_number} has invalid decision {decision!r}; "
+                f"expected one of {sorted(VALID_REVIEW_DECISIONS)}"
+            )
+        if decision_group in decisions:
+            raise ValueError(f"decision slate repeats decision_group {decision_group!r}")
+        decisions[decision_group] = {
+            "decision": decision,
+            "speaker": str(row.get("speaker") or "").strip(),
+        }
+    return decisions
+
+
+def _read_tsv(path: Path) -> tuple[list[dict[str, str]], list[str]]:
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        if not reader.fieldnames:
+            raise ValueError(f"TSV has no header: {path}")
+        return [dict(row) for row in reader], list(reader.fieldnames)
+
+
+def _write_tsv(path: Path, rows: list[dict[str, str]], fieldnames: list[str]) -> None:
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, delimiter="\t", fieldnames=fieldnames, lineterminator="\n")
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({field: row.get(field, "") for field in fieldnames})
 
 
 def _tsv_safe(value: str) -> str:

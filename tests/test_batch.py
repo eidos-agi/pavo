@@ -25,6 +25,7 @@ class BatchDoctorTests(unittest.TestCase):
 
         self.assertIn("pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --check-validation", readme)
         self.assertIn("pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --strict-ready", readme)
+        self.assertIn("pavo batch apply-decision-slate", readme)
         self.assertIn("stale-validation detection", readme)
         self.assertIn("it exits `0` only when all", readme)
         self.assertIn("it exits `3` when the handoff exists", readme)
@@ -279,6 +280,43 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertTrue(proof_review_slate_exists)
         self.assertTrue(proof_decision_slate_exists)
         self.assertTrue(proof_review_checklist_exists)
+
+    def test_batch_apply_decision_slate_cli_updates_all_group_rows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            decision_lines = result.proof_decision_slate_path.read_text().splitlines()
+            decision_lines[1] = decision_lines[1].replace("\tpending\tDaniel\t", "\tapproved\tDaniel Reviewed\t")
+            edited_decision_slate = root / "edited-decision-slate.tsv"
+            edited_decision_slate.write_text("\n".join(decision_lines) + "\n")
+            applied_slate = root / "applied-review-slate.tsv"
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "batch",
+                        "apply-decision-slate",
+                        str(result.proof_report_path),
+                        str(edited_decision_slate),
+                        "--out",
+                        str(applied_slate),
+                        "--json",
+                    ]
+                )
+
+            report = json.loads(stdout.getvalue())
+            applied_text = applied_slate.read_text()
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(report["row_count"], 2)
+        self.assertEqual(report["decision_count"], 1)
+        self.assertEqual(report["applied_row_count"], 2)
+        self.assertEqual(report["approved_row_count"], 2)
+        self.assertEqual(report["pending_row_count"], 0)
+        self.assertIn("1\tS1\tapproved\tDaniel Reviewed", applied_text)
+        self.assertIn("2\tS1\tapproved\tDaniel Reviewed", applied_text)
 
     def test_batch_handoff_cli_prints_existing_proof_operator_handoff(self):
         with tempfile.TemporaryDirectory() as tmp:
