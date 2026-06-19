@@ -555,6 +555,9 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("review-progress-percent", html)
         self.assertIn("missing-reason-count", html)
         self.assertIn("export-ready-status", html)
+        self.assertIn("reviewCompletion", html)
+        self.assertIn("progressPercent", html)
+        self.assertIn("missingReasonCount", html)
         self.assertIn("export ready", html)
         self.assertIn("Decision Rubric", html)
         self.assertIn("Approve only when every supporting clip sounds like the named speaker", html)
@@ -606,6 +609,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(report["supporting_row_count"], 2)
         self.assertRegex(report["board_fingerprint"]["sha256"], r"^[0-9a-f]{64}$")
         self.assertIn("has_review_sprint", {check["name"] for check in report["checks"] if check["passed"]})
+        self.assertIn("has_audit_completion_summary", {check["name"] for check in report["checks"] if check["passed"]})
         self.assertFalse(report["blockers"])
 
     def test_batch_verify_decision_board_cli_fails_when_control_missing(self):

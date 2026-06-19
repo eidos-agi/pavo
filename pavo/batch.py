@@ -2330,6 +2330,11 @@ def verify_batch_decision_board(
             "missing-reason-count" in html and "export-ready-status" in html and "review-progress-percent" in html,
             "live review completion scorecards",
         ),
+        _check(
+            "has_audit_completion_summary",
+            "reviewCompletion" in html and "progressPercent" in html and "missingReasonCount" in html,
+            "audit JSON includes review completion summary",
+        ),
         _check("has_autosave", "localStorage" in html and "Autosaved locally" in html, "localStorage autosave"),
         _check("has_audit_events", "auditEvents" in html and "auditPayload" in html, "audit event export"),
         _check("has_finalize_board_audit_command", "pavo batch finalize-board-audit" in html, "finalize-board-audit command"),
@@ -3320,17 +3325,31 @@ pavo batch finalize-reviewed-proof {escape(str(proof_report_path))}</div>
       saveState();
     }}
     function updateProgress() {{
+      const completion = reviewCompletion();
+      document.getElementById("pending-count").textContent = String(completion.pendingCount);
+      document.getElementById("reviewed-count").textContent = String(completion.reviewedCount);
+      document.getElementById("review-progress-percent").textContent = `${{completion.progressPercent}}%`;
+      document.getElementById("missing-reason-count").textContent = String(completion.missingReasonCount);
+      document.getElementById("export-ready-status").textContent = completion.exportReady ? "Yes" : "No";
+      document.getElementById("autosave-status").textContent = `Autosaved locally. ${{completion.reviewedCount}}/${{completion.decisionCount}} decisions reviewed; ${{completion.missingReasonCount}} missing reason(s); export ready: ${{completion.exportReady ? "yes" : "no"}}.`;
+    }}
+    function reviewCompletion() {{
       const pending = rows.filter(row => row.decision === "pending").length;
+      const approved = rows.filter(row => row.decision === "approved").length;
+      const rejected = rows.filter(row => row.decision === "rejected").length;
       const reviewed = rows.length - pending;
       const missingReasons = rows.filter(row => ["approved", "rejected"].includes(row.decision) && !row.review_reason).length;
       const progress = rows.length ? Math.round((reviewed / rows.length) * 1000) / 10 : 100;
-      const exportReady = pending === 0 && missingReasons === 0;
-      document.getElementById("pending-count").textContent = String(pending);
-      document.getElementById("reviewed-count").textContent = String(reviewed);
-      document.getElementById("review-progress-percent").textContent = `${{progress}}%`;
-      document.getElementById("missing-reason-count").textContent = String(missingReasons);
-      document.getElementById("export-ready-status").textContent = exportReady ? "Yes" : "No";
-      document.getElementById("autosave-status").textContent = `Autosaved locally. ${{reviewed}}/${{rows.length}} decisions reviewed; ${{missingReasons}} missing reason(s); export ready: ${{exportReady ? "yes" : "no"}}.`;
+      return {{
+        decisionCount: rows.length,
+        pendingCount: pending,
+        approvedCount: approved,
+        rejectedCount: rejected,
+        reviewedCount: reviewed,
+        missingReasonCount: missingReasons,
+        progressPercent: progress,
+        exportReady: pending === 0 && missingReasons === 0
+      }};
     }}
     function recordAudit(event) {{
       auditEvents.push({{ ...event, at: new Date().toISOString() }});
@@ -3397,12 +3416,7 @@ pavo batch finalize-reviewed-proof {escape(str(proof_report_path))}</div>
       return {{
         exportedAt: new Date().toISOString(),
         source,
-        summary: {{
-          decisionCount: rows.length,
-          pendingCount: rows.filter(row => row.decision === "pending").length,
-          approvedCount: rows.filter(row => row.decision === "approved").length,
-          rejectedCount: rows.filter(row => row.decision === "rejected").length
-        }},
+        summary: reviewCompletion(),
         rows,
         auditEvents,
         safetyBoundary: "This audit records human review-board edits. It is not a voiceprint and does not prove identity by itself."
