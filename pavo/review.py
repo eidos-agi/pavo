@@ -2231,15 +2231,21 @@ def doctor_cluster_review(
     if validation_report.exists():
         try:
             validation_payload = json.loads(validation_report.read_text())
+            report_mtime = validation_report.stat().st_mtime
+            sheet_mtime = sheet_path.stat().st_mtime if sheet_path and sheet_path.exists() else math.inf
+            slate_mtime = slate_tsv.stat().st_mtime if slate_tsv.exists() else math.inf
+            report_fresh = report_mtime >= max(sheet_mtime, slate_mtime)
             validation_report_ok = (
                 str(validation_payload.get("review_sheet") or "") == str(sheet_path)
                 and str(validation_payload.get("slate") or "") == str(slate_tsv)
                 and isinstance(validation_payload.get("blockers"), list)
                 and isinstance(validation_payload.get("passed"), bool)
+                and report_fresh
             )
             validation_report_detail = (
                 f"passed={validation_payload.get('passed')}; "
                 f"ready_to_finalize={validation_payload.get('ready_to_finalize')}; "
+                f"fresh={report_fresh}; "
                 f"report={validation_report}"
             )
         except (OSError, json.JSONDecodeError) as exc:

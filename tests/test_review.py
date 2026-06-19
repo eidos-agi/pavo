@@ -1,5 +1,6 @@
 import io
 import json
+import os
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -880,6 +881,60 @@ class ReviewTests(unittest.TestCase):
         self.assertFalse(result.passed)
         self.assertIn("validation_report", failed)
         self.assertIn("validation_report failed", result.blockers)
+
+    def test_cluster_review_doctor_rejects_stale_validation_report(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            recording = root / "rec-1"
+            recording.mkdir()
+            _write_test_wav(recording / "rec-1.wav")
+            work = root / "_work"
+            work.mkdir()
+            (work / "diarization-segments.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "recording_id": "rec-1",
+                            "start": 1.0,
+                            "end": 5.0,
+                            "speaker": "S1",
+                            "candidate_name": "Daniel",
+                            "text": "Review me.",
+                        }
+                    ]
+                )
+            )
+            (work / "named-speaker-evidence.json").write_text(
+                json.dumps(
+                    {
+                        "segments": [
+                            {
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 5.0,
+                                "speaker": "Daniel",
+                                "confidence": "medium",
+                                "text": "Review me.",
+                            }
+                        ]
+                    }
+                )
+            )
+            prepare_cluster_review(root, min_strong_coverage=0.0, min_dominant_share=0.5)
+            slate = export_cluster_review_slate(root)
+            validation = validate_cluster_review_slate(slate.review_sheet_path, slate.tsv_path)
+            report_path = slate.tsv_path.with_name("pavo-cluster-review-validation.json")
+            report_path.write_text(json.dumps(validation.as_report(), indent=2, sort_keys=True) + "\n")
+            old_time = slate.tsv_path.stat().st_mtime - 10
+            os.utime(report_path, (old_time, old_time))
+
+            result = doctor_cluster_review(root)
+            failed = {check["name"] for check in result.checks if not check["passed"]}
+            validation_check = next(check for check in result.checks if check["name"] == "validation_report")
+
+        self.assertFalse(result.passed)
+        self.assertIn("validation_report", failed)
+        self.assertIn("fresh=False", validation_check["detail"])
 
     def test_cluster_review_doctor_fails_when_prepare_artifacts_are_missing(self):
         with tempfile.TemporaryDirectory() as tmp:
