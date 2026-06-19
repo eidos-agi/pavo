@@ -45,6 +45,12 @@ class BriefOutputs:
     markdown_path: Path
 
 
+@dataclass(frozen=True)
+class ReviewClusterPlanOutputs:
+    json_path: Path
+    markdown_path: Path
+
+
 def build_meeting_brief(root: Path, *, review_limit: int = 200, packet_limit: int = 25) -> dict[str, Any]:
     root = root.expanduser().resolve()
     audio_files = _find_files(root, AUDIO_SUFFIXES)
@@ -140,6 +146,54 @@ def write_meeting_brief(brief: dict[str, Any], out_dir: Path) -> BriefOutputs:
     return BriefOutputs(json_path=json_path, markdown_path=markdown_path)
 
 
+def build_review_cluster_plan(
+    brief: dict[str, Any],
+    *,
+    sample_limit_per_cluster: int = 5,
+) -> dict[str, Any]:
+    clusters = brief.get("review", {}).get("clusters") or []
+    review_items = brief.get("review", {}).get("top_items") or []
+    actions = [_cluster_review_action(cluster, review_items, sample_limit_per_cluster=sample_limit_per_cluster) for cluster in clusters]
+    total_segments = sum(int(action["segment_count"]) for action in actions)
+    total_duration = round(sum(float(action["duration_seconds"]) for action in actions), 2)
+    return {
+        "generated_at": _utc_now(),
+        "root": brief.get("root"),
+        "source_brief_state": brief.get("state"),
+        "source_brief_readiness": brief.get("readiness_score"),
+        "approval_boundary": {
+            "mass_approval_allowed": False,
+            "human_required": bool(actions),
+            "rule": "Review clusters speed up sampling and enrollment, but they never approve speaker identity automatically.",
+        },
+        "summary": {
+            "cluster_count": len(actions),
+            "review_pressure_segments": total_segments,
+            "review_pressure_duration_seconds": total_duration,
+            "top_cluster": actions[0]["cluster_key"] if actions else None,
+            "next_action": actions[0]["recommended_next_action"] if actions else "No speaker review clusters remain.",
+        },
+        "clusters": actions,
+        "resume_commands": [
+            f"pavo brief {brief.get('root')} --review-plan",
+            "pavo review anchors init <clip-packet>",
+            "pavo review anchors page <review-sheet>",
+            "pavo review anchors import <review-sheet> <reviewed-export>",
+            "pavo review anchors rerun-command <review-sheet> <pavo-decompose-manifest>",
+        ],
+    }
+
+
+def write_review_cluster_plan(plan: dict[str, Any], out_dir: Path) -> ReviewClusterPlanOutputs:
+    out_dir = out_dir.expanduser().resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    json_path = out_dir / "pavo-review-cluster-plan.json"
+    markdown_path = out_dir / "pavo-review-cluster-plan.md"
+    json_path.write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    markdown_path.write_text(render_review_cluster_plan_markdown(plan), encoding="utf-8")
+    return ReviewClusterPlanOutputs(json_path=json_path, markdown_path=markdown_path)
+
+
 def render_meeting_brief_markdown(brief: dict[str, Any]) -> str:
     counts = brief["counts"]
     lines = [
@@ -228,6 +282,61 @@ def render_meeting_brief_markdown(brief: dict[str, Any]) -> str:
             "",
         ]
     )
+    return "\n".join(lines)
+
+
+def render_review_cluster_plan_markdown(plan: dict[str, Any]) -> str:
+    summary = plan.get("summary") or {}
+    boundary = plan.get("approval_boundary") or {}
+    lines = [
+        "# Pavo Review Cluster Plan",
+        "",
+        f"Generated: {plan.get('generated_at')}",
+        f"Root: `{plan.get('root')}`",
+        f"Source brief state: `{plan.get('source_brief_state')}`",
+        "",
+        "## Summary",
+        "",
+        f"- Cluster count: {summary.get('cluster_count', 0)}",
+        f"- Review-pressure segments: {summary.get('review_pressure_segments', 0)}",
+        f"- Review-pressure duration seconds: {summary.get('review_pressure_duration_seconds', 0)}",
+        f"- Top cluster: `{summary.get('top_cluster') or 'none'}`",
+        f"- Next action: {summary.get('next_action')}",
+        "",
+        "## Approval Boundary",
+        "",
+        f"- Mass approval allowed: `{str(boundary.get('mass_approval_allowed', False)).lower()}`",
+        f"- Human required: `{str(boundary.get('human_required', False)).lower()}`",
+        f"- Rule: {boundary.get('rule')}",
+        "",
+        "## Clusters",
+        "",
+    ]
+    for index, cluster in enumerate(plan.get("clusters") or [], start=1):
+        lines.extend(
+            [
+                f"### {index}. {cluster['cluster_key']}",
+                "",
+                f"- Approval state: `{cluster['approval_state']}`",
+                f"- Review mode: `{cluster['review_mode']}`",
+                f"- Segment count: {cluster['segment_count']}",
+                f"- Duration seconds: {cluster['duration_seconds']}",
+                f"- Recordings: {cluster['recording_count']}",
+                f"- Recommended next action: {cluster['recommended_next_action']}",
+                f"- Allowed actions: `{json.dumps(cluster['allowed_actions'])}`",
+                f"- Stop condition: {cluster['stop_condition']}",
+                "",
+                "Sample evidence:",
+            ]
+        )
+        for sample in cluster.get("samples") or []:
+            lines.append(
+                f"- `{sample.get('recording_id')}` {sample.get('start')} - {sample.get('end')}: {sample.get('text')}"
+            )
+        if not cluster.get("samples"):
+            lines.append("- No sampled row evidence was available in the capped brief; rerun with a higher review limit if needed.")
+        lines.append("")
+    lines.extend(["## Resume Commands", "", "```bash", *plan.get("resume_commands", []), "```", ""])
     return "\n".join(lines)
 
 
@@ -409,6 +518,7 @@ def _build_review_clusters(segments: list[dict[str, Any]]) -> list[dict[str, Any
                 "duration_seconds": 0.0,
                 "recordings": set(),
                 "sample_text": [],
+                "samples": [],
             },
         )
         cluster["segment_count"] += 1
@@ -419,6 +529,17 @@ def _build_review_clusters(segments: list[dict[str, Any]]) -> list[dict[str, Any
         text = str(segment.get("text") or "").strip()
         if text and len(cluster["sample_text"]) < 3:
             cluster["sample_text"].append(text[:180])
+        if len(cluster["samples"]) < 5:
+            cluster["samples"].append(
+                {
+                    "recording_id": recording_id,
+                    "start": segment.get("start"),
+                    "end": segment.get("end"),
+                    "confidence": confidence,
+                    "ensemble_source": segment.get("ensemble_source"),
+                    "text": text[:500],
+                }
+            )
     results = []
     for cluster in clusters.values():
         results.append(
@@ -429,9 +550,64 @@ def _build_review_clusters(segments: list[dict[str, Any]]) -> list[dict[str, Any
                 "duration_seconds": round(cluster["duration_seconds"], 2),
                 "recording_count": len(cluster["recordings"]),
                 "sample_text": cluster["sample_text"],
+                "samples": cluster["samples"],
             }
         )
     return sorted(results, key=lambda item: (-item["segment_count"], item["speaker"]))
+
+
+def _cluster_review_action(
+    cluster: dict[str, Any],
+    review_items: list[dict[str, Any]],
+    *,
+    sample_limit_per_cluster: int,
+) -> dict[str, Any]:
+    speaker = str(cluster.get("speaker") or "UNKNOWN")
+    reason = str(cluster.get("reason") or "unknown")
+    cluster_key = f"{speaker} / {reason}"
+    samples = [
+        item
+        for item in review_items
+        if str(item.get("speaker") or "UNKNOWN") == speaker and str(item.get("reason") or "unknown") == reason
+    ][:sample_limit_per_cluster]
+    if not samples:
+        samples = list(cluster.get("samples") or [])[:sample_limit_per_cluster]
+    if reason == "unattributed_speaker":
+        review_mode = "identify_or_enroll_speaker"
+        recommended = "Sample this cluster across recordings, identify the person if possible, then create speaker anchors before rerun."
+        allowed_actions = ["sample_audio", "identify_speaker", "create_anchor_review_sheet", "rerun_with_reviewed_corrections"]
+        stop_condition = "At least one human-confirmed speaker identity or an explicit unassigned decision exists for this cluster."
+    else:
+        review_mode = "confirm_named_speaker_confidence"
+        recommended = "Sample the highest-impact spans, approve only clean clips, and rerun attribution with reviewed corrections."
+        allowed_actions = ["sample_audio", "approve_clean_anchor_clips", "reject_uncertain_clips", "rerun_with_reviewed_corrections"]
+        stop_condition = "Reviewed clips are all approved or rejected, and approved corrections can be exported by Pavo."
+    return {
+        "cluster_key": cluster_key,
+        "speaker": speaker,
+        "reason": reason,
+        "approval_state": "human_required",
+        "review_mode": review_mode,
+        "segment_count": int(cluster.get("segment_count") or 0),
+        "duration_seconds": float(cluster.get("duration_seconds") or 0.0),
+        "recording_count": int(cluster.get("recording_count") or 0),
+        "sample_text": cluster.get("sample_text") or [],
+        "samples": [
+            {
+                "recording_id": item.get("recording_id"),
+                "start": item.get("start"),
+                "end": item.get("end"),
+                "confidence": item.get("confidence"),
+                "ensemble_source": item.get("ensemble_source"),
+                "text": item.get("text"),
+            }
+            for item in samples
+        ],
+        "recommended_next_action": recommended,
+        "allowed_actions": allowed_actions,
+        "forbidden_actions": ["mass_approve_cluster", "publish_raw_audio", "publish_voiceprints", "write_external_tasks_with_unreviewed_speaker_claims"],
+        "stop_condition": stop_condition,
+    }
 
 
 def _duration(segment: dict[str, Any]) -> float:

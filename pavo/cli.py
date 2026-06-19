@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from .audio import run_audio_doctor
-from .brief import build_meeting_brief, write_meeting_brief
+from .brief import build_meeting_brief, build_review_cluster_plan, write_meeting_brief, write_review_cluster_plan
 from .config import DEFAULT_HOME, home_from_arg, init_home
 from .download import save_audio
 from .overlap import SeparateOverlapsRequest, separate_overlaps
@@ -50,6 +50,8 @@ def build_parser() -> argparse.ArgumentParser:
     brief.add_argument("--out-dir", type=Path, help="Output directory; defaults to the batch root")
     brief.add_argument("--review-limit", type=int, default=200)
     brief.add_argument("--packet-limit", type=int, default=25)
+    brief.add_argument("--review-plan", action="store_true", help="Also write a safe cluster-based human review plan")
+    brief.add_argument("--review-plan-sample-limit", type=int, default=5, help="Sample rows per review cluster")
     brief.add_argument("--json", action="store_true", help="Print the full brief payload as JSON")
 
     audio = subparsers.add_parser("audio", help="Audio intelligence checks")
@@ -233,12 +235,23 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         brief_payload = build_meeting_brief(args.root, review_limit=args.review_limit, packet_limit=args.packet_limit)
         outputs = write_meeting_brief(brief_payload, args.out_dir or args.root)
+        review_plan_outputs = None
+        review_plan_payload = None
+        if args.review_plan:
+            review_plan_payload = build_review_cluster_plan(
+                brief_payload,
+                sample_limit_per_cluster=args.review_plan_sample_limit,
+            )
+            review_plan_outputs = write_review_cluster_plan(review_plan_payload, args.out_dir or args.root)
         if args.json:
             print(
                 __import__("json").dumps(
                     {
                         "brief_json": str(outputs.json_path),
                         "brief_markdown": str(outputs.markdown_path),
+                        "review_plan_json": str(review_plan_outputs.json_path) if review_plan_outputs else None,
+                        "review_plan_markdown": str(review_plan_outputs.markdown_path) if review_plan_outputs else None,
+                        "review_plan": review_plan_payload,
                         **brief_payload,
                     },
                     indent=2,
@@ -253,6 +266,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"work_packets: {brief_payload['work_packets']['packet_count']}")
             print(f"brief_json: {outputs.json_path}")
             print(f"brief_markdown: {outputs.markdown_path}")
+            if review_plan_outputs:
+                print(f"review_plan_json: {review_plan_outputs.json_path}")
+                print(f"review_plan_markdown: {review_plan_outputs.markdown_path}")
         return 0
 
     if args.command == "audio":

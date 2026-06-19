@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from pavo.brief import build_meeting_brief, write_meeting_brief
+from pavo.brief import build_meeting_brief, build_review_cluster_plan, write_meeting_brief, write_review_cluster_plan
 from pavo.cli import main
 
 
@@ -132,3 +132,121 @@ class BriefTests(unittest.TestCase):
             self.assertEqual(brief["review"]["clusters"][0]["speaker"], "Unknown office speaker")
             self.assertEqual(brief["review"]["clusters"][0]["segment_count"], 2)
             self.assertEqual(brief["review"]["clusters"][0]["duration_seconds"], 2.5)
+            self.assertEqual(brief["review"]["clusters"][0]["samples"][0]["text"], "hello")
+
+    def test_review_cluster_plan_keeps_human_approval_boundary(self):
+        brief = {
+            "generated_at": "2026-06-18T00:00:00+00:00",
+            "root": "/tmp/batch",
+            "state": "needs_human_review",
+            "readiness_score": {"score": 90, "grade": "usable_with_review"},
+            "review": {
+                "clusters": [
+                    {
+                        "speaker": "Unknown office speaker",
+                        "reason": "unattributed_speaker",
+                        "segment_count": 3,
+                        "duration_seconds": 12.5,
+                        "recording_count": 2,
+                        "sample_text": ["unknown sample"],
+                    },
+                    {
+                        "speaker": "Daniel",
+                        "reason": "low_confidence_named_speaker",
+                        "segment_count": 2,
+                        "duration_seconds": 4.0,
+                        "recording_count": 1,
+                        "sample_text": ["daniel sample"],
+                    },
+                ],
+                "top_items": [
+                    {
+                        "speaker": "Unknown office speaker",
+                        "reason": "unattributed_speaker",
+                        "recording_id": "r1",
+                        "start": 0.0,
+                        "end": 3.0,
+                        "confidence": "low",
+                        "ensemble_source": "speaker_attribution",
+                        "text": "Who owns this?",
+                    },
+                    {
+                        "speaker": "Daniel",
+                        "reason": "low_confidence_named_speaker",
+                        "recording_id": "r2",
+                        "start": 4.0,
+                        "end": 6.0,
+                        "confidence": "low",
+                        "ensemble_source": "named_speaker_evidence",
+                        "text": "Let's fix it.",
+                    },
+                ],
+            },
+        }
+
+        plan = build_review_cluster_plan(brief)
+
+        self.assertFalse(plan["approval_boundary"]["mass_approval_allowed"])
+        self.assertTrue(plan["approval_boundary"]["human_required"])
+        self.assertEqual(plan["summary"]["cluster_count"], 2)
+        self.assertEqual(plan["clusters"][0]["approval_state"], "human_required")
+        self.assertEqual(plan["clusters"][0]["review_mode"], "identify_or_enroll_speaker")
+        self.assertIn("mass_approve_cluster", plan["clusters"][0]["forbidden_actions"])
+        self.assertEqual(plan["clusters"][1]["review_mode"], "confirm_named_speaker_confidence")
+        self.assertEqual(plan["clusters"][1]["samples"][0]["recording_id"], "r2")
+
+    def test_review_cluster_plan_writes_outputs(self):
+        brief = {
+            "root": "/tmp/batch",
+            "state": "needs_human_review",
+            "readiness_score": {"score": 80, "grade": "usable_with_review"},
+            "review": {
+                "clusters": [
+                    {
+                        "speaker": "Unknown office speaker",
+                        "reason": "unattributed_speaker",
+                        "segment_count": 1,
+                        "duration_seconds": 1.0,
+                        "recording_count": 1,
+                        "sample_text": ["hello"],
+                    }
+                ],
+                "top_items": [],
+            },
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            outputs = write_review_cluster_plan(build_review_cluster_plan(brief), Path(tmp))
+
+            self.assertTrue(outputs.json_path.exists())
+            self.assertTrue(outputs.markdown_path.exists())
+            self.assertIn("Pavo Review Cluster Plan", outputs.markdown_path.read_text())
+
+    def test_cli_brief_command_writes_review_plan_when_requested(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "call.mp3").write_bytes(b"audio")
+            (root / "call.transcript.json").write_text('{"segments":[]}\n')
+            work = root / "_work"
+            work.mkdir()
+            (work / "diarization-segments.json").write_text('[{"recording_id":"call","speaker":"S1"}]\n')
+            (work / "speaker-attribution.json").write_text(
+                json.dumps(
+                    {
+                        "segments": [
+                            {
+                                "recording_id": "call",
+                                "start": 0.0,
+                                "end": 1.0,
+                                "speaker": "Unknown office speaker",
+                                "confidence": "low",
+                                "text": "Need a decision.",
+                            }
+                        ]
+                    }
+                )
+            )
+            (root / "named-speaker-evidence.md").write_text("# evidence\n")
+
+            self.assertEqual(main(["brief", str(root), "--review-plan"]), 0)
+            self.assertTrue((root / "pavo-review-cluster-plan.json").exists())
+            self.assertTrue((root / "pavo-review-cluster-plan.md").exists())

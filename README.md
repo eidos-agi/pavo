@@ -80,6 +80,7 @@ After a batch is processed, use one command to get the operational truth:
 
 ```bash
 pavo brief /path/to/meeting-batch
+pavo brief /path/to/meeting-batch --review-plan
 ```
 
 The brief writes `pavo-meeting-brief.json` and `pavo-meeting-brief.md` with
@@ -87,6 +88,13 @@ source counts, verification gates, a readiness score, review pressure,
 speaker-confidence counts, deduped candidate work packets, next actions, resume
 commands, and the privacy boundary. It is the simple front door before routing
 anything into tasks or other systems.
+
+When `--review-plan` is passed, Pavo also writes
+`pavo-review-cluster-plan.json` and `pavo-review-cluster-plan.md`. The plan
+turns speaker-review clusters into safe human review actions: identify or
+enroll unknown speakers, sample low-confidence named speakers, export reviewed
+corrections, and rerun attribution. It explicitly forbids mass approval of a
+speaker cluster.
 
 The problems Pavo is built around:
 
