@@ -609,6 +609,73 @@ class ReviewTests(unittest.TestCase):
             self.assertEqual(sheet["rows"][0]["case"], "S1 / low_coverage_targeted_review")
             self.assertTrue(verification.passed)
 
+    def test_cluster_question_bundle_orders_review_rows_by_impact(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            recording = root / "rec-1"
+            recording.mkdir()
+            audio = recording / "rec-1.wav"
+            audio.write_bytes(b"RIFF")
+            plan = root / "pavo-cluster-question-plan.json"
+            plan.write_text(
+                json.dumps(
+                    {
+                        "batch_root": str(root),
+                        "questions": [
+                            {
+                                "cluster_id": "S-small",
+                                "status": "low_coverage_targeted_review",
+                                "question": "Can cluster S-small be confirmed as Alex?",
+                                "candidate_name": "Alex",
+                                "dominant_speaker": "Alex",
+                                "expected_impact": "3 segments / 8 seconds",
+                                "suggested_decision": "Approve representative Alex samples if the voice matches.",
+                                "stop_condition": "Two representative samples confirm the same speaker.",
+                                "samples": [
+                                    {
+                                        "recording_id": "rec-1",
+                                        "start": 0.0,
+                                        "end": 1.0,
+                                        "text": "small sample",
+                                        "named_confidence": "medium",
+                                    }
+                                ],
+                            },
+                            {
+                                "cluster_id": "S-big",
+                                "status": "low_coverage_targeted_review",
+                                "question": "Can cluster S-big be confirmed as Daniel?",
+                                "candidate_name": "Daniel",
+                                "dominant_speaker": "Daniel",
+                                "expected_impact": "50 segments / 100 seconds",
+                                "suggested_decision": "Approve representative Daniel samples if the voice matches.",
+                                "stop_condition": "Two representative samples confirm the same speaker.",
+                                "samples": [
+                                    {
+                                        "recording_id": "rec-1",
+                                        "start": 2.0,
+                                        "end": 3.0,
+                                        "text": "big sample",
+                                        "named_confidence": "medium",
+                                    }
+                                ],
+                            },
+                        ],
+                    }
+                )
+            )
+
+            result = create_cluster_question_bundle(plan)
+            sheet = json.loads(result.review_sheet_path.read_text())
+            html = result.review_page_path.read_text()
+
+        self.assertEqual(sheet["sort"]["mode"], "impact_desc")
+        self.assertEqual(sheet["rows"][0]["cluster_question"]["cluster_id"], "S-big")
+        self.assertEqual(sheet["rows"][0]["impact_rank"], 1)
+        self.assertGreater(sheet["rows"][0]["impact_score"], sheet["rows"][1]["impact_score"])
+        self.assertIn("Impact rank", html)
+        self.assertIn("Estimated unlock", html)
+
     def test_cluster_question_decisions_fail_closed_when_pending(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

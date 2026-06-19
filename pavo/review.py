@@ -859,6 +859,8 @@ def create_cluster_question_bundle(
                 missing += 1
             rows.append(_cluster_question_review_row(question, sample, len(rows) + 1, actual_clip_path))
 
+    rows = _rank_cluster_question_review_rows(rows)
+
     sheet_path = target_dir / "pavo-cluster-question-review-sheet.json"
     page_path = target_dir / "index.html"
     sheet = {
@@ -893,6 +895,10 @@ def create_cluster_question_bundle(
                 "rejected": "contradicts decision",
                 "pending": "uncertain",
             },
+        },
+        "sort": {
+            "mode": "impact_desc",
+            "description": "Rows are ordered by estimated speaker-routing impact so the reviewer can answer the highest-payoff questions first.",
         },
         "rows": rows,
     }
@@ -964,7 +970,7 @@ def create_cluster_question_impact_report(
         expected_segments = int(item["expected_segments"])
         expected_seconds = float(item["expected_seconds"])
         reviewed_rows = int(item["approved_rows"]) + int(item["rejected_rows"])
-        impact_score = round((expected_segments * 10.0) + expected_seconds + (pending_rows * 2.0), 2)
+        impact_score = _cluster_question_impact_score(expected_segments, expected_seconds, pending_rows=pending_rows)
         if reviewed_rows:
             impact_score = round(impact_score * 0.5, 2)
         item["impact_score"] = impact_score
@@ -2971,8 +2977,14 @@ def _cluster_question_review_row(question: dict[str, Any], sample: dict[str, Any
         f"Suggested decision: {question.get('suggested_decision')} "
         f"Stop condition: {question.get('stop_condition')}"
     )
+    expected_segments, expected_seconds = _expected_impact_numbers(question.get("expected_impact"))
+    impact_score = _cluster_question_impact_score(expected_segments, expected_seconds, pending_rows=1)
     return {
         "index": index,
+        "impact_rank": index,
+        "impact_score": impact_score,
+        "expected_unlock_segments": expected_segments,
+        "expected_unlock_seconds": expected_seconds,
         "status": "pending",
         "approved": False,
         "target_speaker_label": question.get("dominant_speaker") or question.get("candidate_name") or question.get("cluster_id"),
@@ -2993,6 +3005,28 @@ def _cluster_question_review_row(question: dict[str, Any], sample: dict[str, Any
         "cluster_question": question,
         "cluster_sample": sample,
     }
+
+
+def _rank_cluster_question_review_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    ranked = sorted(
+        rows,
+        key=lambda row: (
+            -float(row.get("impact_score") or 0.0),
+            str((row.get("cluster_question") or {}).get("cluster_id") or ""),
+            int(row.get("index") or 0),
+        ),
+    )
+    output = []
+    for index, row in enumerate(ranked, start=1):
+        enriched = dict(row)
+        enriched["index"] = index
+        enriched["impact_rank"] = index
+        output.append(enriched)
+    return output
+
+
+def _cluster_question_impact_score(expected_segments: int, expected_seconds: float, *, pending_rows: int) -> float:
+    return round((expected_segments * 10.0) + expected_seconds + (pending_rows * 2.0), 2)
 
 
 def _expected_impact_numbers(value: Any) -> tuple[int, float]:
@@ -3303,6 +3337,14 @@ def _human_review_card(row: dict[str, Any], *, labels: dict[str, Any]) -> str:
     prompt = row.get("review_prompt") or row.get("expected_behavior") or row.get("text") or "Listen to this clip and decide whether it matches the expected behavior."
     subtitle = row.get("review_subtitle") or row.get("case") or ""
     technical_rows = [
+        ("Impact rank", row.get("impact_rank") or ""),
+        ("Impact score", row.get("impact_score") or ""),
+        (
+            "Estimated unlock",
+            f"{row.get('expected_unlock_segments')} segments / {row.get('expected_unlock_seconds')} seconds"
+            if row.get("expected_unlock_segments") or row.get("expected_unlock_seconds")
+            else "",
+        ),
         ("Time", f"{row.get('start')} - {row.get('end')} seconds"),
         ("Transcript hint", row.get("text") or ""),
         ("System label", f"{row.get('target_speaker_label') or ''} / {row.get('target_speaker_name') or ''}"),
