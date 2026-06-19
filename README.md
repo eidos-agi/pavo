@@ -113,6 +113,8 @@ pavo batch review-pack /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch verify-review-pack /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch status /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch readiness /path/to/meeting-batch/pavo-batch-proof.json
+pavo batch review-bundle /path/to/meeting-batch/pavo-batch-proof.json
+pavo batch verify-review-bundle /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch review-completion /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch verify-review-completion /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch review-sprint /path/to/meeting-batch/pavo-batch-proof.json
@@ -279,6 +281,15 @@ finish commands. Use `pavo batch verify-review-completion` to prove the report
 exists, matches the proof report, carries export-ready and missing-reason
 fields, and preserves the identity safety boundary. Review packs generate and
 include these completion files automatically.
+
+Use `pavo batch review-bundle` to write `pavo-batch-review-bundle.json` and
+Markdown, a fingerprinted launch record for the current review handoff. It
+regenerates the pack, verifies the pack, completion proof, cockpit, and speaker
+suggestions, then records SHA-256 fingerprints for the proof report, cockpit,
+completion report, suggestions, calibration, decision board, review-pack
+manifest, README, and zip. Use `pavo batch verify-review-bundle` to prove the
+bundle is proof-linked and internally consistent. It excludes raw audio and does
+not approve speaker identity.
 
 Use `pavo batch review-rehearsal` immediately before a human listener starts.
 It regenerates the decision board, review sprint, speaker answer sheet, and

@@ -802,6 +802,62 @@ class BatchReviewCompletionVerifyResult:
 
 
 @dataclass(frozen=True)
+class BatchReviewBundleResult:
+    proof_report_path: Path
+    out_dir: Path
+    json_path: Path
+    markdown_path: Path
+    passed: bool
+    state: str
+    artifact_count: int
+    bundle_sha256: str | None
+    payload: dict[str, Any]
+    blockers: list[str]
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "proof_report_path": str(self.proof_report_path),
+            "out_dir": str(self.out_dir),
+            "json_path": str(self.json_path),
+            "markdown_path": str(self.markdown_path),
+            "passed": self.passed,
+            "state": self.state,
+            "artifact_count": self.artifact_count,
+            "bundle_sha256": self.bundle_sha256,
+            "payload": self.payload,
+            "blockers": self.blockers,
+            "safety_boundary": "Review bundles fingerprint review artifacts for auditability. They do not copy raw audio or approve speaker identity.",
+        }
+
+
+@dataclass(frozen=True)
+class BatchReviewBundleVerifyResult:
+    proof_report_path: Path
+    json_path: Path
+    markdown_path: Path
+    passed: bool
+    state: str
+    artifact_count: int
+    bundle_sha256: str | None
+    checks: list[dict[str, Any]]
+    blockers: list[str]
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "proof_report_path": str(self.proof_report_path),
+            "json_path": str(self.json_path),
+            "markdown_path": str(self.markdown_path),
+            "passed": self.passed,
+            "state": self.state,
+            "artifact_count": self.artifact_count,
+            "bundle_sha256": self.bundle_sha256,
+            "checks": self.checks,
+            "blockers": self.blockers,
+            "safety_boundary": "Review-bundle verification proves the audit bundle is coherent. It does not approve speaker identity.",
+        }
+
+
+@dataclass(frozen=True)
 class BatchReviewRehearsalResult:
     proof_report_path: Path
     out_dir: Path
@@ -1603,6 +1659,179 @@ def _render_batch_review_completion_markdown(payload: dict[str, Any]) -> str:
     for command in commands.values():
         lines.append(str(command or ""))
     lines.extend(["```", "", "## Safety Boundary", "", str(payload.get("safety_boundary") or "")])
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def write_batch_review_bundle(
+    proof_report_path: Path | str,
+    *,
+    out_dir: Path | str | None = None,
+) -> BatchReviewBundleResult:
+    proof_path = Path(proof_report_path)
+    target_dir = Path(out_dir) if out_dir else proof_path.parent
+    target_dir.mkdir(parents=True, exist_ok=True)
+    pack_result = write_batch_review_pack(proof_path)
+    completion_result = write_batch_review_completion(proof_path)
+    verify_pack = verify_batch_review_pack(proof_path)
+    verify_completion = verify_batch_review_completion(proof_path)
+    verify_cockpit = verify_batch_review_cockpit(proof_path)
+    verify_suggestions = verify_batch_speaker_suggestions(proof_path)
+    artifacts = _batch_review_bundle_artifacts(proof_path, pack_result)
+    artifact_fingerprints = {
+        name: _file_fingerprint(path)
+        for name, path in artifacts.items()
+        if path.exists() and path.is_file()
+    }
+    missing = [
+        {"name": name, "path": str(path)}
+        for name, path in artifacts.items()
+        if not path.exists() or not path.is_file()
+    ]
+    bundle_sha256 = _artifact_manifest_sha256(artifact_fingerprints)
+    blockers: list[str] = []
+    for label, report in [
+        ("review_pack", verify_pack.as_report()),
+        ("review_completion", verify_completion.as_report()),
+        ("review_cockpit", verify_cockpit),
+        ("speaker_suggestions", verify_suggestions.as_report()),
+    ]:
+        if not report.get("passed"):
+            blockers.extend(f"{label}: {blocker}" for blocker in report.get("blockers") or [])
+    blockers.extend(f"missing_artifact:{item['name']} {item['path']}" for item in missing)
+    payload = {
+        "generated_at": datetime.now(UTC).isoformat(),
+        "proof_report_path": str(proof_path),
+        "state": completion_result.state,
+        "passed": not blockers,
+        "artifact_count": len(artifact_fingerprints),
+        "bundle_sha256": bundle_sha256,
+        "artifacts": artifact_fingerprints,
+        "missing_artifacts": missing,
+        "review_completion": completion_result.payload.get("review_completion"),
+        "verifications": {
+            "review_pack": verify_pack.as_report(),
+            "review_completion": verify_completion.as_report(),
+            "review_cockpit": verify_cockpit,
+            "speaker_suggestions": verify_suggestions.as_report(),
+        },
+        "blockers": list(dict.fromkeys(blockers)),
+        "safety_boundary": "This bundle fingerprints review artifacts and gates. It excludes raw audio and does not approve speaker identity.",
+    }
+    json_path = target_dir / "pavo-batch-review-bundle.json"
+    markdown_path = target_dir / "pavo-batch-review-bundle.md"
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    markdown_path.write_text(_render_batch_review_bundle_markdown(payload), encoding="utf-8")
+    return BatchReviewBundleResult(
+        proof_report_path=proof_path,
+        out_dir=target_dir,
+        json_path=json_path,
+        markdown_path=markdown_path,
+        passed=not blockers,
+        state=completion_result.state,
+        artifact_count=len(artifact_fingerprints),
+        bundle_sha256=bundle_sha256,
+        payload=payload,
+        blockers=list(dict.fromkeys(blockers)),
+    )
+
+
+def verify_batch_review_bundle(
+    proof_report_path: Path | str,
+    *,
+    json_path: Path | str | None = None,
+    markdown_path: Path | str | None = None,
+) -> BatchReviewBundleVerifyResult:
+    proof_path = Path(proof_report_path)
+    resolved_json = Path(json_path) if json_path else proof_path.with_name("pavo-batch-review-bundle.json")
+    resolved_markdown = Path(markdown_path) if markdown_path else proof_path.with_name("pavo-batch-review-bundle.md")
+    payload = json.loads(resolved_json.read_text()) if resolved_json.exists() else {}
+    markdown = resolved_markdown.read_text(encoding="utf-8") if resolved_markdown.exists() else ""
+    artifacts = payload.get("artifacts") if isinstance(payload.get("artifacts"), dict) else {}
+    recomputed = _artifact_manifest_sha256(artifacts) if artifacts else None
+    expected = str(payload.get("bundle_sha256") or "")
+    checks = [
+        _check("review_bundle_json_exists", resolved_json.exists() and resolved_json.is_file(), str(resolved_json)),
+        _check("review_bundle_markdown_exists", resolved_markdown.exists() and resolved_markdown.is_file(), str(resolved_markdown)),
+        _check("proof_report_matches", str(payload.get("proof_report_path") or "") == str(proof_path), str(payload.get("proof_report_path") or "")),
+        _check("has_artifacts", bool(artifacts), f"{len(artifacts)} artifact(s)"),
+        _check("has_bundle_sha256", bool(expected), expected),
+        _check("bundle_sha256_matches", bool(recomputed and recomputed == expected), f"{recomputed}/{expected}"),
+        _check("markdown_has_title", "Pavo Review Bundle" in markdown, "title"),
+        _check("markdown_has_safety_boundary", "does not approve speaker identity" in markdown, "safety boundary"),
+        _check("markdown_has_completion", "Review completion" in markdown, "review completion"),
+    ]
+    for name, fingerprint in artifacts.items():
+        if isinstance(fingerprint, dict):
+            path = Path(str(fingerprint.get("path") or ""))
+            checks.append(_check(f"artifact_path_present:{name}", bool(fingerprint.get("path")), str(path)))
+            checks.append(_check(f"artifact_sha256_present:{name}", bool(fingerprint.get("sha256")), str(fingerprint.get("sha256") or "")))
+    blockers = [f"{check['name']}: {check['detail']}" for check in checks if not check.get("passed")]
+    blockers.extend(str(blocker) for blocker in payload.get("blockers") or [])
+    blockers = list(dict.fromkeys(blockers))
+    return BatchReviewBundleVerifyResult(
+        proof_report_path=proof_path,
+        json_path=resolved_json,
+        markdown_path=resolved_markdown,
+        passed=not blockers,
+        state=str(payload.get("state") or "unknown"),
+        artifact_count=len(artifacts),
+        bundle_sha256=expected or None,
+        checks=checks,
+        blockers=blockers,
+    )
+
+
+def _batch_review_bundle_artifacts(proof_path: Path, pack_result: BatchReviewPackResult) -> dict[str, Path]:
+    artifacts = {
+        "proof_report": proof_path,
+        "review_pack_manifest": pack_result.manifest_path,
+        "review_pack_readme": pack_result.readme_path,
+        "review_pack_zip": pack_result.zip_path,
+        "review_cockpit": proof_path.with_name("pavo-batch-review-cockpit.html"),
+        "review_completion_json": proof_path.with_name("pavo-batch-review-completion.json"),
+        "review_completion_markdown": proof_path.with_name("pavo-batch-review-completion.md"),
+        "speaker_suggestions_json": proof_path.with_name("pavo-batch-speaker-suggestions.json"),
+        "speaker_suggestions_markdown": proof_path.with_name("pavo-batch-speaker-suggestions.md"),
+        "speaker_suggestions_tsv": proof_path.with_name("pavo-batch-speaker-suggestions.tsv"),
+        "speaker_calibration_json": proof_path.with_name("pavo-batch-speaker-calibration.json"),
+        "speaker_calibration_markdown": proof_path.with_name("pavo-batch-speaker-calibration.md"),
+        "speaker_calibration_tsv": proof_path.with_name("pavo-batch-speaker-calibration.tsv"),
+        "decision_board": proof_path.with_name("pavo-batch-proof.decision-board.html"),
+    }
+    return {name: path for name, path in artifacts.items() if path is not None}
+
+
+def _render_batch_review_bundle_markdown(payload: dict[str, Any]) -> str:
+    completion = payload.get("review_completion") if isinstance(payload.get("review_completion"), dict) else {}
+    artifacts = payload.get("artifacts") if isinstance(payload.get("artifacts"), dict) else {}
+    lines = [
+        "# Pavo Review Bundle",
+        "",
+        f"- State: `{payload.get('state')}`",
+        f"- Passed: `{str(bool(payload.get('passed'))).lower()}`",
+        f"- Bundle SHA-256: `{payload.get('bundle_sha256')}`",
+        f"- Artifact count: `{payload.get('artifact_count')}`",
+        "",
+        "## Review completion",
+        "",
+        f"- Export ready: `{str(bool(completion.get('export_ready'))).lower()}`",
+        f"- Pending decisions: `{completion.get('pending_decision_count')}`",
+        f"- Missing reason decisions: `{completion.get('missing_reason_decision_count')}`",
+        f"- Progress: `{completion.get('progress_percent')}`%",
+        "",
+        "## Artifacts",
+        "",
+    ]
+    for name, fingerprint in sorted(artifacts.items()):
+        if isinstance(fingerprint, dict):
+            lines.append(f"- `{name}`: `{fingerprint.get('sha256')}` `{fingerprint.get('path')}`")
+    blockers = payload.get("blockers") if isinstance(payload.get("blockers"), list) else []
+    lines.extend(["", "## Blockers", ""])
+    if blockers:
+        lines.extend(f"- {blocker}" for blocker in blockers)
+    else:
+        lines.append("- None")
+    lines.extend(["", "## Safety Boundary", "", str(payload.get("safety_boundary") or "")])
     return "\n".join(lines).rstrip() + "\n"
 
 

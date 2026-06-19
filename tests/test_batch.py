@@ -871,6 +871,39 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("pavo batch finalize-board-audit", markdown)
         self.assertIn("does not approve speaker identity", markdown)
 
+    def test_batch_review_bundle_cli_fingerprints_launch_artifacts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            main(["batch", "finalize-reviewed-proof", str(result.proof_report_path), "--json"])
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(["batch", "review-bundle", str(result.proof_report_path), "--json"])
+
+            report = json.loads(stdout.getvalue())
+            payload = json.loads(Path(report["json_path"]).read_text())
+            markdown = Path(report["markdown_path"]).read_text()
+            verify_stdout = io.StringIO()
+            with redirect_stdout(verify_stdout):
+                verify_exit_code = main(["batch", "verify-review-bundle", str(result.proof_report_path), "--json"])
+            verify_report = json.loads(verify_stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(verify_exit_code, 0)
+        self.assertTrue(report["passed"])
+        self.assertTrue(verify_report["passed"])
+        self.assertEqual(report["state"], "human_review_pending")
+        self.assertRegex(report["bundle_sha256"], r"^[0-9a-f]{64}$")
+        self.assertIn("review_cockpit", payload["artifacts"])
+        self.assertIn("review_completion_markdown", payload["artifacts"])
+        self.assertIn("speaker_suggestions_tsv", payload["artifacts"])
+        self.assertIn("review_pack_zip", payload["artifacts"])
+        self.assertIn("Pavo Review Bundle", markdown)
+        self.assertIn("Review completion", markdown)
+        self.assertIn("does not approve speaker identity", markdown)
+
     def test_batch_review_rehearsal_cli_writes_ready_to_review_report(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

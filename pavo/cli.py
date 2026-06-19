@@ -27,6 +27,7 @@ from .batch import (
     summarize_batch_readiness,
     verify_batch_decision_board,
     verify_batch_manifest,
+    verify_batch_review_bundle,
     verify_batch_review_completion,
     verify_batch_review_pack,
     verify_batch_review_cockpit,
@@ -35,6 +36,7 @@ from .batch import (
     verify_batch_speaker_answer_sheet,
     verify_batch_speaker_suggestions,
     write_batch_decision_board,
+    write_batch_review_bundle,
     write_batch_review_completion,
     write_batch_review_pack,
     write_batch_review_cockpit,
@@ -222,6 +224,21 @@ def build_parser() -> argparse.ArgumentParser:
     batch_verify_review_completion.add_argument("--completion-json", type=Path, help="Override pavo-batch-review-completion.json path")
     batch_verify_review_completion.add_argument("--markdown", type=Path, help="Override pavo-batch-review-completion.md path")
     batch_verify_review_completion.add_argument("--json", action="store_true", help="Print machine-readable verification report")
+    batch_review_bundle = batch_sub.add_parser(
+        "review-bundle",
+        help="Write a fingerprinted launch bundle manifest for all review handoff artifacts",
+    )
+    batch_review_bundle.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_review_bundle.add_argument("--out-dir", type=Path, help="Output directory; defaults beside the proof report")
+    batch_review_bundle.add_argument("--json", action="store_true", help="Print machine-readable bundle report")
+    batch_verify_review_bundle = batch_sub.add_parser(
+        "verify-review-bundle",
+        help="Verify the review bundle manifest is proof-linked and internally consistent",
+    )
+    batch_verify_review_bundle.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_verify_review_bundle.add_argument("--bundle-json", type=Path, help="Override pavo-batch-review-bundle.json path")
+    batch_verify_review_bundle.add_argument("--markdown", type=Path, help="Override pavo-batch-review-bundle.md path")
+    batch_verify_review_bundle.add_argument("--json", action="store_true", help="Print machine-readable verification report")
     batch_review_sprint = batch_sub.add_parser(
         "review-sprint",
         help="Write a compact JSON and Markdown sprint packet for pending human speaker review",
@@ -912,6 +929,46 @@ def main(argv: list[str] | None = None) -> int:
             if result.machine_ready and result.board_ready and result.review_pack_ready:
                 return 3
             return 2
+        if args.batch_command == "review-bundle":
+            try:
+                result = write_batch_review_bundle(args.proof_report, out_dir=args.out_dir)
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+            else:
+                print(f"passed: {str(result.passed).lower()}")
+                print(f"state: {result.state}")
+                print(f"artifact_count: {result.artifact_count}")
+                print(f"bundle_sha256: {result.bundle_sha256}")
+                print(f"json_path: {result.json_path}")
+                print(f"markdown_path: {result.markdown_path}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+            return 0 if result.passed else 3
+        if args.batch_command == "verify-review-bundle":
+            try:
+                result = verify_batch_review_bundle(
+                    args.proof_report,
+                    json_path=args.bundle_json,
+                    markdown_path=args.markdown,
+                )
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+            else:
+                print(f"passed: {str(result.passed).lower()}")
+                print(f"state: {result.state}")
+                print(f"artifact_count: {result.artifact_count}")
+                print(f"bundle_sha256: {result.bundle_sha256}")
+                print(f"json_path: {result.json_path}")
+                print(f"markdown_path: {result.markdown_path}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+            return 0 if result.passed else 3
         if args.batch_command == "review-completion":
             try:
                 result = write_batch_review_completion(args.proof_report, out_dir=args.out_dir)
