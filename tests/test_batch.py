@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from pavo.batch import doctor_batch
+from pavo.batch import doctor_batch, verify_batch_manifest
 from pavo.cli import main
 
 
@@ -76,6 +76,57 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertTrue(report["passed"])
         self.assertTrue(markdown_exists)
         self.assertEqual(report["state"], "machine_ready_human_review_pending")
+
+    def test_batch_manifest_verifier_passes_for_unchanged_artifacts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            report_path = root / "batch-doctor.json"
+            report_path.write_text(json.dumps(doctor_batch(root, refresh_cluster_gate=False).as_report()))
+
+            result = verify_batch_manifest(report_path)
+
+        self.assertTrue(result.passed)
+        self.assertEqual(result.checked_artifact_count, 7)
+        self.assertEqual(result.mismatches, [])
+
+    def test_batch_manifest_verifier_fails_when_artifact_changes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            report_path = root / "batch-doctor.json"
+            report_path.write_text(json.dumps(doctor_batch(root, refresh_cluster_gate=False).as_report()))
+            (root / "rec-a" / "rec-a.mp3").write_bytes(b"changed audio")
+
+            result = verify_batch_manifest(report_path)
+            reasons = {mismatch["reason"] for mismatch in result.mismatches}
+
+        self.assertFalse(result.passed)
+        self.assertIn("fingerprint_mismatch", reasons)
+        self.assertIn("source_manifest_mismatch", reasons)
+
+    def test_batch_manifest_verifier_cli_writes_markdown(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            report_path = root / "batch-doctor.json"
+            markdown_path = root / "verify.md"
+            report_path.write_text(json.dumps(doctor_batch(root, refresh_cluster_gate=False).as_report()))
+
+            exit_code = main(
+                [
+                    "batch",
+                    "verify-manifest",
+                    str(report_path),
+                    "--json",
+                    "--markdown-report",
+                    str(markdown_path),
+                ]
+            )
+            markdown_exists = markdown_path.exists()
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(markdown_exists)
 
     def test_batch_doctor_refreshes_cluster_gate_by_default(self):
         with tempfile.TemporaryDirectory() as tmp:

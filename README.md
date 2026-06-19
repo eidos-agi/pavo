@@ -87,6 +87,9 @@ pavo brief-improvement baseline/pavo-meeting-brief.json current/pavo-meeting-bri
 pavo batch doctor /path/to/meeting-batch --json \
   --report /path/to/meeting-batch/pavo-batch-doctor.json \
   --markdown-report /path/to/meeting-batch/pavo-batch-doctor.md
+
+pavo batch verify-manifest /path/to/meeting-batch/pavo-batch-doctor.json --json \
+  --markdown-report /path/to/meeting-batch/pavo-batch-manifest-verification.md
 ```
 
 The brief writes `pavo-meeting-brief.json` and `pavo-meeting-brief.md` with
@@ -106,6 +109,10 @@ stale review artifacts cannot silently pass. Use `--no-refresh-cluster-gate`
 only when intentionally inspecting an existing gate report. Its `passed` field
 means machine plumbing is healthy. Its `complete` field remains false until
 downstream human speaker review gates are actually cleared.
+
+Use `pavo batch verify-manifest` later to re-read the doctor JSON and verify
+that the source files still match their recorded byte counts and SHA-256 hashes.
+It exits nonzero if any source artifact is missing or changed.
 
 When `--review-plan` is passed, Pavo also writes
 `pavo-review-cluster-plan.json` and `pavo-review-cluster-plan.md`. The plan
