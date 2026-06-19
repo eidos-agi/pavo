@@ -235,6 +235,7 @@ class ClusterQuestionDecisionResult:
     ready_cluster_count: int
     conflicted_cluster_count: int
     unresolved_cluster_count: int
+    next_review_count: int
     blockers: list[str]
 
 
@@ -338,6 +339,7 @@ class ClusterReviewStatusResult:
     ready_cluster_count: int
     conflicted_cluster_count: int
     unresolved_cluster_count: int
+    next_review_count: int
     page_verified: bool
     top_cluster_id: str | None
     estimated_unlockable_segments: int | None
@@ -351,6 +353,7 @@ class ClusterReviewStatusResult:
     forecast_report_path: Path | None
     review_pressure_reduction: int | None
     routeable_named_span_gain: int | None
+    next_review_plan: list[dict[str, Any]]
     next_command: str
     blockers: list[str]
 
@@ -367,6 +370,7 @@ class ClusterReviewStatusResult:
             "ready_cluster_count": self.ready_cluster_count,
             "conflicted_cluster_count": self.conflicted_cluster_count,
             "unresolved_cluster_count": self.unresolved_cluster_count,
+            "next_review_count": self.next_review_count,
             "page_verified": self.page_verified,
             "top_cluster_id": self.top_cluster_id,
             "estimated_unlockable_segments": self.estimated_unlockable_segments,
@@ -380,6 +384,7 @@ class ClusterReviewStatusResult:
             "forecast_report": str(self.forecast_report_path) if self.forecast_report_path else None,
             "review_pressure_reduction": self.review_pressure_reduction,
             "routeable_named_span_gain": self.routeable_named_span_gain,
+            "next_review_plan": self.next_review_plan,
             "next_command": self.next_command,
             "blockers": self.blockers,
         }
@@ -395,6 +400,7 @@ class ClusterReviewStatusResult:
             f"- Candidate clips: {self.candidate_count}",
             f"- Approved / rejected / pending: {self.approved_count} / {self.rejected_count} / {self.pending_count}",
             f"- Cluster consensus: {self.ready_cluster_count} ready / {self.conflicted_cluster_count} conflicted / {self.unresolved_cluster_count} unresolved / {self.cluster_count} total",
+            f"- Minimum next reviews: {self.next_review_count}",
             f"- Page verified: `{str(self.page_verified).lower()}`",
             f"- Top cluster: `{self.top_cluster_id}`",
             f"- Estimated unlock: {self.estimated_unlockable_segments} segments / {self.estimated_unlockable_seconds} seconds",
@@ -404,23 +410,37 @@ class ClusterReviewStatusResult:
             f"- Review pressure reduction: {self.review_pressure_reduction}",
             f"- Routeable named span gain: {self.routeable_named_span_gain}",
             "",
-            "## Next Action",
-            "",
-            f"`{self.next_command}`",
-            "",
-            "## Reviewer Guide",
-            "",
-            "- Open the verified review page and work from the top-ranked clips first.",
-            "- Listen to the audio before deciding; transcript text alone is not speaker truth.",
-            "- Approve only when the voice supports the suggested cluster decision.",
-            "- Reject clips that contradict the suggested identity, reveal a split cluster, or are too overlapped/noisy to trust.",
-            "- Leave clips pending when the evidence is uncertain; finalize will fail closed until every row is reviewed.",
-            "- Keep raw audio and voiceprint evidence inside Pavo review artifacts; do not publish them as task notes or public docs.",
-            "- After all rows are approved or rejected, run the finalize command shown above.",
-            "",
-            "## Blockers",
+            "## Minimal Next Reviews",
             "",
         ]
+        if self.next_review_plan:
+            for item in self.next_review_plan:
+                lines.append(
+                    f"- Cluster `{item.get('cluster_id')}` row `{item.get('row_index')}`: {item.get('closure_rule')}"
+                )
+        else:
+            lines.append("- None")
+        lines.extend(
+            [
+                "",
+                "## Next Action",
+                "",
+                f"`{self.next_command}`",
+                "",
+                "## Reviewer Guide",
+                "",
+                "- Open the verified review page and work from the top-ranked clips first.",
+                "- Listen to the audio before deciding; transcript text alone is not speaker truth.",
+                "- Approve only when the voice supports the suggested cluster decision.",
+                "- Reject clips that contradict the suggested identity, reveal a split cluster, or are too overlapped/noisy to trust.",
+                "- A contradiction can early-stop a cluster as cannot-link; confirmation requires the support quorum.",
+                "- Keep raw audio and voiceprint evidence inside Pavo review artifacts; do not publish them as task notes or public docs.",
+                "- After every cluster has terminal consensus, run the finalize command shown above.",
+                "",
+                "## Blockers",
+                "",
+            ]
+        )
         lines.extend(f"- {item}" for item in blockers)
         return "\n".join(lines).rstrip() + "\n"
 
@@ -1574,6 +1594,7 @@ def export_cluster_question_decisions(
     rejected = [row for row in decisions if row["status"] == "rejected"]
     pending = [row for row in decisions if row["status"] == "pending"]
     cluster_summaries = _cluster_question_consensus_summaries(decisions)
+    next_review_plan = _cluster_question_next_review_plan(decisions, cluster_summaries)
     ready_clusters = [row for row in cluster_summaries if str(row.get("consensus_state") or "").startswith("ready_for_")]
     conflicted_clusters = [row for row in cluster_summaries if row.get("consensus_state") == "conflicting_review"]
     unresolved_clusters = [
@@ -1602,6 +1623,8 @@ def export_cluster_question_decisions(
         "ready_cluster_count": len(ready_clusters),
         "conflicted_cluster_count": len(conflicted_clusters),
         "unresolved_cluster_count": len(unresolved_clusters),
+        "next_review_count": len(next_review_plan),
+        "next_review_plan": next_review_plan,
         "cluster_reviewed": bool(cluster_summaries and not unresolved_clusters and not conflicted_clusters),
         "clusters": cluster_summaries,
         "blockers": blockers,
@@ -1623,6 +1646,7 @@ def export_cluster_question_decisions(
         ready_cluster_count=len(ready_clusters),
         conflicted_cluster_count=len(conflicted_clusters),
         unresolved_cluster_count=len(unresolved_clusters),
+        next_review_count=len(next_review_plan),
         blockers=blockers,
     )
 
@@ -1759,6 +1783,7 @@ def status_cluster_review(
             ready_cluster_count=0,
             conflicted_cluster_count=0,
             unresolved_cluster_count=0,
+            next_review_count=0,
             page_verified=False,
             top_cluster_id=None,
             estimated_unlockable_segments=None,
@@ -1772,6 +1797,7 @@ def status_cluster_review(
             forecast_report_path=None,
             review_pressure_reduction=None,
             routeable_named_span_gain=None,
+            next_review_plan=[],
             next_command=f"pavo review clusters prepare {root}",
             blockers=["cluster question review sheet is missing"],
         )
@@ -1783,6 +1809,7 @@ def status_cluster_review(
     pending = [row for row in rows if row.get("status") == "pending"]
     decision_rows = [_cluster_question_decision_row(row) for row in rows]
     consensus = _cluster_question_consensus_summaries(decision_rows)
+    next_review_plan = _cluster_question_next_review_plan(decision_rows, consensus)
     ready_cluster_count = sum(1 for row in consensus if str(row.get("consensus_state") or "").startswith("ready_for_"))
     conflicted_cluster_count = sum(1 for row in consensus if row.get("consensus_state") == "conflicting_review")
     unresolved_cluster_count = sum(
@@ -1860,6 +1887,7 @@ def status_cluster_review(
         ready_cluster_count=ready_cluster_count,
         conflicted_cluster_count=conflicted_cluster_count,
         unresolved_cluster_count=unresolved_cluster_count,
+        next_review_count=len(next_review_plan),
         page_verified=page_verified,
         top_cluster_id=top_cluster,
         estimated_unlockable_segments=impact.get("estimated_unlockable_segments") if impact else None,
@@ -1873,6 +1901,7 @@ def status_cluster_review(
         forecast_report_path=forecast_path if forecast else None,
         review_pressure_reduction=int(review_delta) if review_delta is not None else None,
         routeable_named_span_gain=int(routeable_delta) if routeable_delta is not None else None,
+        next_review_plan=next_review_plan,
         next_command=next_command,
         blockers=list(dict.fromkeys(blockers)),
     )
@@ -4377,6 +4406,8 @@ def _cluster_question_decision_row(row: dict[str, Any]) -> dict[str, Any]:
         "status": status,
         "approved": approved,
         "case": row.get("case"),
+        "impact_rank": row.get("impact_rank"),
+        "impact_score": row.get("impact_score"),
         "cluster_id": question.get("cluster_id"),
         "cluster_status": question.get("status"),
         "question": question.get("question"),
@@ -4480,6 +4511,69 @@ def _cluster_question_consensus_summaries(decisions: list[dict[str, Any]]) -> li
         key=lambda item: (
             item.get("consensus_state") != "conflicting_review",
             item.get("consensus_state") != "pending_review",
+            str(item.get("cluster_id") or ""),
+        ),
+    )
+
+
+def _cluster_question_next_review_plan(
+    decisions: list[dict[str, Any]],
+    cluster_summaries: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    summary_by_cluster = {str(item.get("cluster_id") or "unknown"): item for item in cluster_summaries}
+    pending_by_cluster: dict[str, list[dict[str, Any]]] = {}
+    for decision in decisions:
+        if str(decision.get("status") or "pending") != "pending":
+            continue
+        cluster_id = str(decision.get("cluster_id") or decision.get("case") or "unknown")
+        pending_by_cluster.setdefault(cluster_id, []).append(decision)
+
+    plan: list[dict[str, Any]] = []
+    for cluster_id, summary in summary_by_cluster.items():
+        state = str(summary.get("consensus_state") or "")
+        if state in {"ready_for_must_link", "ready_for_cannot_link", "conflicting_review"}:
+            continue
+        candidates = pending_by_cluster.get(cluster_id) or []
+        if not candidates:
+            continue
+        candidates.sort(
+            key=lambda row: (
+                -float(row.get("impact_score") or 0.0),
+                int(row.get("impact_rank") or row.get("index") or 0),
+                int(row.get("index") or 0),
+            )
+        )
+        row = candidates[0]
+        approved_rows = int(summary.get("approved_rows") or 0)
+        approval_quorum = int(summary.get("approval_quorum") or 1)
+        if approved_rows:
+            closure_rule = f"Approve {max(0, approval_quorum - approved_rows)} more matching sample(s), or reject this sample to early-stop as cannot-link."
+        else:
+            closure_rule = "Reject this sample to early-stop as cannot-link; approve it only if the voice supports the proposed speaker."
+        plan.append(
+            {
+                "cluster_id": cluster_id,
+                "target_speaker": summary.get("target_speaker"),
+                "consensus_state": state,
+                "row_index": row.get("index"),
+                "impact_rank": row.get("impact_rank"),
+                "impact_score": row.get("impact_score"),
+                "expected_impact": summary.get("expected_impact"),
+                "recording_id": row.get("recording_id"),
+                "start": row.get("start"),
+                "end": row.get("end"),
+                "clip_path": row.get("clip_path"),
+                "text": row.get("text"),
+                "question": summary.get("question"),
+                "closure_rule": closure_rule,
+                "recommended_action": "Listen to this representative pending sample before any lower-impact sample in the same cluster.",
+            }
+        )
+    return sorted(
+        plan,
+        key=lambda item: (
+            -float(item.get("impact_score") or 0.0),
+            int(item.get("impact_rank") or item.get("row_index") or 0),
             str(item.get("cluster_id") or ""),
         ),
     )

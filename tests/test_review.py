@@ -671,6 +671,8 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.ready_cluster_count, 0)
         self.assertEqual(result.conflicted_cluster_count, 0)
         self.assertEqual(result.unresolved_cluster_count, 0)
+        self.assertEqual(result.next_review_count, 0)
+        self.assertEqual(result.next_review_plan, [])
         self.assertIn("prepare", result.next_command)
         self.assertIn("review sheet is missing", "; ".join(result.blockers))
 
@@ -723,6 +725,8 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.ready_cluster_count, 0)
         self.assertEqual(result.conflicted_cluster_count, 0)
         self.assertEqual(result.unresolved_cluster_count, 1)
+        self.assertEqual(result.next_review_count, 1)
+        self.assertEqual(len(result.next_review_plan), 1)
         self.assertTrue(result.page_verified)
         self.assertIn("open", result.next_command)
 
@@ -757,6 +761,7 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.ready_cluster_count, 1)
         self.assertEqual(result.conflicted_cluster_count, 0)
         self.assertEqual(result.unresolved_cluster_count, 0)
+        self.assertEqual(result.next_review_count, 0)
         self.assertTrue(result.page_verified)
         self.assertIn("finalize", result.next_command)
 
@@ -774,6 +779,8 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(report["ready_cluster_count"], 0)
         self.assertEqual(report["conflicted_cluster_count"], 0)
         self.assertEqual(report["unresolved_cluster_count"], 0)
+        self.assertEqual(report["next_review_count"], 0)
+        self.assertEqual(report["next_review_plan"], [])
         self.assertIn("next_command", report)
         self.assertIn("blockers", report)
         self.assertIn("Pavo Cluster Review Status", markdown)
@@ -782,7 +789,7 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("Cluster consensus", markdown)
         self.assertIn("Listen to the audio", markdown)
         self.assertIn("Approve only", markdown)
-        self.assertIn("finalize will fail closed", markdown)
+        self.assertIn("terminal consensus", markdown)
 
     def test_cli_cluster_review_status_writes_report_json(self):
         from pavo.cli import main
@@ -1045,6 +1052,87 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(report["clusters"][0]["consensus_state"], "ready_for_cannot_link")
         self.assertTrue(materialized.passed)
         self.assertEqual(constraints["constraints"][0]["type"], "cannot_link")
+
+    def test_cluster_question_decisions_emit_minimal_next_review_plan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sheet = root / "cluster-review-sheet.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "index": 1,
+                                "impact_rank": 2,
+                                "impact_score": 10.0,
+                                "status": "pending",
+                                "approved": False,
+                                "target_speaker_label": "Daniel",
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 2.0,
+                                "text": "weaker sample",
+                                "clip_path": "clips/one.mp3",
+                                "cluster_question": {
+                                    "cluster_id": "S1",
+                                    "dominant_speaker": "Daniel",
+                                    "question": "Can S1 be Daniel?",
+                                    "expected_impact": "10 segments / 20 seconds",
+                                },
+                            },
+                            {
+                                "index": 2,
+                                "impact_rank": 1,
+                                "impact_score": 99.0,
+                                "status": "pending",
+                                "approved": False,
+                                "target_speaker_label": "Daniel",
+                                "recording_id": "rec-2",
+                                "start": 3.0,
+                                "end": 4.0,
+                                "text": "best sample",
+                                "clip_path": "clips/two.mp3",
+                                "cluster_question": {
+                                    "cluster_id": "S1",
+                                    "dominant_speaker": "Daniel",
+                                    "question": "Can S1 be Daniel?",
+                                    "expected_impact": "10 segments / 20 seconds",
+                                },
+                            },
+                            {
+                                "index": 3,
+                                "impact_rank": 3,
+                                "impact_score": 80.0,
+                                "status": "pending",
+                                "approved": False,
+                                "target_speaker_label": "Alex",
+                                "recording_id": "rec-3",
+                                "start": 5.0,
+                                "end": 6.0,
+                                "text": "other cluster",
+                                "clip_path": "clips/three.mp3",
+                                "cluster_question": {
+                                    "cluster_id": "S2",
+                                    "dominant_speaker": "Alex",
+                                    "question": "Can S2 be Alex?",
+                                    "expected_impact": "8 segments / 9 seconds",
+                                },
+                            },
+                        ]
+                    }
+                )
+            )
+
+            result = export_cluster_question_decisions(sheet)
+            report = json.loads(result.report_path.read_text())
+
+        self.assertFalse(result.passed)
+        self.assertEqual(result.next_review_count, 2)
+        self.assertEqual(report["next_review_count"], 2)
+        self.assertEqual(report["next_review_plan"][0]["cluster_id"], "S1")
+        self.assertEqual(report["next_review_plan"][0]["row_index"], 2)
+        self.assertEqual(report["next_review_plan"][0]["text"], "best sample")
+        self.assertIn("early-stop", report["next_review_plan"][0]["closure_rule"])
 
     def test_cluster_question_impact_report_ranks_pending_clusters(self):
         with tempfile.TemporaryDirectory() as tmp:
