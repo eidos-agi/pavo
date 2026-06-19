@@ -639,6 +639,7 @@ def enrich_operator_handoff_with_validation(handoff: dict[str, Any]) -> dict[str
                 }
             )
     enriched["artifact_checks"] = artifact_checks
+    enriched["artifact_manifest_sha256"] = _handoff_artifact_manifest_sha256(artifact_checks)
     enriched["validation"] = validation
     return enriched
 
@@ -767,6 +768,20 @@ def _handoff_artifact_check(path_value: str) -> dict[str, Any]:
     }
 
 
+def _handoff_artifact_manifest_sha256(artifact_checks: dict[str, dict[str, Any]]) -> str:
+    entries = {
+        name: {
+            "path": payload.get("path"),
+            "exists": bool(payload.get("exists")),
+            "bytes": payload.get("bytes"),
+            "sha256": payload.get("sha256"),
+        }
+        for name, payload in sorted(artifact_checks.items())
+    }
+    encoded = json.dumps(entries, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def format_operator_handoff(handoff: dict[str, Any]) -> str:
     lines = [
         "Pavo Operator Handoff",
@@ -863,6 +878,8 @@ def format_operator_handoff(handoff: dict[str, Any]) -> str:
     artifact_checks = handoff.get("artifact_checks") if isinstance(handoff.get("artifact_checks"), dict) else None
     if artifact_checks:
         lines.extend(["", "artifact_checks:"])
+        if handoff.get("artifact_manifest_sha256"):
+            lines.append(f"artifact_manifest_sha256: {handoff.get('artifact_manifest_sha256')}")
         for name in sorted(artifact_checks):
             check = artifact_checks.get(name) or {}
             lines.append(
