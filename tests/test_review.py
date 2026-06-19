@@ -1008,7 +1008,13 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.validation_report_path, report_path)
         self.assertIn("decision gate did not pass", "; ".join(result.blockers))
         self.assertIn("Pavo Cluster Review Gate", markdown)
+        self.assertIn("Active Learning Queue", markdown)
+        self.assertIn("Next Decisions", markdown)
+        self.assertIn("impact, uncertainty, and cluster diversity", markdown)
         self.assertEqual(report["validation"]["pending_count"], 1)
+        self.assertEqual(report["review_queue"]["summary"]["minimum_reviews"], 1)
+        self.assertEqual(report["review_queue"]["items"][0]["cluster_id"], "S1")
+        self.assertIn("priority_score", report["review_queue"]["items"][0])
         self.assertIn("Safety Boundary", markdown)
 
     def test_cluster_review_gate_cli_writes_machine_report(self):
@@ -1078,6 +1084,8 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(exit_code, 2)
         self.assertFalse(payload["ready_to_finalize"])
         self.assertEqual(payload["state"], "review_pending")
+        self.assertEqual(payload["review_queue"]["summary"]["minimum_reviews"], 1)
+        self.assertEqual(payload["review_queue"]["items"][0]["row_index"], 1)
         self.assertEqual(written_payload["state"], "review_pending")
         self.assertTrue(markdown_exists)
         self.assertIn("required human listening", payload["safety_boundary"])

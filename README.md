@@ -249,6 +249,9 @@ pavo review anchors corrections docs/plaud-c37-speaker1-anchor-review-sheet.json
 pavo review anchors decisions docs/pavo-review-cluster-sheet.json
 pavo review anchors materialize-decisions docs/pavo-review-cluster-decisions.json
 pavo review clusters decision-brief ./meetings/2026-06-18-plaud/pavo-each
+pavo review clusters gate ./meetings/2026-06-18-plaud/pavo-each --json \
+  --report ./meetings/2026-06-18-plaud/pavo-each/pavo-cluster-review-gate.json \
+  --markdown-report ./meetings/2026-06-18-plaud/pavo-each/pavo-cluster-review-gate.md
 pavo video render youtube_<id> --title "Reviewed call" --duration 30
 pavo transcribe <recording-id> --context-term Plaud
 ```
@@ -292,6 +295,15 @@ separated stems, a score report for each stem, and `pavo-overlap-manifest.json`.
 HTML dashboard for the ranked cluster-review queue, with embedded local audio
 clips, expected unlock, acoustic caution, finish commands, and browser-side
 export of an import-ready reviewed TSV.
+
+`pavo review clusters gate` is the one-command readiness check for that queue.
+It refreshes the slate validation report, runs the cluster doctor, writes
+machine-readable JSON and Markdown, and exits nonzero until the reviewed slate is
+safe to finalize. The gate report also embeds the active-learning queue: minimum
+human listens, pending clips, possible reviews saved, expected unlock,
+acoustic/priority rationale, and the exact next clip/question rows. Pavo can
+rank and validate the work, but it still cannot approve speaker identity without
+human listening decisions in the slate.
 
 `pavo review anchors init` creates a pending review sheet from speaker-anchor
 clips. After a human marks clean rows as `approved`, `pavo review anchors

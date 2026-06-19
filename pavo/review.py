@@ -635,6 +635,7 @@ class ClusterReviewGateResult:
     state: str
     doctor: ClusterReviewDoctorResult
     validation: ClusterReviewSlateValidationResult | None
+    review_queue: dict[str, Any]
     blockers: list[str]
     next_command: str
     finish_command: str | None
@@ -654,6 +655,7 @@ class ClusterReviewGateResult:
             "finish_command": self.finish_command,
             "doctor": self.doctor.as_report(),
             "validation": self.validation.as_report() if self.validation else None,
+            "review_queue": self.review_queue,
             "safety_boundary": "The gate may refresh machine validation, but it never approves speaker identity or bypasses required human listening.",
         }
 
@@ -673,6 +675,43 @@ class ClusterReviewGateResult:
         ]
         if self.finish_command:
             lines.append(f"- Finish command: `{self.finish_command}`")
+        queue_summary = self.review_queue.get("summary") if isinstance(self.review_queue, dict) else {}
+        lines.extend(
+            [
+                "",
+                "## Active Learning Queue",
+                "",
+                "Pavo ranks the minimum human listens by impact, uncertainty, and cluster diversity so one decision can unlock many transcript segments.",
+                f"- Minimum reviews: {queue_summary.get('minimum_reviews')}",
+                f"- Pending clips: {queue_summary.get('pending_reviews')}",
+                f"- Possible reviews saved: {queue_summary.get('possible_reviews_saved')} ({queue_summary.get('reduction_percent')}%)",
+                f"- Visible unlock: {queue_summary.get('total_unlockable_segments')} segments / {queue_summary.get('total_unlockable_seconds')} seconds",
+                f"- Risk-adjusted unlock: {queue_summary.get('forecast_risk_adjusted_segments')} segments",
+                "",
+                "## Next Decisions",
+                "",
+            ]
+        )
+        queue_items = self.review_queue.get("items") if isinstance(self.review_queue, dict) else []
+        if queue_items:
+            for item in queue_items[:10]:
+                lines.extend(
+                    [
+                        f"### {item.get('rank')}. Cluster `{item.get('cluster_id')}` row `{item.get('row_index')}`",
+                        "",
+                        f"- Question: {item.get('question')}",
+                        f"- Target speaker: `{item.get('target_speaker')}`",
+                        f"- Priority: `{item.get('priority_tier')}` / {item.get('priority_score')}",
+                        f"- Why: {item.get('priority_reason')}",
+                        f"- Unlock: {item.get('unlockable_segments')} segments / {item.get('unlockable_seconds')} seconds",
+                        f"- Cumulative unlock: {item.get('cumulative_unlockable_segments')} segments / {item.get('cumulative_unlockable_seconds')} seconds",
+                        f"- Acoustic verdict: `{item.get('acoustic_verdict')}`",
+                        f"- Clip: `{item.get('clip_path')}`",
+                        "",
+                    ]
+                )
+        else:
+            lines.append("- None")
         lines.extend(["", "## Blockers", ""])
         if self.blockers:
             lines.extend(f"- {blocker}" for blocker in self.blockers)
@@ -2416,6 +2455,7 @@ def gate_cluster_review(
         next_command = finish_command
     else:
         next_command = doctor.next_command
+    review_queue = _cluster_review_decision_brief_payload(doctor.status)
 
     return ClusterReviewGateResult(
         batch_root=root,
@@ -2428,6 +2468,7 @@ def gate_cluster_review(
         state=doctor.state,
         doctor=doctor,
         validation=validation,
+        review_queue=review_queue,
         blockers=blockers,
         next_command=next_command,
         finish_command=finish_command,
