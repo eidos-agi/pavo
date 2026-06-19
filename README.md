@@ -258,7 +258,9 @@ The review sprint also explains each pending speaker decision with a
 deterministic `decision_shape`, `decision_risk`, `suggested_review_action`, and
 `evidence_hints` list. These hints are guidance only: they help the reviewer
 listen in the right order and know what to check, but they never approve
-speaker identity without human review.
+speaker identity without human review. The sprint JSON also exports a
+`priority_queue` sorted by risk and priority score, with risk counts and
+per-decision `why_queued` explanations for downstream audit and handoff.
 
 Use `pavo batch finalize-reviewed-proof` when the proof slate has been reviewed.
 It validates the proof slate, materializes the cluster decisions, writes speaker

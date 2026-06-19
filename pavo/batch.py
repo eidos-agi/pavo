@@ -2720,6 +2720,7 @@ def _batch_review_sprint_from_validation(validation: dict[str, Any]) -> dict[str
         "estimated_seconds": estimated_seconds,
         "estimated_minutes": round(estimated_seconds / 60, 1) if estimated_seconds else 0,
         "focus_order": items,
+        "priority_queue": _batch_review_priority_queue(items),
         "review_rule": "Listen to every supporting clip before approving or rejecting a speaker identity decision.",
     }
 
@@ -2835,6 +2836,60 @@ def _batch_speaker_evidence_hints(item: dict[str, Any], *, clip_count: int) -> l
     return list(dict.fromkeys(hints))
 
 
+def _batch_review_priority_queue(items: list[dict[str, Any]]) -> dict[str, Any]:
+    risk_rank = {"high": 0, "medium": 1, "low": 2}
+    ordered = sorted(
+        items,
+        key=lambda item: (
+            risk_rank.get(str(item.get("decision_risk") or "low"), 3),
+            -_optional_float(item.get("priority_score"), default=0.0),
+            int(item.get("order") or 0),
+        ),
+    )
+    queue_items = [
+        {
+            "queue_order": index,
+            "original_order": item.get("order"),
+            "cluster_id": item.get("cluster_id"),
+            "speaker": item.get("speaker"),
+            "decision_risk": item.get("decision_risk"),
+            "decision_shape": item.get("decision_shape"),
+            "priority_score": item.get("priority_score"),
+            "clip_count": item.get("clip_count"),
+            "question": item.get("question"),
+            "suggested_review_action": item.get("suggested_review_action"),
+            "why_queued": _batch_review_priority_reason(item),
+        }
+        for index, item in enumerate(ordered, start=1)
+    ]
+    counts = {
+        "high": sum(1 for item in queue_items if item.get("decision_risk") == "high"),
+        "medium": sum(1 for item in queue_items if item.get("decision_risk") == "medium"),
+        "low": sum(1 for item in queue_items if item.get("decision_risk") == "low"),
+    }
+    return {
+        "strategy": "risk_then_priority_score",
+        "rationale": "Review high-risk speaker decisions first, then medium/low risk by descending priority score.",
+        "risk_counts": counts,
+        "items": queue_items,
+    }
+
+
+def _batch_review_priority_reason(item: dict[str, Any]) -> str:
+    risk = str(item.get("decision_risk") or "low")
+    shape = str(item.get("decision_shape") or "speaker_identity_review").replace("_", " ")
+    score = str(item.get("priority_score") or "").strip()
+    score_text = f"; score {score}" if score else ""
+    return f"{risk} risk; {shape}{score_text}"
+
+
+def _optional_float(value: Any, *, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def write_batch_review_sprint(
     proof_report_path: Path | str,
     *,
@@ -2879,6 +2934,8 @@ def verify_batch_review_sprint(
     markdown = resolved_markdown.read_text(encoding="utf-8") if resolved_markdown.exists() else ""
     sprint = payload.get("review_sprint") if isinstance(payload.get("review_sprint"), dict) else {}
     focus_order = sprint.get("focus_order") if isinstance(sprint.get("focus_order"), list) else []
+    priority_queue = sprint.get("priority_queue") if isinstance(sprint.get("priority_queue"), dict) else {}
+    priority_items = priority_queue.get("items") if isinstance(priority_queue.get("items"), list) else []
     pending_decision_count = _optional_int(sprint.get("pending_decision_count")) or 0
     pending_clip_count = _optional_int(sprint.get("pending_clip_count")) or 0
     clip_paths = [
@@ -2898,6 +2955,17 @@ def verify_batch_review_sprint(
         _check("proof_report_matches", str(payload.get("proof_report_path") or "") == str(proof_path), str(payload.get("proof_report_path"))),
         _check("has_focus_order", bool(focus_order) or pending_decision_count == 0, f"{len(focus_order)} focus item(s)"),
         _check("pending_decision_count_matches_focus", pending_decision_count == len(focus_order), f"{pending_decision_count}/{len(focus_order)}"),
+        _check(
+            "has_priority_queue",
+            pending_decision_count == 0
+            or (
+                priority_queue.get("strategy") == "risk_then_priority_score"
+                and len(priority_items) == pending_decision_count
+                and "Priority Queue" in markdown
+                and "risk then priority score" in markdown
+            ),
+            f"{len(priority_items)}/{pending_decision_count}",
+        ),
         _check("pending_clip_count_matches_paths", pending_clip_count == len(clip_paths), f"{pending_clip_count}/{len(clip_paths)}"),
         _check("has_transcript_samples", transcript_count >= pending_decision_count or pending_decision_count == 0, f"{transcript_count}/{pending_decision_count}"),
         _check(
@@ -3005,6 +3073,31 @@ def _render_batch_review_sprint_markdown(payload: dict[str, Any]) -> str:
     ]
     for rule in payload.get("decision_rubric") or BATCH_SPEAKER_DECISION_RUBRIC:
         lines.append(f"- {rule}")
+    priority_queue = sprint.get("priority_queue") if isinstance(sprint.get("priority_queue"), dict) else {}
+    priority_items = priority_queue.get("items") if isinstance(priority_queue.get("items"), list) else []
+    lines.extend(
+        [
+            "",
+            "## Priority Queue",
+            "",
+            f"- Strategy: `{str(priority_queue.get('strategy') or '').replace('_', ' ')}`",
+            f"- Rationale: {priority_queue.get('rationale') or 'Review the most informative pending decisions first.'}",
+        ]
+    )
+    risk_counts = priority_queue.get("risk_counts") if isinstance(priority_queue.get("risk_counts"), dict) else {}
+    if risk_counts:
+        lines.append(
+            f"- Risk counts: high `{risk_counts.get('high', 0)}`, medium `{risk_counts.get('medium', 0)}`, low `{risk_counts.get('low', 0)}`"
+        )
+    lines.append("")
+    if priority_items:
+        for item in priority_items:
+            lines.append(
+                f"{item.get('queue_order')}. `{item.get('cluster_id')}` -> `{item.get('speaker')}` "
+                f"({item.get('decision_risk')} risk): {item.get('why_queued')}"
+            )
+    else:
+        lines.append("- No pending speaker decisions.")
     lines.extend(
         [
             "",
