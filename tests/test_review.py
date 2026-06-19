@@ -153,6 +153,49 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(summary["approved_count"], 0)
         self.assertEqual(corrections.cli_args, [])
 
+    def test_create_anchor_review_sheet_allows_row_level_targets(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            packet = root / "cluster-clips.json"
+            packet.write_text(
+                json.dumps(
+                    {
+                        "target_speaker_label": "PAVO_REVIEW_CLUSTER",
+                        "target_speaker_name": "Pavo review clusters",
+                        "display_mode": "human_review",
+                        "review_title": "Cluster Review",
+                        "clips": [
+                            {
+                                "index": 1,
+                                "target_speaker_label": "Daniel",
+                                "target_speaker_name": "Daniel",
+                                "start": 1.0,
+                                "end": 2.0,
+                                "text": "Daniel sample",
+                                "clip_path": "/tmp/daniel.mp3",
+                            },
+                            {
+                                "index": 2,
+                                "target_speaker_label": "Alex",
+                                "target_speaker_name": "Alex",
+                                "start": 3.0,
+                                "end": 4.0,
+                                "text": "Alex sample",
+                                "clip_path": "/tmp/alex.mp3",
+                            },
+                        ],
+                    }
+                )
+            )
+
+            result = create_anchor_review_sheet(packet)
+            sheet = json.loads(result.review_sheet_path.read_text())
+
+        self.assertEqual(sheet["display_mode"], "human_review")
+        self.assertEqual(sheet["review_title"], "Cluster Review")
+        self.assertEqual(sheet["rows"][0]["target_speaker_label"], "Daniel")
+        self.assertEqual(sheet["rows"][1]["target_speaker_label"], "Alex")
+
     def test_compile_anchor_review_corrections_exports_only_approved_rows(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

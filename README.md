@@ -81,6 +81,7 @@ After a batch is processed, use one command to get the operational truth:
 ```bash
 pavo brief /path/to/meeting-batch
 pavo brief /path/to/meeting-batch --review-plan
+pavo brief /path/to/meeting-batch --review-plan-clips
 ```
 
 The brief writes `pavo-meeting-brief.json` and `pavo-meeting-brief.md` with
@@ -95,6 +96,11 @@ turns speaker-review clusters into safe human review actions: identify or
 enroll unknown speakers, sample low-confidence named speakers, export reviewed
 corrections, and rerun attribution. It explicitly forbids mass approval of a
 speaker cluster.
+
+When `--review-plan-clips` is passed, Pavo also extracts the sampled cluster
+spans into local audio clips, writes `pavo-review-cluster-clips.json`, creates
+`pavo-review-cluster-sheet.json`, renders `pavo-review-cluster.html`, and builds
+`pavo-review-cluster-bundle/` for localhost review.
 
 The problems Pavo is built around:
 

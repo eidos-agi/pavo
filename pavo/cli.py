@@ -7,7 +7,13 @@ import sys
 from pathlib import Path
 
 from .audio import run_audio_doctor
-from .brief import build_meeting_brief, build_review_cluster_plan, write_meeting_brief, write_review_cluster_plan
+from .brief import (
+    build_meeting_brief,
+    build_review_cluster_plan,
+    write_meeting_brief,
+    write_review_cluster_clip_packet,
+    write_review_cluster_plan,
+)
 from .config import DEFAULT_HOME, home_from_arg, init_home
 from .download import save_audio
 from .overlap import SeparateOverlapsRequest, separate_overlaps
@@ -52,6 +58,8 @@ def build_parser() -> argparse.ArgumentParser:
     brief.add_argument("--packet-limit", type=int, default=25)
     brief.add_argument("--review-plan", action="store_true", help="Also write a safe cluster-based human review plan")
     brief.add_argument("--review-plan-sample-limit", type=int, default=5, help="Sample rows per review cluster")
+    brief.add_argument("--review-plan-clips", action="store_true", help="Extract sampled review clips and render a review page")
+    brief.add_argument("--review-plan-clip-limit", type=int, default=25, help="Maximum review-plan clips to extract")
     brief.add_argument("--json", action="store_true", help="Print the full brief payload as JSON")
 
     audio = subparsers.add_parser("audio", help="Audio intelligence checks")
@@ -235,14 +243,40 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         brief_payload = build_meeting_brief(args.root, review_limit=args.review_limit, packet_limit=args.packet_limit)
         outputs = write_meeting_brief(brief_payload, args.out_dir or args.root)
+        out_dir = args.out_dir or args.root
         review_plan_outputs = None
         review_plan_payload = None
-        if args.review_plan:
+        review_clip_outputs = None
+        review_sheet_path = None
+        review_page_path = None
+        review_bundle_path = None
+        if args.review_plan or args.review_plan_clips:
             review_plan_payload = build_review_cluster_plan(
                 brief_payload,
                 sample_limit_per_cluster=args.review_plan_sample_limit,
             )
-            review_plan_outputs = write_review_cluster_plan(review_plan_payload, args.out_dir or args.root)
+            review_plan_outputs = write_review_cluster_plan(review_plan_payload, out_dir)
+        if args.review_plan_clips and review_plan_payload:
+            review_clip_outputs = write_review_cluster_clip_packet(
+                review_plan_payload,
+                out_dir,
+                max_clips=args.review_plan_clip_limit,
+            )
+            review_sheet = create_anchor_review_sheet(
+                review_clip_outputs.packet_path,
+                out_path=out_dir / "pavo-review-cluster-sheet.json",
+            )
+            review_page = create_anchor_review_page(
+                review_sheet.review_sheet_path,
+                out_path=out_dir / "pavo-review-cluster.html",
+            )
+            review_bundle = create_anchor_review_bundle(
+                review_sheet.review_sheet_path,
+                out_dir=out_dir / "pavo-review-cluster-bundle",
+            )
+            review_sheet_path = review_sheet.review_sheet_path
+            review_page_path = review_page.review_page_path
+            review_bundle_path = review_bundle.bundle_dir
         if args.json:
             print(
                 __import__("json").dumps(
@@ -251,6 +285,12 @@ def main(argv: list[str] | None = None) -> int:
                         "brief_markdown": str(outputs.markdown_path),
                         "review_plan_json": str(review_plan_outputs.json_path) if review_plan_outputs else None,
                         "review_plan_markdown": str(review_plan_outputs.markdown_path) if review_plan_outputs else None,
+                        "review_clip_packet": str(review_clip_outputs.packet_path) if review_clip_outputs else None,
+                        "review_clip_count": review_clip_outputs.extracted_clip_count if review_clip_outputs else None,
+                        "review_missing_audio_count": review_clip_outputs.missing_audio_count if review_clip_outputs else None,
+                        "review_sheet": str(review_sheet_path) if review_sheet_path else None,
+                        "review_page": str(review_page_path) if review_page_path else None,
+                        "review_bundle": str(review_bundle_path) if review_bundle_path else None,
                         "review_plan": review_plan_payload,
                         **brief_payload,
                     },
@@ -269,6 +309,13 @@ def main(argv: list[str] | None = None) -> int:
             if review_plan_outputs:
                 print(f"review_plan_json: {review_plan_outputs.json_path}")
                 print(f"review_plan_markdown: {review_plan_outputs.markdown_path}")
+            if review_clip_outputs:
+                print(f"review_clip_packet: {review_clip_outputs.packet_path}")
+                print(f"review_clip_count: {review_clip_outputs.extracted_clip_count}")
+                print(f"review_missing_audio_count: {review_clip_outputs.missing_audio_count}")
+                print(f"review_sheet: {review_sheet_path}")
+                print(f"review_page: {review_page_path}")
+                print(f"review_bundle: {review_bundle_path}")
         return 0
 
     if args.command == "audio":

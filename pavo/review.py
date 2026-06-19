@@ -190,8 +190,8 @@ def create_anchor_review_sheet(
                 "index": clip.get("index"),
                 "status": "pending",
                 "approved": False,
-                "target_speaker_label": packet.get("target_speaker_label"),
-                "target_speaker_name": packet.get("target_speaker_name"),
+                "target_speaker_label": clip.get("target_speaker_label") or packet.get("target_speaker_label"),
+                "target_speaker_name": clip.get("target_speaker_name") or packet.get("target_speaker_name"),
                 "start": clip.get("start"),
                 "end": clip.get("end"),
                 "duration": clip.get("duration"),
@@ -201,6 +201,11 @@ def create_anchor_review_sheet(
                 "clip_path": clip.get("clip_path"),
                 "suggested_speaker_correction": clip.get("suggested_speaker_correction"),
                 "reviewer_note": "",
+                "case": clip.get("case"),
+                "expected_behavior": clip.get("expected_behavior"),
+                "review_heading": clip.get("review_heading"),
+                "review_prompt": clip.get("review_prompt"),
+                "review_subtitle": clip.get("review_subtitle"),
             }
         )
     sheet = {
@@ -215,6 +220,12 @@ def create_anchor_review_sheet(
         "approved_count": 0,
         "rejected_count": 0,
         "rows": rows,
+        "review_title": packet.get("review_title"),
+        "display_mode": packet.get("display_mode"),
+        "review_labels": packet.get("review_labels"),
+        "page_instructions": packet.get("page_instructions"),
+        "requires_import_instruction": packet.get("requires_import_instruction", True),
+        "requires_rerun_instruction": packet.get("requires_rerun_instruction", True),
         "instructions": [
             "Listen to each clip_path.",
             "Set approved true and status approved only for clean target-speaker clips.",

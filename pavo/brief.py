@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
+import subprocess
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -49,6 +51,14 @@ class BriefOutputs:
 class ReviewClusterPlanOutputs:
     json_path: Path
     markdown_path: Path
+
+
+@dataclass(frozen=True)
+class ReviewClusterClipPacketOutputs:
+    packet_path: Path
+    clips_dir: Path
+    extracted_clip_count: int
+    missing_audio_count: int
 
 
 def build_meeting_brief(root: Path, *, review_limit: int = 200, packet_limit: int = 25) -> dict[str, Any]:
@@ -192,6 +202,94 @@ def write_review_cluster_plan(plan: dict[str, Any], out_dir: Path) -> ReviewClus
     json_path.write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     markdown_path.write_text(render_review_cluster_plan_markdown(plan), encoding="utf-8")
     return ReviewClusterPlanOutputs(json_path=json_path, markdown_path=markdown_path)
+
+
+def write_review_cluster_clip_packet(
+    plan: dict[str, Any],
+    out_dir: Path,
+    *,
+    clip_padding: float = 0.25,
+    max_clips: int = 25,
+) -> ReviewClusterClipPacketOutputs:
+    out_dir = out_dir.expanduser().resolve()
+    clips_dir = out_dir / "pavo-review-cluster-clips"
+    clips_dir.mkdir(parents=True, exist_ok=True)
+    root = Path(str(plan.get("root") or "")).expanduser()
+    ffmpeg = shutil.which("ffmpeg")
+    clips: list[dict[str, Any]] = []
+    missing_audio = 0
+    for cluster_index, cluster in enumerate(plan.get("clusters") or [], start=1):
+        for sample_index, sample in enumerate(cluster.get("samples") or [], start=1):
+            if len(clips) >= max_clips:
+                break
+            audio_path = _resolve_sample_audio_path(root, sample.get("recording_id"))
+            start, end = _sample_window(sample, padding=clip_padding)
+            clip_path = clips_dir / f"cluster-{cluster_index:02d}-sample-{sample_index:02d}.mp3"
+            present = False
+            if audio_path and ffmpeg and start is not None and end is not None:
+                present = _extract_audio_clip(ffmpeg, audio_path, clip_path, start=start, end=end)
+            if not present:
+                missing_audio += 1
+            clips.append(
+                {
+                    "index": len(clips) + 1,
+                    "case": cluster.get("cluster_key"),
+                    "recording_id": sample.get("recording_id"),
+                    "target_speaker_label": cluster.get("speaker"),
+                    "target_speaker_name": cluster.get("speaker"),
+                    "start": sample.get("start"),
+                    "end": sample.get("end"),
+                    "duration": _window_duration(sample),
+                    "text": sample.get("text"),
+                    "confidence": sample.get("confidence"),
+                    "method": sample.get("ensemble_source"),
+                    "clip_path": str(clip_path),
+                    "clip_size_bytes": clip_path.stat().st_size if clip_path.exists() else 0,
+                    "present": present,
+                    "suggested_speaker_correction": "",
+                    "review_heading": str(cluster.get("cluster_key") or "Review cluster"),
+                    "review_subtitle": str(cluster.get("review_mode") or "speaker review"),
+                    "review_prompt": str(cluster.get("recommended_next_action") or "Listen and decide whether the speaker claim is usable."),
+                    "expected_behavior": str(cluster.get("stop_condition") or "Human reviewer records a clear decision."),
+                }
+            )
+        if len(clips) >= max_clips:
+            break
+    packet = {
+        "passed": bool(clips and missing_audio == 0),
+        "human_reviewed": False,
+        "review_packet": str(out_dir / "pavo-review-cluster-plan.json"),
+        "target_speaker_label": "PAVO_REVIEW_CLUSTER",
+        "target_speaker_name": "Pavo review clusters",
+        "review_title": "Pavo Review Clusters",
+        "display_mode": "human_review",
+        "requires_import_instruction": False,
+        "requires_rerun_instruction": False,
+        "review_labels": {
+            "buttons": {"approved": "Usable", "rejected": "Problem", "pending": "Unsure"},
+            "status": {"approved": "usable", "rejected": "problem", "pending": "unreviewed"},
+        },
+        "page_instructions": [
+            "Listen to each cluster sample.",
+            "Mark Usable only when the speaker evidence is clear enough to become an anchor or routing hint.",
+            "Mark Problem when the speaker is wrong, mixed, noisy, or uncertain.",
+            "This review does not mass-approve a cluster; it creates human evidence for the next rerun.",
+        ],
+        "candidate_count": len(clips),
+        "clip_count": sum(1 for clip in clips if clip["present"]),
+        "missing_audio_count": missing_audio,
+        "clips_dir": str(clips_dir),
+        "clips": clips,
+        "next_required_proof": "human reviewer clears sampled cluster clips, then Pavo generates reviewed corrections or enrollment anchors.",
+    }
+    packet_path = out_dir / "pavo-review-cluster-clips.json"
+    packet_path.write_text(json.dumps(packet, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return ReviewClusterClipPacketOutputs(
+        packet_path=packet_path,
+        clips_dir=clips_dir,
+        extracted_clip_count=sum(1 for clip in clips if clip["present"]),
+        missing_audio_count=missing_audio,
+    )
 
 
 def render_meeting_brief_markdown(brief: dict[str, Any]) -> str:
@@ -608,6 +706,71 @@ def _cluster_review_action(
         "forbidden_actions": ["mass_approve_cluster", "publish_raw_audio", "publish_voiceprints", "write_external_tasks_with_unreviewed_speaker_claims"],
         "stop_condition": stop_condition,
     }
+
+
+def _resolve_sample_audio_path(root: Path, recording_id: Any) -> Path | None:
+    if not recording_id:
+        return None
+    recording = str(recording_id)
+    candidates = [
+        root / recording / f"{recording}.mp3",
+        root / recording / f"{recording}.m4a",
+        root / recording / f"{recording}.wav",
+        root / recording / f"{recording}.aac",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    for candidate in root.rglob(f"{recording}.*"):
+        if candidate.suffix.lower() in AUDIO_SUFFIXES and candidate.is_file():
+            return candidate
+    return None
+
+
+def _sample_window(sample: dict[str, Any], *, padding: float) -> tuple[float | None, float | None]:
+    try:
+        start = max(0.0, float(sample.get("start")) - padding)
+        end = float(sample.get("end")) + padding
+    except (TypeError, ValueError):
+        return None, None
+    if end <= start:
+        return None, None
+    return start, end
+
+
+def _window_duration(sample: dict[str, Any]) -> float:
+    try:
+        return round(max(0.0, float(sample.get("end")) - float(sample.get("start"))), 2)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _extract_audio_clip(ffmpeg: str, source: Path, target: Path, *, start: float, end: float) -> bool:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    command = [
+        ffmpeg,
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-ss",
+        f"{start:.3f}",
+        "-to",
+        f"{end:.3f}",
+        "-i",
+        str(source),
+        "-vn",
+        "-c:a",
+        "libmp3lame",
+        "-q:a",
+        "4",
+        str(target),
+    ]
+    try:
+        subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError:
+        return target.exists() and target.stat().st_size > 0
+    return target.exists() and target.stat().st_size > 0
 
 
 def _duration(segment: dict[str, Any]) -> float:

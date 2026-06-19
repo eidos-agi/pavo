@@ -3,7 +3,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from pavo.brief import build_meeting_brief, build_review_cluster_plan, write_meeting_brief, write_review_cluster_plan
+from pavo.brief import (
+    build_meeting_brief,
+    build_review_cluster_plan,
+    write_meeting_brief,
+    write_review_cluster_clip_packet,
+    write_review_cluster_plan,
+)
 from pavo.cli import main
 
 
@@ -250,3 +256,58 @@ class BriefTests(unittest.TestCase):
             self.assertEqual(main(["brief", str(root), "--review-plan"]), 0)
             self.assertTrue((root / "pavo-review-cluster-plan.json").exists())
             self.assertTrue((root / "pavo-review-cluster-plan.md").exists())
+
+    def test_review_cluster_clip_packet_extracts_sample_audio(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            recording = root / "rec-1"
+            recording.mkdir()
+            audio = recording / "rec-1.wav"
+            _write_test_wav(audio)
+            plan = {
+                "root": str(root),
+                "clusters": [
+                    {
+                        "cluster_key": "Daniel / low_confidence_named_speaker",
+                        "speaker": "Daniel",
+                        "review_mode": "confirm_named_speaker_confidence",
+                        "recommended_next_action": "Confirm Daniel sample.",
+                        "stop_condition": "Human reviewed.",
+                        "samples": [
+                            {
+                                "recording_id": "rec-1",
+                                "start": 0.1,
+                                "end": 0.8,
+                                "confidence": "low",
+                                "ensemble_source": "named_speaker_evidence",
+                                "text": "sample text",
+                            }
+                        ],
+                    }
+                ],
+            }
+
+            result = write_review_cluster_clip_packet(plan, root)
+            packet = json.loads(result.packet_path.read_text())
+
+            self.assertEqual(result.extracted_clip_count, 1)
+            self.assertEqual(result.missing_audio_count, 0)
+            self.assertEqual(packet["candidate_count"], 1)
+            self.assertEqual(packet["clips"][0]["target_speaker_label"], "Daniel")
+            self.assertEqual(packet["clips"][0]["recording_id"], "rec-1")
+            self.assertTrue(Path(packet["clips"][0]["clip_path"]).exists())
+
+
+def _write_test_wav(path: Path) -> None:
+    import math
+    import struct
+    import wave
+
+    sample_rate = 8000
+    with wave.open(str(path), "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(sample_rate)
+        for index in range(sample_rate):
+            value = int(12000 * math.sin(2 * math.pi * 440 * index / sample_rate))
+            wav.writeframes(struct.pack("<h", value))
