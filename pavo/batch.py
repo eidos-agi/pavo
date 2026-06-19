@@ -274,6 +274,18 @@ class BatchProofResult:
         lines.extend(
             [
                 "",
+                "## Fillable Review Slate",
+                "",
+                "Copy this block into a TSV file, change `decision` from `pending` to `approved` or `rejected`, adjust `speaker` if needed, then run the validate and finish commands above.",
+                "",
+                "```tsv",
+            ]
+        )
+        lines.extend(_review_packet_slate_tsv_lines(top_items))
+        lines.extend(
+            [
+                "```",
+                "",
                 "## Checks",
                 "",
             ]
@@ -519,6 +531,28 @@ def _review_packet_summary(batch_root: Path, cluster_gate: dict[str, Any] | None
         ],
         "safety_boundary": "Review packet lists required human speaker decisions; it does not approve identity.",
     }
+
+
+def _review_packet_slate_tsv_lines(items: list[dict[str, Any]]) -> list[str]:
+    lines = ["row_index\tcluster_id\tdecision\tspeaker\tnote"]
+    for item in items:
+        note = f"reviewed via pavo-batch-proof rank {item.get('rank')}; {item.get('question') or ''}"
+        lines.append(
+            "\t".join(
+                [
+                    str(item.get("row_index") or ""),
+                    str(item.get("cluster_id") or ""),
+                    "pending",
+                    str(item.get("target_speaker") or ""),
+                    _tsv_safe(note),
+                ]
+            )
+        )
+    return lines
+
+
+def _tsv_safe(value: str) -> str:
+    return value.replace("\t", " ").replace("\r", " ").replace("\n", " ").strip()
 
 
 def verify_batch_manifest(report_path: Path | str) -> BatchManifestVerificationResult:

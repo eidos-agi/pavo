@@ -175,6 +175,9 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("Why: acoustic drift; high impact", proof_markdown)
         self.assertIn("Transcript: hello from the sample", proof_markdown)
         self.assertIn("Finish from slate:", proof_markdown)
+        self.assertIn("## Fillable Review Slate", proof_markdown)
+        self.assertIn("row_index\tcluster_id\tdecision\tspeaker\tnote", proof_markdown)
+        self.assertIn("1\tS1\tpending\tDaniel", proof_markdown)
         self.assertTrue(proof_markdown_exists)
 
     def test_batch_proof_cli_strict_complete_fails_when_human_gate_pending(self):
