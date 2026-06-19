@@ -117,6 +117,8 @@ pavo batch review-sprint /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch verify-review-sprint /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch speaker-answer-sheet /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch verify-speaker-answer-sheet /path/to/meeting-batch/pavo-batch-proof.json
+pavo batch speaker-suggestions /path/to/meeting-batch/pavo-batch-proof.json
+pavo batch verify-speaker-suggestions /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch review-rehearsal /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch verify-review-rehearsal /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch speaker-calibration /path/to/meeting-batch/pavo-batch-proof.json
@@ -256,6 +258,17 @@ review context for every row, and carries the finish command plus identity
 safety boundary. Review packs generate and include these answer-sheet files
 automatically.
 
+Use `pavo batch speaker-suggestions` to write
+`pavo-batch-speaker-suggestions.json`, Markdown, and TSV from the current
+answer sheet. This is the machine-side review assistant: it labels each pending
+speaker decision with a machine suggested decision, confidence tier, review
+lane, recommended review reason, and explicit safety blockers. Every row
+remains `human_required=true`; suggestions are hypotheses that speed review,
+not approvals. Use `pavo batch verify-speaker-suggestions` to prove the
+suggestion files exist, match the current proof report, include confidence and
+review-lane labels, carry the finish command, and preserve the safety boundary.
+Review packs generate and include these suggestion files automatically.
+
 Use `pavo batch review-rehearsal` immediately before a human listener starts.
 It regenerates the decision board, review sprint, speaker answer sheet, and
 review pack; verifies all of them; compares pending decision and clip counts;
@@ -284,9 +297,10 @@ artifact links, finish commands, and the rehearsal checks. Use
 front door.
 
 Use `pavo batch review-now` as the fastest safe human-review launch path. It
-regenerates the sprint, speaker answer sheet, and decision board, verifies the
-sprint and answer sheet, checks readiness, prints the review sprint, speaker
-answer sheet, decision board, expected audit JSON path, exact
+regenerates the sprint, speaker answer sheet, speaker suggestions, and decision
+board, verifies the sprint, answer sheet, suggestions, and cockpit, checks
+readiness, prints the review sprint, speaker answer sheet, speaker suggestions,
+decision board, expected audit JSON path, exact
 `finalize-board-audit` command, review progress percent, export readiness,
 missing reason count, and next action. Add `--open-board` or `--open-sprint` when the
 operator wants Pavo to open the local review surfaces directly. The sprint and

@@ -690,6 +690,62 @@ class BatchSpeakerAnswerSheetVerifyResult:
 
 
 @dataclass(frozen=True)
+class BatchSpeakerSuggestionResult:
+    proof_report_path: Path
+    out_dir: Path
+    json_path: Path
+    markdown_path: Path
+    tsv_path: Path
+    pending_decision_count: int
+    auto_accept_candidate_count: int
+    must_listen_count: int
+    payload: dict[str, Any]
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "proof_report_path": str(self.proof_report_path),
+            "out_dir": str(self.out_dir),
+            "json_path": str(self.json_path),
+            "markdown_path": str(self.markdown_path),
+            "tsv_path": str(self.tsv_path),
+            "pending_decision_count": self.pending_decision_count,
+            "auto_accept_candidate_count": self.auto_accept_candidate_count,
+            "must_listen_count": self.must_listen_count,
+            "payload": self.payload,
+            "safety_boundary": "Speaker suggestions are machine hypotheses for faster review. They do not approve identity or replace listening.",
+        }
+
+
+@dataclass(frozen=True)
+class BatchSpeakerSuggestionVerifyResult:
+    proof_report_path: Path
+    json_path: Path
+    markdown_path: Path
+    tsv_path: Path
+    passed: bool
+    suggestion_count: int
+    auto_accept_candidate_count: int
+    must_listen_count: int
+    checks: list[dict[str, Any]]
+    blockers: list[str]
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "proof_report_path": str(self.proof_report_path),
+            "json_path": str(self.json_path),
+            "markdown_path": str(self.markdown_path),
+            "tsv_path": str(self.tsv_path),
+            "passed": self.passed,
+            "suggestion_count": self.suggestion_count,
+            "auto_accept_candidate_count": self.auto_accept_candidate_count,
+            "must_listen_count": self.must_listen_count,
+            "checks": self.checks,
+            "blockers": self.blockers,
+            "safety_boundary": "Suggestion verification proves the machine hypothesis sheet is present and safety-labeled. It does not approve speaker identity.",
+        }
+
+
+@dataclass(frozen=True)
 class BatchReviewRehearsalResult:
     proof_report_path: Path
     out_dir: Path
@@ -2509,6 +2565,7 @@ def write_batch_review_pack(
     write_batch_decision_board(proof_path)
     write_batch_review_sprint(proof_path, out_dir=proof_path.parent)
     answer_sheet_result = write_batch_speaker_answer_sheet(proof_path, out_dir=proof_path.parent)
+    write_batch_speaker_suggestions(proof_path, out_dir=proof_path.parent)
     calibration_result = write_batch_speaker_calibration(proof_path, out_dir=proof_path.parent)
     _write_batch_review_pack_cockpit(
         proof_path,
@@ -2656,6 +2713,8 @@ def _write_batch_review_pack_cockpit(
             "review_sprint_markdown": str(proof_path.with_name("pavo-batch-review-sprint.md")),
             "speaker_answer_sheet_markdown": str(answer_sheet_result.markdown_path),
             "speaker_answer_sheet_tsv": str(answer_sheet_result.tsv_path),
+            "speaker_suggestions_markdown": str(proof_path.with_name("pavo-batch-speaker-suggestions.md")),
+            "speaker_suggestions_tsv": str(proof_path.with_name("pavo-batch-speaker-suggestions.tsv")),
             "speaker_calibration_markdown": str(calibration_result.get("markdown_path") or ""),
             "speaker_calibration_tsv": str(calibration_result.get("tsv_path") or ""),
             "review_pack": str(target_dir),
@@ -2697,9 +2756,13 @@ def verify_batch_review_pack(
         _check("readme_has_finalize_board_audit", "pavo batch finalize-board-audit" in readme_text, "finalize-board-audit"),
         _check("readme_has_readiness", "pavo batch readiness" in readme_text, "readiness"),
         _check("readme_has_review_cockpit", "pavo batch review-cockpit" in readme_text, "review cockpit"),
+        _check("readme_has_speaker_suggestions", "pavo batch speaker-suggestions" in readme_text, "speaker suggestions"),
         _check("readme_has_speaker_calibration", "pavo batch speaker-calibration" in readme_text, "speaker calibration"),
         _check("readme_has_safety_boundary", "excludes raw audio" in readme_text, "raw-audio boundary"),
         _check("has_review_cockpit_html", "review_cockpit_html" in artifacts, "review_cockpit_html"),
+        _check("has_speaker_suggestions_json", "speaker_suggestions_json" in artifacts, "speaker_suggestions_json"),
+        _check("has_speaker_suggestions_markdown", "speaker_suggestions_markdown" in artifacts, "speaker_suggestions_markdown"),
+        _check("has_speaker_suggestions_tsv", "speaker_suggestions_tsv" in artifacts, "speaker_suggestions_tsv"),
         _check("has_speaker_calibration_json", "speaker_calibration_json" in artifacts, "speaker_calibration_json"),
         _check("has_speaker_calibration_markdown", "speaker_calibration_markdown" in artifacts, "speaker_calibration_markdown"),
         _check("has_speaker_calibration_tsv", "speaker_calibration_tsv" in artifacts, "speaker_calibration_tsv"),
@@ -3289,6 +3352,278 @@ def verify_batch_speaker_answer_sheet(
     )
 
 
+def write_batch_speaker_suggestions(
+    proof_report_path: Path | str,
+    *,
+    out_dir: Path | str | None = None,
+) -> BatchSpeakerSuggestionResult:
+    proof_path = Path(proof_report_path)
+    target_dir = Path(out_dir) if out_dir else proof_path.parent
+    target_dir.mkdir(parents=True, exist_ok=True)
+    answer_result = write_batch_speaker_answer_sheet(proof_path, out_dir=proof_path.parent)
+    rows, _fieldnames = _read_tsv(answer_result.tsv_path)
+    suggestions = [_batch_speaker_suggestion_from_answer_row(row) for row in rows]
+    payload = {
+        "generated_at": datetime.now(UTC).isoformat(),
+        "proof_report_path": str(proof_path),
+        "source_answer_sheet_tsv": str(answer_result.tsv_path),
+        "pending_decision_count": len(suggestions),
+        "auto_accept_candidate_count": sum(1 for item in suggestions if item.get("review_lane") == "quick_confirm"),
+        "must_listen_count": sum(1 for item in suggestions if item.get("review_lane") != "quick_confirm"),
+        "suggestions": suggestions,
+        "commands": {
+            "answer_sheet": f"pavo batch speaker-answer-sheet {shlex.quote(str(proof_path))}",
+            "decision_board": f"pavo batch decision-board {shlex.quote(str(proof_path))}",
+            "finalize_board_audit": _batch_finalize_board_audit_command(proof_path, enrich_operator_handoff_with_validation(load_operator_handoff(proof_path))),
+        },
+        "safety_boundary": "Suggestions shorten review by ranking hypotheses. They do not approve identity; the reviewer must still listen before finalizing.",
+    }
+    json_path = target_dir / "pavo-batch-speaker-suggestions.json"
+    markdown_path = target_dir / "pavo-batch-speaker-suggestions.md"
+    tsv_path = target_dir / "pavo-batch-speaker-suggestions.tsv"
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    markdown_path.write_text(_render_batch_speaker_suggestions_markdown(payload), encoding="utf-8")
+    _write_batch_speaker_suggestions_tsv(tsv_path, payload)
+    return BatchSpeakerSuggestionResult(
+        proof_report_path=proof_path,
+        out_dir=target_dir,
+        json_path=json_path,
+        markdown_path=markdown_path,
+        tsv_path=tsv_path,
+        pending_decision_count=len(suggestions),
+        auto_accept_candidate_count=int(payload["auto_accept_candidate_count"]),
+        must_listen_count=int(payload["must_listen_count"]),
+        payload=payload,
+    )
+
+
+def verify_batch_speaker_suggestions(
+    proof_report_path: Path | str,
+    *,
+    json_path: Path | str | None = None,
+    markdown_path: Path | str | None = None,
+    tsv_path: Path | str | None = None,
+) -> BatchSpeakerSuggestionVerifyResult:
+    proof_path = Path(proof_report_path)
+    resolved_json = Path(json_path) if json_path else proof_path.with_name("pavo-batch-speaker-suggestions.json")
+    resolved_markdown = Path(markdown_path) if markdown_path else proof_path.with_name("pavo-batch-speaker-suggestions.md")
+    resolved_tsv = Path(tsv_path) if tsv_path else proof_path.with_name("pavo-batch-speaker-suggestions.tsv")
+    payload = json.loads(resolved_json.read_text()) if resolved_json.exists() else {}
+    markdown = resolved_markdown.read_text(encoding="utf-8") if resolved_markdown.exists() else ""
+    rows: list[dict[str, str]] = []
+    fieldnames: list[str] = []
+    if resolved_tsv.exists():
+        rows, fieldnames = _read_tsv(resolved_tsv)
+    suggestions = payload.get("suggestions") if isinstance(payload.get("suggestions"), list) else []
+    suggestion_count = len(suggestions)
+    auto_accept_count = sum(1 for item in suggestions if isinstance(item, dict) and item.get("review_lane") == "quick_confirm")
+    must_listen_count = sum(1 for item in suggestions if isinstance(item, dict) and item.get("review_lane") != "quick_confirm")
+    required_fields = {
+        "queue_order",
+        "decision_group",
+        "cluster_id",
+        "machine_suggested_decision",
+        "machine_confidence",
+        "review_lane",
+        "human_required",
+    }
+    checks = [
+        _check("suggestions_json_exists", resolved_json.exists() and resolved_json.is_file(), str(resolved_json)),
+        _check("suggestions_markdown_exists", resolved_markdown.exists() and resolved_markdown.is_file(), str(resolved_markdown)),
+        _check("suggestions_tsv_exists", resolved_tsv.exists() and resolved_tsv.is_file(), str(resolved_tsv)),
+        _check("proof_report_matches", str(payload.get("proof_report_path") or "") == str(proof_path), str(payload.get("proof_report_path") or "")),
+        _check("tsv_has_required_fields", required_fields.issubset(set(fieldnames)), ",".join(fieldnames)),
+        _check("suggestion_count_matches_tsv", suggestion_count == len(rows), f"{suggestion_count}/{len(rows)}"),
+        _check("has_machine_confidence", all(item.get("machine_confidence") for item in suggestions if isinstance(item, dict)), "confidence labels"),
+        _check("has_review_lane", all(item.get("review_lane") for item in suggestions if isinstance(item, dict)), "review lanes"),
+        _check("human_required_explicit", all(item.get("human_required") is True for item in suggestions if isinstance(item, dict)), "human required"),
+        _check("markdown_has_title", "Pavo Speaker Suggestions" in markdown, "title"),
+        _check("markdown_has_safety_boundary", "do not approve identity" in markdown.lower() or "does not approve identity" in markdown.lower(), "safety boundary"),
+        _check("markdown_has_finish_command", "pavo batch finalize-board-audit" in markdown, "finish command"),
+    ]
+    blockers = [f"{check['name']}: {check['detail']}" for check in checks if not check.get("passed")]
+    return BatchSpeakerSuggestionVerifyResult(
+        proof_report_path=proof_path,
+        json_path=resolved_json,
+        markdown_path=resolved_markdown,
+        tsv_path=resolved_tsv,
+        passed=not blockers,
+        suggestion_count=suggestion_count,
+        auto_accept_candidate_count=auto_accept_count,
+        must_listen_count=must_listen_count,
+        checks=checks,
+        blockers=blockers,
+    )
+
+
+def _batch_speaker_suggestion_from_answer_row(row: dict[str, str]) -> dict[str, Any]:
+    risk = str(row.get("decision_risk") or "").strip().lower()
+    shape = str(row.get("decision_shape") or "").strip()
+    acoustic = str(row.get("acoustic_verdict") or "").strip().lower()
+    clip_count = _optional_int(row.get("clip_count")) or 0
+    machine_suggested_decision = "pending"
+    machine_confidence = "low"
+    review_lane = "must_listen"
+    reasons: list[str] = []
+    blockers: list[str] = []
+    if shape == "confirm_or_reject_proposed_identity" and risk == "low" and clip_count == 1 and not acoustic:
+        machine_suggested_decision = "approved"
+        machine_confidence = "medium"
+        review_lane = "quick_confirm"
+        reasons.append("Single low-risk confirmation row with no acoustic warning.")
+    elif shape == "confirm_or_reject_proposed_identity" and risk in {"low", "medium"} and "mixed" not in acoustic and "drift" not in acoustic:
+        machine_suggested_decision = "approved"
+        machine_confidence = "low" if risk == "medium" else "medium"
+        review_lane = "confirm_all_clips"
+        reasons.append("Confirmation-shaped row; proposed speaker may be right if every clip agrees.")
+    elif shape == "choose_between_named_speakers":
+        review_lane = "compare_candidates"
+        blockers.append("Question names competing speakers; machine should not pick without listening.")
+    elif shape == "open_identity_choice":
+        review_lane = "identity_search"
+        blockers.append("Open identity question; machine needs human speaker judgment.")
+    else:
+        blockers.append("No safe auto-accept rule matched.")
+    if risk == "high":
+        blockers.append("High-risk decision.")
+    if "drift" in acoustic:
+        blockers.append("Acoustic drift warning.")
+    if "mixed" in acoustic:
+        blockers.append("Mixed acoustic evidence warning.")
+    if clip_count > 1 and review_lane == "quick_confirm":
+        review_lane = "confirm_all_clips"
+        machine_confidence = "low"
+        blockers.append("Multiple clips require every clip to match.")
+    if not reasons:
+        reasons.append(str(row.get("suggested_review_action") or "Listen before deciding."))
+    return {
+        "queue_order": _optional_int(row.get("queue_order")) or 0,
+        "decision_group": row.get("decision_group"),
+        "cluster_id": row.get("cluster_id"),
+        "speaker": row.get("speaker"),
+        "machine_suggested_decision": machine_suggested_decision,
+        "machine_confidence": machine_confidence,
+        "review_lane": review_lane,
+        "human_required": True,
+        "recommended_review_reason": _batch_speaker_suggestion_review_reason(machine_suggested_decision, blockers),
+        "decision_risk": row.get("decision_risk"),
+        "decision_shape": row.get("decision_shape"),
+        "clip_count": clip_count,
+        "question": row.get("question"),
+        "why": " ".join(reasons),
+        "safety_blockers": list(dict.fromkeys(blockers)),
+        "clip_paths": row.get("clip_paths"),
+        "transcript_samples": row.get("transcript_samples"),
+    }
+
+
+def _batch_speaker_suggestion_review_reason(decision: str, blockers: list[str]) -> str:
+    if decision == "approved" and not blockers:
+        return "approved_clean_match"
+    if any("drift" in blocker.lower() or "mixed" in blocker.lower() for blocker in blockers):
+        return "pending_second_listener"
+    if decision == "approved":
+        return "pending_uncertain"
+    return "pending_uncertain"
+
+
+def _render_batch_speaker_suggestions_markdown(payload: dict[str, Any]) -> str:
+    suggestions = payload.get("suggestions") if isinstance(payload.get("suggestions"), list) else []
+    commands = payload.get("commands") if isinstance(payload.get("commands"), dict) else {}
+    lines = [
+        "# Pavo Speaker Suggestions",
+        "",
+        f"- Pending decisions: `{payload.get('pending_decision_count')}`",
+        f"- Quick-confirm candidates: `{payload.get('auto_accept_candidate_count')}`",
+        f"- Must-listen decisions: `{payload.get('must_listen_count')}`",
+        f"- Source answer sheet: `{payload.get('source_answer_sheet_tsv')}`",
+        "",
+        "## How To Use",
+        "",
+        "These are machine hypotheses only. Open the decision board, listen to the clips, then write the human decision.",
+        "",
+        "## Suggestions",
+        "",
+    ]
+    if suggestions:
+        for item in suggestions:
+            if not isinstance(item, dict):
+                continue
+            lines.extend(
+                [
+                    f"### {item.get('queue_order')}. {item.get('decision_group')} / {item.get('cluster_id')} -> {item.get('speaker')}",
+                    "",
+                    f"- Machine suggested decision: `{item.get('machine_suggested_decision')}`",
+                    f"- Machine confidence: `{item.get('machine_confidence')}`",
+                    f"- Review lane: `{item.get('review_lane')}`",
+                    f"- Human required: `{str(bool(item.get('human_required'))).lower()}`",
+                    f"- Recommended review reason: `{item.get('recommended_review_reason')}`",
+                    f"- Question: {item.get('question')}",
+                    f"- Why: {item.get('why')}",
+                    "",
+                    "Safety blockers:",
+                    "",
+                ]
+            )
+            blockers = item.get("safety_blockers") if isinstance(item.get("safety_blockers"), list) else []
+            if blockers:
+                lines.extend(f"- {blocker}" for blocker in blockers)
+            else:
+                lines.append("- None, but listening is still required.")
+            lines.append("")
+    else:
+        lines.append("- No pending speaker decisions.")
+        lines.append("")
+    lines.extend(["## Commands", "", "```bash"])
+    for command in commands.values():
+        lines.append(str(command or ""))
+    lines.extend(["```", "", "## Safety Boundary", "", str(payload.get("safety_boundary") or "")])
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _write_batch_speaker_suggestions_tsv(path: Path, payload: dict[str, Any]) -> None:
+    fieldnames = [
+        "queue_order",
+        "decision_group",
+        "cluster_id",
+        "speaker",
+        "machine_suggested_decision",
+        "machine_confidence",
+        "review_lane",
+        "human_required",
+        "recommended_review_reason",
+        "decision_risk",
+        "decision_shape",
+        "clip_count",
+        "why",
+        "safety_blockers",
+    ]
+    rows = payload.get("suggestions") if isinstance(payload.get("suggestions"), list) else []
+    safe_rows: list[dict[str, str]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        safe_rows.append(
+            {
+                "queue_order": str(row.get("queue_order") or ""),
+                "decision_group": str(row.get("decision_group") or ""),
+                "cluster_id": str(row.get("cluster_id") or ""),
+                "speaker": str(row.get("speaker") or ""),
+                "machine_suggested_decision": str(row.get("machine_suggested_decision") or ""),
+                "machine_confidence": str(row.get("machine_confidence") or ""),
+                "review_lane": str(row.get("review_lane") or ""),
+                "human_required": str(bool(row.get("human_required"))).lower(),
+                "recommended_review_reason": str(row.get("recommended_review_reason") or ""),
+                "decision_risk": str(row.get("decision_risk") or ""),
+                "decision_shape": str(row.get("decision_shape") or ""),
+                "clip_count": str(row.get("clip_count") or ""),
+                "why": str(row.get("why") or ""),
+                "safety_blockers": " | ".join(str(value) for value in row.get("safety_blockers") or []),
+            }
+        )
+    _write_tsv(path, safe_rows, fieldnames)
+
+
 def write_batch_review_rehearsal(
     proof_report_path: Path | str,
     *,
@@ -3351,6 +3686,8 @@ def write_batch_review_rehearsal(
             "review_sprint_markdown": str(sprint_result.markdown_path),
             "speaker_answer_sheet_markdown": str(answer_result.markdown_path),
             "speaker_answer_sheet_tsv": str(answer_result.tsv_path),
+            "speaker_suggestions_markdown": str(proof_path.with_name("pavo-batch-speaker-suggestions.md")),
+            "speaker_suggestions_tsv": str(proof_path.with_name("pavo-batch-speaker-suggestions.tsv")),
             "speaker_calibration_markdown": str(calibration_result["markdown_path"]),
             "speaker_calibration_tsv": str(calibration_result["tsv_path"]),
             "review_pack": str(pack_result.out_dir),
@@ -4271,6 +4608,9 @@ def _batch_review_pack_artifacts(
         "proof_review_sprint_markdown": proof_path.with_name("pavo-batch-review-sprint.md"),
         "speaker_answer_sheet_markdown": proof_path.with_name("pavo-batch-speaker-answer-sheet.md"),
         "speaker_answer_sheet_tsv": proof_path.with_name("pavo-batch-speaker-answer-sheet.tsv"),
+        "speaker_suggestions_json": proof_path.with_name("pavo-batch-speaker-suggestions.json"),
+        "speaker_suggestions_markdown": proof_path.with_name("pavo-batch-speaker-suggestions.md"),
+        "speaker_suggestions_tsv": proof_path.with_name("pavo-batch-speaker-suggestions.tsv"),
         "speaker_calibration_json": proof_path.with_name("pavo-batch-speaker-calibration.json"),
         "speaker_calibration_markdown": proof_path.with_name("pavo-batch-speaker-calibration.md"),
         "speaker_calibration_tsv": proof_path.with_name("pavo-batch-speaker-calibration.tsv"),
@@ -4318,6 +4658,8 @@ def _render_batch_review_pack_readme(manifest: dict[str, Any]) -> str:
     readiness_command = f"pavo batch readiness {shlex.quote(proof_report)}"
     cockpit_command = f"pavo batch review-cockpit {shlex.quote(proof_report)}"
     verify_cockpit_command = f"pavo batch verify-review-cockpit {shlex.quote(proof_report)}"
+    suggestions_command = f"pavo batch speaker-suggestions {shlex.quote(proof_report)}"
+    verify_suggestions_command = f"pavo batch verify-speaker-suggestions {shlex.quote(proof_report)}"
     calibration_command = f"pavo batch speaker-calibration {shlex.quote(proof_report)}"
     agreement_command = "pavo batch score-speaker-agreement pavo-batch-speaker-calibration.tsv pavo-batch-speaker-calibration.tsv"
     lines = [
@@ -4334,6 +4676,7 @@ def _render_batch_review_pack_readme(manifest: dict[str, Any]) -> str:
         "## What To Open",
         "",
         "- Start with the artifact manifest entry named `review_cockpit_html` for the one-page operator cockpit.",
+        "- Use the entry named `speaker_suggestions_markdown` to see machine hypotheses and safety blockers before listening.",
         "- Use the artifact manifest entry named `proof_decision_board_html` for the human speaker decisions.",
         "- Use the entry named `proof_review_checklist_markdown` as the command checklist.",
         "- Inspect `proof_json` and `proof_review_validation_json` when a gate fails.",
@@ -4350,7 +4693,7 @@ def _render_batch_review_pack_readme(manifest: dict[str, Any]) -> str:
         "",
         "Run readiness before and after review to prove whether this pack is machine-clean, human-pending, or complete. After reviewing the board, download `pavo-batch-proof.decision-board.audit.json`, place it beside this README or run from your download directory, then use the one-command finalize path. The lower-level import command is included as a fallback.",
         "",
-        f"```bash\n{readiness_command}\n{cockpit_command}\n{verify_cockpit_command}\n{calibration_command}\n{audit_finalize_command}\n{readiness_command}\n\n# Optional second-listener agreement scoring after calibration TSV is filled:\n{agreement_command}\n\n# Fallback/manual path:\n{audit_import_command}\n{handoff.get('validate_command')}\n{handoff.get('finish_command')}\n{handoff.get('strict_proof_command')}\n```",
+        f"```bash\n{readiness_command}\n{cockpit_command}\n{verify_cockpit_command}\n{suggestions_command}\n{verify_suggestions_command}\n{calibration_command}\n{audit_finalize_command}\n{readiness_command}\n\n# Optional second-listener agreement scoring after calibration TSV is filled:\n{agreement_command}\n\n# Fallback/manual path:\n{audit_import_command}\n{handoff.get('validate_command')}\n{handoff.get('finish_command')}\n{handoff.get('strict_proof_command')}\n```",
         "",
         "## Safety Boundary",
         "",

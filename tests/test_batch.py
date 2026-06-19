@@ -707,6 +707,9 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("proof_review_sprint_markdown", artifact_names)
         self.assertIn("speaker_answer_sheet_markdown", artifact_names)
         self.assertIn("speaker_answer_sheet_tsv", artifact_names)
+        self.assertIn("speaker_suggestions_json", artifact_names)
+        self.assertIn("speaker_suggestions_markdown", artifact_names)
+        self.assertIn("speaker_suggestions_tsv", artifact_names)
         self.assertIn("speaker_calibration_json", artifact_names)
         self.assertIn("speaker_calibration_markdown", artifact_names)
         self.assertIn("speaker_calibration_tsv", artifact_names)
@@ -721,6 +724,8 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("pavo batch readiness", readme)
         self.assertIn("pavo batch review-cockpit", readme)
         self.assertIn("pavo batch verify-review-cockpit", readme)
+        self.assertIn("pavo batch speaker-suggestions", readme)
+        self.assertIn("pavo batch verify-speaker-suggestions", readme)
         self.assertIn("pavo batch speaker-calibration", readme)
         self.assertIn("pavo batch score-speaker-agreement", readme)
         self.assertIn("pavo-batch-proof.decision-board.audit.json", readme)
@@ -797,6 +802,39 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(exit_code, 3)
         self.assertFalse(report["passed"])
         self.assertIn("row_has_review_context", "\n".join(report["blockers"]))
+
+    def test_batch_speaker_suggestions_cli_writes_human_gated_hypotheses(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            main(["batch", "finalize-reviewed-proof", str(result.proof_report_path), "--json"])
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(["batch", "speaker-suggestions", str(result.proof_report_path), "--json"])
+
+            report = json.loads(stdout.getvalue())
+            suggestions_json = json.loads(Path(report["json_path"]).read_text())
+            markdown = Path(report["markdown_path"]).read_text()
+            tsv = Path(report["tsv_path"]).read_text()
+            verify_stdout = io.StringIO()
+            with redirect_stdout(verify_stdout):
+                verify_exit_code = main(["batch", "verify-speaker-suggestions", str(result.proof_report_path), "--json"])
+            verify_report = json.loads(verify_stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(verify_exit_code, 0)
+        self.assertTrue(verify_report["passed"])
+        self.assertEqual(report["pending_decision_count"], 1)
+        self.assertEqual(report["must_listen_count"], 1)
+        self.assertEqual(suggestions_json["suggestions"][0]["decision_group"], "D01")
+        self.assertEqual(suggestions_json["suggestions"][0]["machine_suggested_decision"], "pending")
+        self.assertTrue(suggestions_json["suggestions"][0]["human_required"])
+        self.assertIn("Pavo Speaker Suggestions", markdown)
+        self.assertIn("Machine suggested decision", markdown)
+        self.assertIn("do not approve identity", markdown.lower())
+        self.assertIn("machine_suggested_decision", tsv)
 
     def test_batch_review_rehearsal_cli_writes_ready_to_review_report(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1124,6 +1162,8 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("S1->Daniel:high", text)
         self.assertIn("speaker_answer_sheet:", text)
         self.assertIn("pavo-batch-speaker-answer-sheet.md", text)
+        self.assertIn("speaker_suggestions:", text)
+        self.assertIn("pavo-batch-speaker-suggestions.md", text)
         self.assertIn("review_progress_percent: 0.0", text)
         self.assertIn("review_export_ready: false", text)
         self.assertIn("missing_reason_decision_count: 0", text)
@@ -1177,6 +1217,8 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertTrue(report["decision_board_written"]["out_path"].endswith("pavo-batch-proof.decision-board.html"))
         self.assertTrue(report["speaker_answer_sheet_written"]["markdown_path"].endswith("pavo-batch-speaker-answer-sheet.md"))
         self.assertTrue(report["speaker_answer_sheet_verification"]["passed"])
+        self.assertTrue(report["speaker_suggestions_verification"]["passed"])
+        self.assertTrue(report["speaker_suggestions_path"].endswith("pavo-batch-speaker-suggestions.md"))
         self.assertTrue(report["review_pack_written"]["out_dir"].endswith("handoff-pack"))
         self.assertTrue(report["review_sprint_verification"]["passed"])
         self.assertTrue(report["review_paths"]["open_review_sprint"].endswith("pavo-batch-review-sprint.md"))
@@ -1218,6 +1260,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertTrue(report["board_verification"]["passed"])
         self.assertTrue(report["sprint_verification"]["passed"])
         self.assertTrue(any(check["name"] == "has_review_cockpit_html" and check["passed"] for check in report["checks"]))
+        self.assertTrue(any(check["name"] == "has_speaker_suggestions_json" and check["passed"] for check in report["checks"]))
 
     def test_batch_readiness_cli_reports_human_review_pending_when_surfaces_ready(self):
         with tempfile.TemporaryDirectory() as tmp:

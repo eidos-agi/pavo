@@ -32,6 +32,7 @@ from .batch import (
     verify_batch_review_rehearsal,
     verify_batch_review_sprint,
     verify_batch_speaker_answer_sheet,
+    verify_batch_speaker_suggestions,
     write_batch_decision_board,
     write_batch_review_pack,
     write_batch_review_cockpit,
@@ -39,6 +40,7 @@ from .batch import (
     write_batch_review_sprint,
     write_batch_speaker_answer_sheet,
     write_batch_speaker_calibration,
+    write_batch_speaker_suggestions,
 )
 from .brief import (
     build_brief_improvement_report,
@@ -233,6 +235,22 @@ def build_parser() -> argparse.ArgumentParser:
     batch_verify_speaker_answer_sheet.add_argument("--markdown", type=Path, help="Override pavo-batch-speaker-answer-sheet.md path")
     batch_verify_speaker_answer_sheet.add_argument("--tsv", type=Path, help="Override pavo-batch-speaker-answer-sheet.tsv path")
     batch_verify_speaker_answer_sheet.add_argument("--json", action="store_true", help="Print machine-readable verification report")
+    batch_speaker_suggestions = batch_sub.add_parser(
+        "speaker-suggestions",
+        help="Write machine hypotheses that speed human speaker review without approving identity",
+    )
+    batch_speaker_suggestions.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_speaker_suggestions.add_argument("--out-dir", type=Path, help="Output directory; defaults beside the proof report")
+    batch_speaker_suggestions.add_argument("--json", action="store_true", help="Print machine-readable suggestion report")
+    batch_verify_speaker_suggestions = batch_sub.add_parser(
+        "verify-speaker-suggestions",
+        help="Verify speaker suggestions are present, safety-labeled, and human-gated",
+    )
+    batch_verify_speaker_suggestions.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_verify_speaker_suggestions.add_argument("--suggestions-json", type=Path, help="Override pavo-batch-speaker-suggestions.json path")
+    batch_verify_speaker_suggestions.add_argument("--markdown", type=Path, help="Override pavo-batch-speaker-suggestions.md path")
+    batch_verify_speaker_suggestions.add_argument("--tsv", type=Path, help="Override pavo-batch-speaker-suggestions.tsv path")
+    batch_verify_speaker_suggestions.add_argument("--json", action="store_true", help="Print machine-readable verification report")
     batch_review_rehearsal = batch_sub.add_parser(
         "review-rehearsal",
         help="Regenerate and verify all human-review surfaces before the listener starts",
@@ -951,6 +969,46 @@ def main(argv: list[str] | None = None) -> int:
                 if result.blockers:
                     print("blockers: " + "; ".join(result.blockers))
             return 0 if result.passed else 3
+        if args.batch_command == "speaker-suggestions":
+            try:
+                result = write_batch_speaker_suggestions(args.proof_report, out_dir=args.out_dir)
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+            else:
+                print(f"json_path: {result.json_path}")
+                print(f"markdown_path: {result.markdown_path}")
+                print(f"tsv_path: {result.tsv_path}")
+                print(f"pending_decision_count: {result.pending_decision_count}")
+                print(f"quick_confirm_candidates: {result.auto_accept_candidate_count}")
+                print(f"must_listen_count: {result.must_listen_count}")
+            return 0
+        if args.batch_command == "verify-speaker-suggestions":
+            try:
+                result = verify_batch_speaker_suggestions(
+                    args.proof_report,
+                    json_path=args.suggestions_json,
+                    markdown_path=args.markdown,
+                    tsv_path=args.tsv,
+                )
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+            else:
+                print(f"passed: {str(result.passed).lower()}")
+                print(f"json_path: {result.json_path}")
+                print(f"markdown_path: {result.markdown_path}")
+                print(f"tsv_path: {result.tsv_path}")
+                print(f"suggestion_count: {result.suggestion_count}")
+                print(f"quick_confirm_candidates: {result.auto_accept_candidate_count}")
+                print(f"must_listen_count: {result.must_listen_count}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+            return 0 if result.passed else 3
         if args.batch_command == "review-rehearsal":
             try:
                 result = write_batch_review_rehearsal(
@@ -1086,6 +1144,7 @@ def main(argv: list[str] | None = None) -> int:
                 pack_result = write_batch_review_pack(args.proof_report, out_dir=args.pack_dir)
                 sprint_verification = verify_batch_review_sprint(args.proof_report)
                 answer_sheet_verification = verify_batch_speaker_answer_sheet(args.proof_report)
+                speaker_suggestions_verification = verify_batch_speaker_suggestions(args.proof_report)
                 cockpit_verification = verify_batch_review_cockpit(args.proof_report)
                 readiness = summarize_batch_readiness(args.proof_report, pack_dir=args.pack_dir)
             except (OSError, json.JSONDecodeError, ValueError) as exc:
@@ -1118,12 +1177,20 @@ def main(argv: list[str] | None = None) -> int:
                 "review_pack_written": pack_result.as_report(),
                 "review_sprint_verification": sprint_verification.as_report(),
                 "speaker_answer_sheet_verification": answer_sheet_verification.as_report(),
+                "speaker_suggestions_verification": speaker_suggestions_verification.as_report(),
                 "review_cockpit_verification": cockpit_verification,
                 "review_paths": review_paths,
+                "speaker_suggestions_path": str(speaker_suggestions_verification.markdown_path),
                 "review_cockpit_path": cockpit_verification.get("cockpit_path"),
                 "opened": opened,
                 "next_action": readiness.next_action,
-                "blockers": readiness.blockers + sprint_verification.blockers + answer_sheet_verification.blockers + cockpit_verification.get("blockers", []),
+                "blockers": (
+                    readiness.blockers
+                    + sprint_verification.blockers
+                    + answer_sheet_verification.blockers
+                    + speaker_suggestions_verification.blockers
+                    + cockpit_verification.get("blockers", [])
+                ),
             }
             if args.json:
                 print(json.dumps(report, indent=2, sort_keys=True))
@@ -1136,6 +1203,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"estimated_review_minutes: {readiness.review_sprint.get('estimated_minutes')}")
                 print(f"priority_queue_top: {_format_batch_priority_queue_top(priority_queue_top)}")
                 print(f"speaker_answer_sheet: {answer_sheet_result.markdown_path}")
+                print(f"speaker_suggestions: {speaker_suggestions_verification.markdown_path}")
                 print(f"review_progress_percent: {readiness.review_completion.get('progress_percent')}")
                 print(f"review_export_ready: {str(bool(readiness.review_completion.get('export_ready'))).lower()}")
                 print(f"missing_reason_decision_count: {readiness.review_completion.get('missing_reason_decision_count')}")
@@ -1155,6 +1223,7 @@ def main(argv: list[str] | None = None) -> int:
                 and readiness.review_pack_ready
                 and sprint_verification.passed
                 and answer_sheet_verification.passed
+                and speaker_suggestions_verification.passed
                 and cockpit_verification.get("passed")
             ):
                 return 3
