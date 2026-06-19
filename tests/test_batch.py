@@ -292,7 +292,16 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("fresh: true", checked_stdout.getvalue())
         self.assertIn("pending_count: 2", checked_stdout.getvalue())
         self.assertIn("progress_percent: 0.0", checked_stdout.getvalue())
-        self.assertIn("next_action: review 2 pending proof TSV row(s), then rerun validate_command", checked_stdout.getvalue())
+        self.assertIn("pending_decision_count: 1", checked_stdout.getvalue())
+        self.assertIn(
+            "next_action: review 1 pending speaker decision(s) across 2 proof TSV row(s), then rerun validate_command",
+            checked_stdout.getvalue(),
+        )
+        self.assertIn("pending_review_questions:", checked_stdout.getvalue())
+        self.assertIn(
+            "- cluster S1 speaker Daniel: Can cluster S1 be confirmed as Daniel? (2 clips; rows 1, 2;",
+            checked_stdout.getvalue(),
+        )
         self.assertIn("pending_rows:", checked_stdout.getvalue())
         self.assertIn("- row 1 cluster S1 speaker Daniel: Can cluster S1 be confirmed as Daniel?", checked_stdout.getvalue())
         self.assertIn("- row 2 cluster S1 speaker Daniel: Can cluster S1 be confirmed as Daniel?", checked_stdout.getvalue())
@@ -312,10 +321,15 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(json_report["validation"]["reviewed_count"], 0)
         self.assertEqual(json_report["validation"]["total_count"], 2)
         self.assertEqual(json_report["validation"]["progress_percent"], 0.0)
+        self.assertEqual(json_report["validation"]["pending_decision_count"], 1)
         self.assertEqual(
             json_report["validation"]["next_action"],
-            "review 2 pending proof TSV row(s), then rerun validate_command",
+            "review 1 pending speaker decision(s) across 2 proof TSV row(s), then rerun validate_command",
         )
+        self.assertEqual(len(json_report["validation"]["pending_review_questions"]), 1)
+        self.assertEqual(json_report["validation"]["pending_review_questions"][0]["cluster_id"], "S1")
+        self.assertEqual(json_report["validation"]["pending_review_questions"][0]["clip_count"], 2)
+        self.assertEqual(json_report["validation"]["pending_review_questions"][0]["row_indices"], ["1", "2"])
         self.assertEqual(len(json_report["validation"]["pending_rows"]), 2)
         self.assertEqual(json_report["validation"]["pending_rows"][0]["row_index"], "1")
         self.assertEqual(json_report["validation"]["pending_rows"][0]["cluster_id"], "S1")

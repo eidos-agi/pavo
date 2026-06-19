@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 import shlex
-import csv
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -585,6 +585,8 @@ def enrich_operator_handoff_with_validation(handoff: dict[str, Any]) -> dict[str
             total = reviewed + pending
             progress_percent = round((reviewed / total) * 100, 1) if total else 100.0
             pending_rows = _handoff_pending_rows(slate)
+            pending_review_questions = _handoff_pending_review_questions(pending_rows)
+            pending_decision_count = len(pending_review_questions)
             slate_mtime = Path(slate).stat().st_mtime if slate and Path(slate).exists() else None
             validation_mtime = validation_path.stat().st_mtime
             fresh = slate_mtime is None or validation_mtime >= slate_mtime
@@ -599,7 +601,9 @@ def enrich_operator_handoff_with_validation(handoff: dict[str, Any]) -> dict[str
                     "total_count": total,
                     "progress_percent": progress_percent,
                     "pending_rows": pending_rows,
-                    "next_action": _handoff_validation_next_action(status, pending),
+                    "pending_decision_count": pending_decision_count,
+                    "pending_review_questions": pending_review_questions,
+                    "next_action": _handoff_validation_next_action(status, pending, pending_decision_count),
                     "passed": passed,
                     "ready_to_finalize": ready,
                     "applied_count": payload.get("applied_count"),
@@ -622,12 +626,19 @@ def enrich_operator_handoff_with_validation(handoff: dict[str, Any]) -> dict[str
     return enriched
 
 
-def _handoff_validation_next_action(status: str, pending_count: int) -> str:
+def _handoff_validation_next_action(
+    status: str, pending_count: int, pending_decision_count: int | None = None
+) -> str:
     if status == "ready_to_finish":
         return "run finish_command, then strict_proof_command"
     if status == "stale_validation":
         return "rerun validate_command before trusting this handoff"
     if status == "pending_review":
+        if pending_decision_count is not None and pending_decision_count != pending_count:
+            return (
+                f"review {pending_decision_count} pending speaker decision(s) across "
+                f"{pending_count} proof TSV row(s), then rerun validate_command"
+            )
         return f"review {pending_count} pending proof TSV row(s), then rerun validate_command"
     if status == "missing":
         return "run validate_command to create a validation report"
@@ -654,6 +665,9 @@ def _handoff_pending_rows(slate: str, *, limit: int = 20) -> list[dict[str, Any]
                         "speaker": row.get("speaker"),
                         "question": row.get("question"),
                         "clip_path": row.get("clip_path"),
+                        "priority_tier": row.get("priority_tier"),
+                        "priority_score": row.get("priority_score"),
+                        "acoustic_verdict": row.get("acoustic_verdict"),
                     }
                 )
                 if len(rows) >= limit:
@@ -661,6 +675,37 @@ def _handoff_pending_rows(slate: str, *, limit: int = 20) -> list[dict[str, Any]
     except (OSError, csv.Error):
         return []
     return rows
+
+
+def _handoff_pending_review_questions(pending_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[tuple[str, str, str], dict[str, Any]] = {}
+    order: list[tuple[str, str, str]] = []
+    for row in pending_rows:
+        key = (
+            str(row.get("cluster_id") or ""),
+            str(row.get("speaker") or ""),
+            str(row.get("question") or ""),
+        )
+        if key not in grouped:
+            grouped[key] = {
+                "cluster_id": row.get("cluster_id"),
+                "speaker": row.get("speaker"),
+                "question": row.get("question"),
+                "row_indices": [],
+                "clip_paths": [],
+                "clip_count": 0,
+                "priority_tier": row.get("priority_tier"),
+                "priority_score": row.get("priority_score"),
+                "acoustic_verdict": row.get("acoustic_verdict"),
+            }
+            order.append(key)
+        group = grouped[key]
+        group["clip_count"] += 1
+        if row.get("row_index"):
+            group["row_indices"].append(row.get("row_index"))
+        if row.get("clip_path"):
+            group["clip_paths"].append(row.get("clip_path"))
+    return [grouped[key] for key in order]
 
 
 def operator_handoff_ready_to_finish(handoff: dict[str, Any]) -> bool:
@@ -731,6 +776,7 @@ def format_operator_handoff(handoff: dict[str, Any]) -> str:
                     f"approved_count: {validation.get('approved_count')}",
                     f"rejected_count: {validation.get('rejected_count')}",
                     f"pending_count: {validation.get('pending_count')}",
+                    f"pending_decision_count: {validation.get('pending_decision_count')}",
                     f"reviewed_count: {validation.get('reviewed_count')}",
                     f"total_count: {validation.get('total_count')}",
                     f"progress_percent: {validation.get('progress_percent')}",
@@ -738,6 +784,21 @@ def format_operator_handoff(handoff: dict[str, Any]) -> str:
                 ]
             )
             pending_rows = validation.get("pending_rows") or []
+            pending_review_questions = validation.get("pending_review_questions") or []
+            if pending_review_questions:
+                lines.append("pending_review_questions:")
+                for item in pending_review_questions:
+                    row_indices = ", ".join(str(value) for value in item.get("row_indices") or [])
+                    lines.append(
+                        "- cluster {cluster_id} speaker {speaker}: {question} ({clip_count} clips; rows {row_indices}; acoustic {acoustic_verdict})".format(
+                            cluster_id=item.get("cluster_id"),
+                            speaker=item.get("speaker"),
+                            question=item.get("question"),
+                            clip_count=item.get("clip_count"),
+                            row_indices=row_indices,
+                            acoustic_verdict=item.get("acoustic_verdict"),
+                        )
+                    )
             if pending_rows:
                 lines.append("pending_rows:")
                 for row in pending_rows:
