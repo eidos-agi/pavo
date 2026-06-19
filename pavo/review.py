@@ -2899,9 +2899,15 @@ def create_anchor_review_page(
         }});
         const row = cluster.pending[0];
         const quorum = Math.min(2, Math.max(1, cluster.totalRows));
+        const approvalsNeeded = Math.max(0, quorum - cluster.approvedRows);
         const closureRule = cluster.approvedRows
-          ? `Approve ${{Math.max(0, quorum - cluster.approvedRows)}} more matching sample(s), or reject this sample to early-stop.`
+          ? `Approve ${{approvalsNeeded}} more matching sample(s), or reject this sample to early-stop.`
           : "Reject to early-stop as cannot-link; approve only if the voice supports the proposed speaker.";
+        const approveEffect = approvalsNeeded <= 1
+          ? "Approve: reaches must-link quorum for this cluster."
+          : `Approve: adds support; ${{approvalsNeeded - 1}} more matching sample(s) still needed.`;
+        const rejectEffect = "Reject: early-stops this cluster as cannot-link and prevents unsafe identity propagation.";
+        const terminalDecisionRule = "One contradiction is enough for cannot-link; confirmation requires approval quorum.";
         plan.push({{
           clusterId: cluster.clusterId,
           targetSpeaker: cluster.targetSpeaker,
@@ -2911,7 +2917,10 @@ def create_anchor_review_page(
           expectedImpact: cluster.expectedImpact,
           text: row.text || "",
           question: cluster.question,
-          closureRule
+          closureRule,
+          approveEffect,
+          rejectEffect,
+          terminalDecisionRule
         }});
       }});
       return plan.sort((left, right) => {{
@@ -2935,6 +2944,9 @@ def create_anchor_review_page(
         return `<div class="next-review-row" data-next-review-target="${{escapeHtml(item.rowIndex)}}">
           <strong>${{escapeHtml(item.clusterId)}} row ${{escapeHtml(item.rowIndex)}} - ${{escapeHtml(item.targetSpeaker)}}${{impact}}</strong>
           <span>${{escapeHtml(item.closureRule)}}</span>
+          <span>${{escapeHtml(item.approveEffect)}}</span>
+          <span>${{escapeHtml(item.rejectEffect)}}</span>
+          <span>${{escapeHtml(item.terminalDecisionRule)}}</span>
           ${{text}}
         </div>`;
       }}).join("");
@@ -4996,10 +5008,18 @@ def _cluster_question_next_review_plan(
         row = candidates[0]
         approved_rows = int(summary.get("approved_rows") or 0)
         approval_quorum = int(summary.get("approval_quorum") or 1)
+        approvals_needed = max(0, approval_quorum - approved_rows)
         if approved_rows:
-            closure_rule = f"Approve {max(0, approval_quorum - approved_rows)} more matching sample(s), or reject this sample to early-stop as cannot-link."
+            closure_rule = f"Approve {approvals_needed} more matching sample(s), or reject this sample to early-stop as cannot-link."
         else:
             closure_rule = "Reject this sample to early-stop as cannot-link; approve it only if the voice supports the proposed speaker."
+        approve_effect = (
+            "Approving this sample reaches must-link quorum for the cluster."
+            if approvals_needed <= 1
+            else f"Approving this sample adds support; {approvals_needed - 1} more matching sample(s) still needed for must-link quorum."
+        )
+        reject_effect = "Rejecting this sample early-stops this cluster as cannot-link and prevents unsafe identity propagation."
+        terminal_decision_rule = "One contradiction is enough for cannot-link; confirming a speaker requires the approval quorum."
         plan.append(
             {
                 "cluster_id": cluster_id,
@@ -5016,6 +5036,9 @@ def _cluster_question_next_review_plan(
                 "text": row.get("text"),
                 "question": summary.get("question"),
                 "closure_rule": closure_rule,
+                "approve_effect": approve_effect,
+                "reject_effect": reject_effect,
+                "terminal_decision_rule": terminal_decision_rule,
                 "recommended_action": "Listen to this representative pending sample before any lower-impact sample in the same cluster.",
             }
         )
