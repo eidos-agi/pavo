@@ -324,6 +324,19 @@ class ClusterReviewSlateResult:
 
 
 @dataclass(frozen=True)
+class ClusterReviewDecisionBriefResult:
+    batch_root: Path
+    review_sheet_path: Path | None
+    json_path: Path
+    markdown_path: Path
+    item_count: int
+    total_unlockable_segments: int
+    total_unlockable_seconds: float
+    state: str
+    blockers: list[str]
+
+
+@dataclass(frozen=True)
 class ClusterReviewSlateImportResult:
     review_sheet_path: Path
     slate_path: Path
@@ -2236,6 +2249,34 @@ def export_cluster_review_slate(
         markdown_path=markdown_path,
         tsv_path=tsv_path,
         item_count=len(status.next_review_plan),
+        state=status.state,
+        blockers=list(status.blockers),
+    )
+
+
+def export_cluster_review_decision_brief(
+    batch_root: Path | str,
+    *,
+    review_sheet_path: Path | str | None = None,
+    out_dir: Path | str | None = None,
+) -> ClusterReviewDecisionBriefResult:
+    status = status_cluster_review(batch_root, review_sheet_path=review_sheet_path)
+    target_dir = Path(out_dir) if out_dir else Path(batch_root) / "pavo-cluster-question-bundle"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    json_path = target_dir / "pavo-cluster-review-decision-brief.json"
+    markdown_path = target_dir / "pavo-cluster-review-decision-brief.md"
+    payload = _cluster_review_decision_brief_payload(status)
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    markdown_path.write_text(_render_cluster_review_decision_brief_markdown(payload), encoding="utf-8")
+    summary = payload["summary"]
+    return ClusterReviewDecisionBriefResult(
+        batch_root=Path(batch_root),
+        review_sheet_path=status.review_sheet_path,
+        json_path=json_path,
+        markdown_path=markdown_path,
+        item_count=int(summary["item_count"]),
+        total_unlockable_segments=int(summary["total_unlockable_segments"]),
+        total_unlockable_seconds=float(summary["total_unlockable_seconds"]),
         state=status.state,
         blockers=list(status.blockers),
     )
@@ -5890,6 +5931,154 @@ def _rank_next_review_plan_with_ensemble(plan: list[dict[str, Any]]) -> list[dic
 
 def _doctor_check(name: str, passed: bool, detail: str) -> dict[str, Any]:
     return {"name": name, "passed": bool(passed), "detail": detail}
+
+
+def _cluster_review_decision_brief_payload(status: ClusterReviewStatusResult) -> dict[str, Any]:
+    items = []
+    total_segments = 0
+    total_seconds = 0.0
+    tier_counts: dict[str, int] = {}
+    for rank, item in enumerate(status.next_review_plan, start=1):
+        segments, seconds = _parse_expected_impact(item.get("expected_impact"))
+        if segments == 0 and seconds == 0.0 and item.get("start") is not None and item.get("end") is not None:
+            segments = 1
+            seconds = max(0.0, round(float(item["end"]) - float(item["start"]), 2))
+        total_segments += segments
+        total_seconds += seconds
+        tier = str(item.get("review_priority_tier") or "standard")
+        tier_counts[tier] = tier_counts.get(tier, 0) + 1
+        transcript = str(item.get("text") or "").strip()
+        items.append(
+            {
+                "rank": rank,
+                "row_index": item.get("row_index"),
+                "cluster_id": item.get("cluster_id"),
+                "target_speaker": item.get("target_speaker"),
+                "question": item.get("question"),
+                "expected_impact": item.get("expected_impact"),
+                "unlockable_segments": segments,
+                "unlockable_seconds": seconds,
+                "priority_tier": tier,
+                "priority_score": item.get("review_priority_score"),
+                "priority_reason": item.get("review_priority_reason"),
+                "acoustic_verdict": item.get("acoustic_verdict") or "unknown",
+                "acoustic_min_pair_similarity": item.get("acoustic_min_pair_similarity"),
+                "acoustic_caution": item.get("acoustic_caution"),
+                "recommended_action": item.get("recommended_action"),
+                "closure_rule": item.get("closure_rule"),
+                "approve_effect": item.get("approve_effect"),
+                "reject_effect": item.get("reject_effect"),
+                "terminal_decision_rule": item.get("terminal_decision_rule"),
+                "clip_path": item.get("clip_path"),
+                "transcript_excerpt": transcript,
+                "review_instruction": _cluster_review_decision_instruction(item),
+            }
+        )
+    return {
+        "batch_root": str(status.batch_root),
+        "review_sheet": str(status.review_sheet_path) if status.review_sheet_path else None,
+        "state": status.state,
+        "summary": {
+            "item_count": len(items),
+            "minimum_reviews": status.review_effort.get("minimum_reviews"),
+            "pending_reviews": status.review_effort.get("pending_reviews"),
+            "possible_reviews_saved": status.review_effort.get("possible_reviews_saved"),
+            "reduction_percent": status.review_effort.get("reduction_percent"),
+            "total_unlockable_segments": total_segments,
+            "total_unlockable_seconds": round(total_seconds, 1),
+            "tier_counts": tier_counts,
+            "top_cluster_id": status.top_cluster_id,
+            "forecast_risk_adjusted_segments": status.forecast_risk_adjusted_segments,
+            "estimated_unlockable_segments": status.estimated_unlockable_segments,
+            "estimated_unlockable_seconds": status.estimated_unlockable_seconds,
+        },
+        "finish_command": status.completion_commands.get("finish_from_slate"),
+        "open_review_page_command": status.completion_commands.get("open_review_page") or status.next_command,
+        "safety_boundary": "Human listening is required. Pavo ranks and explains the next decisions but does not approve speaker identity automatically.",
+        "blockers": status.blockers,
+        "items": items,
+    }
+
+
+def _parse_expected_impact(value: Any) -> tuple[int, float]:
+    text = str(value or "")
+    match = re.search(r"(\d+)\s+segments?\s*/\s*([0-9.]+)\s+seconds?", text)
+    if not match:
+        return 0, 0.0
+    return int(match.group(1)), float(match.group(2))
+
+
+def _cluster_review_decision_instruction(item: dict[str, Any]) -> str:
+    tier = str(item.get("review_priority_tier") or "")
+    acoustic = str(item.get("acoustic_verdict") or "unknown")
+    speaker = item.get("target_speaker") or "the proposed speaker"
+    if tier == "urgent_listen" or "drift" in acoustic:
+        return f"Listen carefully before approving {speaker}; reject on any contradiction or split-cluster evidence."
+    if "mixed" in acoustic:
+        return f"Listen for overlap/noise first, then approve {speaker} only if the voice is clearly consistent."
+    return f"Approve {speaker} only after listening; reject if the sample contradicts the proposed identity."
+
+
+def _render_cluster_review_decision_brief_markdown(payload: dict[str, Any]) -> str:
+    summary = payload["summary"]
+    lines = [
+        "# Pavo Cluster Review Decision Brief",
+        "",
+        f"- Batch root: `{payload['batch_root']}`",
+        f"- State: `{payload['state']}`",
+        f"- Review sheet: `{payload['review_sheet']}`",
+        f"- Items needing human decisions: {summary['item_count']}",
+        f"- Minimum reviews / pending clips: {summary['minimum_reviews']} / {summary['pending_reviews']}",
+        f"- Review reduction: {summary['possible_reviews_saved']} clips saved ({summary['reduction_percent']}%)",
+        f"- Total visible unlock if these clusters resolve: {summary['total_unlockable_segments']} segments / {summary['total_unlockable_seconds']} seconds",
+        f"- Forecast risk-adjusted unlock: {summary['forecast_risk_adjusted_segments']} segments",
+        f"- Safety boundary: {payload['safety_boundary']}",
+        "",
+        "## Commands",
+        "",
+        f"- Open review page: `{payload['open_review_page_command']}`",
+        f"- Finish from reviewed TSV: `{payload['finish_command']}`",
+        "",
+        "## Priority Mix",
+        "",
+    ]
+    tier_counts = summary.get("tier_counts") or {}
+    if tier_counts:
+        for tier, count in sorted(tier_counts.items()):
+            lines.append(f"- `{tier}`: {count}")
+    else:
+        lines.append("- None")
+    if payload.get("blockers"):
+        lines.extend(["", "## Current Blockers", ""])
+        lines.extend(f"- {blocker}" for blocker in payload["blockers"])
+    lines.extend(["", "## Ranked Decisions", ""])
+    if not payload["items"]:
+        lines.append("- No review items remain.")
+        return "\n".join(lines).rstrip() + "\n"
+    for item in payload["items"]:
+        transcript = str(item.get("transcript_excerpt") or "")
+        if len(transcript) > 260:
+            transcript = transcript[:257].rstrip() + "..."
+        lines.extend(
+            [
+                f"### {item['rank']}. Cluster `{item['cluster_id']}` row `{item['row_index']}`",
+                "",
+                f"- Question: {item['question']}",
+                f"- Target speaker: `{item['target_speaker']}`",
+                f"- Expected unlock: {item['unlockable_segments']} segments / {item['unlockable_seconds']} seconds",
+                f"- Priority: `{item['priority_tier']}` / {item['priority_score']}",
+                f"- Why: {item['priority_reason']}",
+                f"- Acoustic verdict: `{item['acoustic_verdict']}`; min similarity: {item['acoustic_min_pair_similarity']}",
+                f"- Reviewer instruction: {item['review_instruction']}",
+                f"- Closure rule: {item['closure_rule']}",
+                f"- Approve effect: {item['approve_effect']}",
+                f"- Reject effect: {item['reject_effect']}",
+                f"- Clip: `{item['clip_path']}`",
+                f"- Transcript: {transcript or 'None'}",
+                "",
+            ]
+        )
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def _render_cluster_review_slate_markdown(status: ClusterReviewStatusResult) -> str:

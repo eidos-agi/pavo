@@ -248,6 +248,7 @@ pavo review anchors init docs/plaud-c37-speaker1-anchor-review-clips.json
 pavo review anchors corrections docs/plaud-c37-speaker1-anchor-review-sheet.json
 pavo review anchors decisions docs/pavo-review-cluster-sheet.json
 pavo review anchors materialize-decisions docs/pavo-review-cluster-decisions.json
+pavo review clusters decision-brief ./meetings/2026-06-18-plaud/pavo-each
 pavo video render youtube_<id> --title "Reviewed call" --duration 30
 pavo transcribe <recording-id> --context-term Plaud
 ```

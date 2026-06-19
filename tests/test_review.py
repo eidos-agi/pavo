@@ -21,6 +21,7 @@ from pavo.review import (
     create_anchor_review_sheet,
     doctor_cluster_review,
     export_cluster_question_decisions,
+    export_cluster_review_decision_brief,
     export_cluster_review_slate,
     export_anchor_review_decisions,
     finalize_cluster_review,
@@ -887,6 +888,107 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("Review me.", markdown)
         self.assertIn("row_index\tcluster_id\tdecision\tspeaker\tnote", tsv)
         self.assertIn("\tpending\tDaniel\t", tsv)
+
+    def test_cluster_review_decision_brief_exports_ranked_impact_readout(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            recording = root / "rec-1"
+            recording.mkdir()
+            _write_test_wav(recording / "rec-1.wav")
+            work = root / "_work"
+            work.mkdir()
+            (work / "diarization-segments.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "recording_id": "rec-1",
+                            "start": 1.0,
+                            "end": 5.0,
+                            "speaker": "S1",
+                            "candidate_name": "Daniel",
+                            "text": "Review me.",
+                        }
+                    ]
+                )
+            )
+            (work / "named-speaker-evidence.json").write_text(
+                json.dumps(
+                    {
+                        "segments": [
+                            {
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 5.0,
+                                "speaker": "Daniel",
+                                "confidence": "medium",
+                                "text": "Review me.",
+                            }
+                        ]
+                    }
+                )
+            )
+
+            prepare_cluster_review(root, min_strong_coverage=0.0, min_dominant_share=0.5)
+            result = export_cluster_review_decision_brief(root)
+            payload = json.loads(result.json_path.read_text())
+            markdown = result.markdown_path.read_text()
+
+        self.assertEqual(result.item_count, 1)
+        self.assertEqual(result.total_unlockable_segments, 1)
+        self.assertGreater(result.total_unlockable_seconds, 0)
+        self.assertEqual(payload["summary"]["item_count"], 1)
+        self.assertEqual(payload["items"][0]["rank"], 1)
+        self.assertIn("review_instruction", payload["items"][0])
+        self.assertIn("Pavo Cluster Review Decision Brief", markdown)
+        self.assertIn("Total visible unlock", markdown)
+        self.assertIn("Ranked Decisions", markdown)
+        self.assertIn("Human listening is required", markdown)
+
+    def test_cli_cluster_review_decision_brief_writes_json_and_markdown(self):
+        from pavo.cli import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bundle = root / "pavo-cluster-question-bundle"
+            bundle.mkdir()
+            sheet = bundle / "pavo-cluster-question-review-sheet.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "pending",
+                                "approved": False,
+                                "target_speaker_label": "Daniel",
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 5.0,
+                                "text": "Review me.",
+                                "cluster_question": {
+                                    "cluster_id": "S1",
+                                    "dominant_speaker": "Daniel",
+                                    "expected_impact": "3 segments / 12.5 seconds",
+                                },
+                            }
+                        ]
+                    }
+                )
+            )
+            create_anchor_review_page(sheet, out_path=bundle / "index.html")
+
+            exit_code = main(["review", "clusters", "decision-brief", str(root), "--json"])
+            json_path = bundle / "pavo-cluster-review-decision-brief.json"
+            markdown_path = bundle / "pavo-cluster-review-decision-brief.md"
+            json_exists = json_path.exists()
+            markdown_exists = markdown_path.exists()
+            payload = json.loads(json_path.read_text())
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(json_exists)
+        self.assertTrue(markdown_exists)
+        self.assertEqual(payload["summary"]["item_count"], 1)
+        self.assertEqual(payload["summary"]["total_unlockable_segments"], 3)
 
     def test_cluster_review_slate_import_updates_review_sheet(self):
         with tempfile.TemporaryDirectory() as tmp:
