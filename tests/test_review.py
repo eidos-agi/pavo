@@ -667,6 +667,9 @@ class ReviewTests(unittest.TestCase):
 
         self.assertEqual(result.state, "needs_prepare")
         self.assertEqual(result.candidate_count, 0)
+        self.assertEqual(result.cluster_count, 0)
+        self.assertEqual(result.ready_cluster_count, 0)
+        self.assertEqual(result.conflicted_cluster_count, 0)
         self.assertIn("prepare", result.next_command)
         self.assertIn("review sheet is missing", "; ".join(result.blockers))
 
@@ -715,6 +718,9 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.state, "review_pending")
         self.assertEqual(result.candidate_count, 1)
         self.assertEqual(result.pending_count, 1)
+        self.assertEqual(result.cluster_count, 1)
+        self.assertEqual(result.ready_cluster_count, 0)
+        self.assertEqual(result.conflicted_cluster_count, 0)
         self.assertTrue(result.page_verified)
         self.assertIn("open", result.next_command)
 
@@ -745,6 +751,9 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.state, "ready_to_finalize")
         self.assertEqual(result.approved_count, 1)
         self.assertEqual(result.pending_count, 0)
+        self.assertEqual(result.cluster_count, 1)
+        self.assertEqual(result.ready_cluster_count, 1)
+        self.assertEqual(result.conflicted_cluster_count, 0)
         self.assertTrue(result.page_verified)
         self.assertIn("finalize", result.next_command)
 
@@ -758,11 +767,15 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(report["state"], "needs_prepare")
         self.assertIsNone(report["review_sheet"])
         self.assertEqual(report["candidate_count"], 0)
+        self.assertEqual(report["cluster_count"], 0)
+        self.assertEqual(report["ready_cluster_count"], 0)
+        self.assertEqual(report["conflicted_cluster_count"], 0)
         self.assertIn("next_command", report)
         self.assertIn("blockers", report)
         self.assertIn("Pavo Cluster Review Status", markdown)
         self.assertIn("needs_prepare", markdown)
         self.assertIn("Reviewer Guide", markdown)
+        self.assertIn("Cluster consensus", markdown)
         self.assertIn("Listen to the audio", markdown)
         self.assertIn("Approve only", markdown)
         self.assertIn("finalize will fail closed", markdown)
@@ -794,6 +807,7 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertEqual(payload["state"], "needs_prepare")
         self.assertEqual(payload["candidate_count"], 0)
+        self.assertEqual(payload["cluster_count"], 0)
         self.assertIn("pavo review clusters prepare", payload["next_command"])
         self.assertIn("Pavo Cluster Review Status", markdown)
         self.assertIn("Reviewer Guide", markdown)
@@ -1383,17 +1397,82 @@ class ReviewTests(unittest.TestCase):
             )
 
             result = export_cluster_question_decisions(sheet)
+            report = json.loads(result.report_path.read_text())
             materialized = materialize_cluster_question_decisions(result.report_path)
             constraints = json.loads(materialized.constraints_path.read_text())
             hints = json.loads(materialized.reviewed_hints_path.read_text())
 
         self.assertTrue(result.passed)
+        self.assertEqual(result.cluster_count, 2)
+        self.assertEqual(result.ready_cluster_count, 2)
+        self.assertEqual(result.conflicted_cluster_count, 0)
+        self.assertEqual(report["clusters"][0]["consensus_state"], "ready_for_must_link")
+        self.assertEqual(report["clusters"][1]["consensus_state"], "ready_for_cannot_link")
         self.assertTrue(materialized.passed)
         self.assertEqual(materialized.constraints_count, 2)
         self.assertEqual(materialized.hint_count, 1)
         self.assertEqual(constraints["constraints"][0]["type"], "must_link")
         self.assertEqual(constraints["constraints"][1]["type"], "cannot_link")
         self.assertEqual(hints["hints"][0]["speaker"], "Daniel")
+
+    def test_cluster_question_decisions_block_conflicting_cluster_consensus(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sheet = root / "cluster-review-sheet.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "approved",
+                                "approved": True,
+                                "target_speaker_label": "Daniel",
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 2.0,
+                                "clip_path": "clips/one.mp3",
+                                "cluster_question": {
+                                    "cluster_id": "S1",
+                                    "dominant_speaker": "Daniel",
+                                    "question": "Can S1 be Daniel?",
+                                    "expected_impact": "10 segments / 20 seconds",
+                                },
+                            },
+                            {
+                                "index": 2,
+                                "status": "rejected",
+                                "approved": False,
+                                "target_speaker_label": "Daniel",
+                                "recording_id": "rec-2",
+                                "start": 3.0,
+                                "end": 4.0,
+                                "clip_path": "clips/two.mp3",
+                                "cluster_question": {
+                                    "cluster_id": "S1",
+                                    "dominant_speaker": "Daniel",
+                                    "question": "Can S1 be Daniel?",
+                                    "expected_impact": "10 segments / 20 seconds",
+                                },
+                            },
+                        ]
+                    }
+                )
+            )
+
+            result = export_cluster_question_decisions(sheet)
+            report = json.loads(result.report_path.read_text())
+            materialized = materialize_cluster_question_decisions(result.report_path)
+
+        self.assertFalse(result.passed)
+        self.assertEqual(result.cluster_count, 1)
+        self.assertEqual(result.ready_cluster_count, 0)
+        self.assertEqual(result.conflicted_cluster_count, 1)
+        self.assertIn("1 clusters have conflicting approved/rejected samples", result.blockers)
+        self.assertEqual(report["clusters"][0]["consensus_state"], "conflicting_review")
+        self.assertEqual(report["clusters"][0]["materialization_effect"], "do_not_materialize_broad_cluster_constraint")
+        self.assertFalse(materialized.passed)
+        self.assertIn("1 clusters have conflicting approved/rejected samples", materialized.blockers)
 
     def test_materialize_anchor_review_decisions_writes_hints_and_enrollment(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -229,6 +229,9 @@ class ClusterQuestionDecisionResult:
     approved_count: int
     rejected_count: int
     pending_count: int
+    cluster_count: int
+    ready_cluster_count: int
+    conflicted_cluster_count: int
     blockers: list[str]
 
 
@@ -328,6 +331,9 @@ class ClusterReviewStatusResult:
     approved_count: int
     rejected_count: int
     pending_count: int
+    cluster_count: int
+    ready_cluster_count: int
+    conflicted_cluster_count: int
     page_verified: bool
     top_cluster_id: str | None
     estimated_unlockable_segments: int | None
@@ -353,6 +359,9 @@ class ClusterReviewStatusResult:
             "approved_count": self.approved_count,
             "rejected_count": self.rejected_count,
             "pending_count": self.pending_count,
+            "cluster_count": self.cluster_count,
+            "ready_cluster_count": self.ready_cluster_count,
+            "conflicted_cluster_count": self.conflicted_cluster_count,
             "page_verified": self.page_verified,
             "top_cluster_id": self.top_cluster_id,
             "estimated_unlockable_segments": self.estimated_unlockable_segments,
@@ -380,6 +389,7 @@ class ClusterReviewStatusResult:
             f"- Review sheet: `{self.review_sheet_path}`",
             f"- Candidate clips: {self.candidate_count}",
             f"- Approved / rejected / pending: {self.approved_count} / {self.rejected_count} / {self.pending_count}",
+            f"- Cluster consensus: {self.ready_cluster_count} ready / {self.conflicted_cluster_count} conflicted / {self.cluster_count} total",
             f"- Page verified: `{str(self.page_verified).lower()}`",
             f"- Top cluster: `{self.top_cluster_id}`",
             f"- Estimated unlock: {self.estimated_unlockable_segments} segments / {self.estimated_unlockable_seconds} seconds",
@@ -1558,13 +1568,19 @@ def export_cluster_question_decisions(
     approved = [row for row in decisions if row["status"] == "approved"]
     rejected = [row for row in decisions if row["status"] == "rejected"]
     pending = [row for row in decisions if row["status"] == "pending"]
+    cluster_summaries = _cluster_question_consensus_summaries(decisions)
+    ready_clusters = [row for row in cluster_summaries if str(row.get("consensus_state") or "").startswith("ready_for_")]
+    conflicted_clusters = [row for row in cluster_summaries if row.get("consensus_state") == "conflicting_review"]
     blockers = []
+    if conflicted_clusters:
+        blockers.append(f"{len(conflicted_clusters)} clusters have conflicting approved/rejected samples")
     if pending:
         blockers.append(f"{len(pending)} cluster question rows are still pending")
     if not approved and not rejected:
         blockers.append("no cluster question rows have been reviewed")
+    passed = bool(decisions and not blockers and (approved or rejected))
     report = {
-        "passed": bool(decisions and not pending and (approved or rejected)),
+        "passed": passed,
         "human_reviewed": bool(decisions and not pending),
         "review_sheet": str(sheet_path),
         "review_title": sheet.get("review_title"),
@@ -1572,6 +1588,10 @@ def export_cluster_question_decisions(
         "approved_count": len(approved),
         "rejected_count": len(rejected),
         "pending_count": len(pending),
+        "cluster_count": len(cluster_summaries),
+        "ready_cluster_count": len(ready_clusters),
+        "conflicted_cluster_count": len(conflicted_clusters),
+        "clusters": cluster_summaries,
         "blockers": blockers,
         "decisions": decisions,
         "next_required_proof": "Materialize reviewed cluster decisions into constraints, rerun Pavo brief, and compare review pressure.",
@@ -1582,11 +1602,14 @@ def export_cluster_question_decisions(
     return ClusterQuestionDecisionResult(
         review_sheet_path=sheet_path,
         report_path=report_path,
-        passed=bool(report["passed"]),
+        passed=passed,
         candidate_count=len(decisions),
         approved_count=len(approved),
         rejected_count=len(rejected),
         pending_count=len(pending),
+        cluster_count=len(cluster_summaries),
+        ready_cluster_count=len(ready_clusters),
+        conflicted_cluster_count=len(conflicted_clusters),
         blockers=blockers,
     )
 
@@ -1721,6 +1744,9 @@ def status_cluster_review(
             approved_count=0,
             rejected_count=0,
             pending_count=0,
+            cluster_count=0,
+            ready_cluster_count=0,
+            conflicted_cluster_count=0,
             page_verified=False,
             top_cluster_id=None,
             estimated_unlockable_segments=None,
@@ -1743,6 +1769,10 @@ def status_cluster_review(
     approved = [row for row in rows if row.get("status") == "approved" and row.get("approved") is True]
     rejected = [row for row in rows if row.get("status") == "rejected"]
     pending = [row for row in rows if row.get("status") == "pending"]
+    decision_rows = [_cluster_question_decision_row(row) for row in rows]
+    consensus = _cluster_question_consensus_summaries(decision_rows)
+    ready_cluster_count = sum(1 for row in consensus if str(row.get("consensus_state") or "").startswith("ready_for_"))
+    conflicted_cluster_count = sum(1 for row in consensus if row.get("consensus_state") == "conflicting_review")
     page_path = sheet_path.with_name("index.html")
     page_verified = False
     if page_path.exists():
@@ -1764,6 +1794,8 @@ def status_cluster_review(
     blockers: list[str] = []
     if not page_verified:
         blockers.append("cluster review page is not verified")
+    if conflicted_cluster_count:
+        blockers.append(f"{conflicted_cluster_count} clusters have conflicting approved/rejected samples")
     if pending:
         blockers.append(f"{len(pending)} cluster question rows are still pending")
 
@@ -1804,6 +1836,9 @@ def status_cluster_review(
         approved_count=len(approved),
         rejected_count=len(rejected),
         pending_count=len(pending),
+        cluster_count=len(consensus),
+        ready_cluster_count=ready_cluster_count,
+        conflicted_cluster_count=conflicted_cluster_count,
         page_verified=page_verified,
         top_cluster_id=top_cluster,
         estimated_unlockable_segments=impact.get("estimated_unlockable_segments") if impact else None,
@@ -4218,6 +4253,9 @@ def _cluster_question_decision_row(row: dict[str, Any]) -> dict[str, Any]:
         "question": question.get("question"),
         "suggested_decision": question.get("suggested_decision"),
         "stop_condition": question.get("stop_condition"),
+        "expected_impact": question.get("expected_impact"),
+        "strong_coverage": question.get("strong_coverage"),
+        "dominant_share": question.get("dominant_share"),
         "target_speaker_label": row.get("target_speaker_label"),
         "target_speaker_name": row.get("target_speaker_name"),
         "dominant_speaker": question.get("dominant_speaker"),
@@ -4233,6 +4271,82 @@ def _cluster_question_decision_row(row: dict[str, Any]) -> dict[str, Any]:
         "sample": sample,
         "safe_to_materialize": status in {"approved", "rejected"},
     }
+
+
+def _cluster_question_consensus_summaries(decisions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[str, dict[str, Any]] = {}
+    for decision in decisions:
+        cluster_id = str(decision.get("cluster_id") or decision.get("case") or "unknown")
+        cluster = grouped.setdefault(
+            cluster_id,
+            {
+                "cluster_id": cluster_id,
+                "target_speaker": decision.get("dominant_speaker") or decision.get("target_speaker_label") or decision.get("candidate_name"),
+                "question": decision.get("question"),
+                "expected_impact": decision.get("expected_impact"),
+                "strong_coverage": decision.get("strong_coverage"),
+                "dominant_share": decision.get("dominant_share"),
+                "sample_count": 0,
+                "approved_rows": 0,
+                "rejected_rows": 0,
+                "pending_rows": 0,
+                "reviewed_indices": [],
+                "pending_indices": [],
+                "sample_text": [],
+            },
+        )
+        cluster["sample_count"] += 1
+        status = str(decision.get("status") or "pending")
+        if status == "approved":
+            cluster["approved_rows"] += 1
+            cluster["reviewed_indices"].append(decision.get("index"))
+        elif status == "rejected":
+            cluster["rejected_rows"] += 1
+            cluster["reviewed_indices"].append(decision.get("index"))
+        else:
+            cluster["pending_rows"] += 1
+            cluster["pending_indices"].append(decision.get("index"))
+        text = str(decision.get("text") or "").strip()
+        if text and len(cluster["sample_text"]) < 2:
+            cluster["sample_text"].append(text[:220])
+
+    summaries = []
+    for cluster in grouped.values():
+        approved_rows = int(cluster["approved_rows"])
+        rejected_rows = int(cluster["rejected_rows"])
+        pending_rows = int(cluster["pending_rows"])
+        if pending_rows:
+            consensus_state = "pending_review"
+            materialization_effect = "no_cluster_constraint_until_all_samples_reviewed"
+            recommended_next_action = "Finish every pending sample for this cluster before materializing constraints."
+        elif approved_rows and rejected_rows:
+            consensus_state = "conflicting_review"
+            materialization_effect = "do_not_materialize_broad_cluster_constraint"
+            recommended_next_action = "Add or re-listen to samples; the cluster may be mixed or the proposed speaker may be wrong."
+        elif approved_rows:
+            consensus_state = "ready_for_must_link"
+            materialization_effect = "cluster_can_be_confirmed_for_target_speaker"
+            recommended_next_action = "Materialize as a must-link cluster constraint, then rerun the brief and measure review-pressure reduction."
+        elif rejected_rows:
+            consensus_state = "ready_for_cannot_link"
+            materialization_effect = "cluster_can_be_rejected_for_target_speaker"
+            recommended_next_action = "Materialize as a cannot-link cluster constraint, then rerun the brief and measure whether false attribution drops."
+        else:
+            consensus_state = "unresolved_no_decision"
+            materialization_effect = "no_cluster_constraint"
+            recommended_next_action = "Review at least one sample or replace weak samples."
+        cluster["consensus_state"] = consensus_state
+        cluster["materialization_effect"] = materialization_effect
+        cluster["recommended_next_action"] = recommended_next_action
+        summaries.append(cluster)
+    return sorted(
+        summaries,
+        key=lambda item: (
+            item.get("consensus_state") != "conflicting_review",
+            item.get("consensus_state") != "pending_review",
+            str(item.get("cluster_id") or ""),
+        ),
+    )
 
 
 def _cluster_constraint_from_decision(decision: dict[str, Any], *, kind: str) -> dict[str, Any] | None:
