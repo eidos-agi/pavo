@@ -810,7 +810,11 @@ class ReviewTests(unittest.TestCase):
             )
 
             prepare_cluster_review(root, min_strong_coverage=0.0, min_dominant_share=0.5)
-            export_cluster_review_slate(root)
+            slate = export_cluster_review_slate(root)
+            validation = validate_cluster_review_slate(slate.review_sheet_path, slate.tsv_path)
+            (slate.tsv_path.with_name("pavo-cluster-review-validation.json")).write_text(
+                json.dumps(validation.as_report(), indent=2, sort_keys=True) + "\n"
+            )
             result = doctor_cluster_review(root)
             report = result.as_report()
             markdown = result.as_markdown()
@@ -822,11 +826,60 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("cluster questions still need review before terminal consensus", "; ".join(result.blockers))
         self.assertIn("open", result.next_command)
         self.assertIn("finish_from_slate", result.status.completion_commands)
+        self.assertIn("validation_report", {check["name"] for check in result.checks})
         self.assertTrue(report["passed"])
         self.assertFalse(report["complete"])
         self.assertIn("Pavo Cluster Review Doctor", markdown)
         self.assertIn("Non-human plumbing passed: `true`", markdown)
         self.assertIn("Complete: `false`", markdown)
+
+    def test_cluster_review_doctor_requires_validation_report_artifact(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            recording = root / "rec-1"
+            recording.mkdir()
+            _write_test_wav(recording / "rec-1.wav")
+            work = root / "_work"
+            work.mkdir()
+            (work / "diarization-segments.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "recording_id": "rec-1",
+                            "start": 1.0,
+                            "end": 5.0,
+                            "speaker": "S1",
+                            "candidate_name": "Daniel",
+                            "text": "Review me.",
+                        }
+                    ]
+                )
+            )
+            (work / "named-speaker-evidence.json").write_text(
+                json.dumps(
+                    {
+                        "segments": [
+                            {
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 5.0,
+                                "speaker": "Daniel",
+                                "confidence": "medium",
+                                "text": "Review me.",
+                            }
+                        ]
+                    }
+                )
+            )
+
+            prepare_cluster_review(root, min_strong_coverage=0.0, min_dominant_share=0.5)
+            export_cluster_review_slate(root)
+            result = doctor_cluster_review(root)
+            failed = {check["name"] for check in result.checks if not check["passed"]}
+
+        self.assertFalse(result.passed)
+        self.assertIn("validation_report", failed)
+        self.assertIn("validation_report failed", result.blockers)
 
     def test_cluster_review_doctor_fails_when_prepare_artifacts_are_missing(self):
         with tempfile.TemporaryDirectory() as tmp:

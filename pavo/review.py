@@ -2223,8 +2223,27 @@ def doctor_cluster_review(
     clip_count = len(list((bundle_dir / "clips").glob("*"))) if (bundle_dir / "clips").exists() else 0
     slate_tsv = bundle_dir / "pavo-cluster-review-decision-slate.tsv"
     slate_md = bundle_dir / "pavo-cluster-review-decision-slate.md"
+    validation_report = bundle_dir / "pavo-cluster-review-validation.json"
     page_path = bundle_dir / "index.html"
     finish_command = status.completion_commands.get("finish_from_slate")
+    validation_report_ok = False
+    validation_report_detail = str(validation_report)
+    if validation_report.exists():
+        try:
+            validation_payload = json.loads(validation_report.read_text())
+            validation_report_ok = (
+                str(validation_payload.get("review_sheet") or "") == str(sheet_path)
+                and str(validation_payload.get("slate") or "") == str(slate_tsv)
+                and isinstance(validation_payload.get("blockers"), list)
+                and isinstance(validation_payload.get("passed"), bool)
+            )
+            validation_report_detail = (
+                f"passed={validation_payload.get('passed')}; "
+                f"ready_to_finalize={validation_payload.get('ready_to_finalize')}; "
+                f"report={validation_report}"
+            )
+        except (OSError, json.JSONDecodeError) as exc:
+            validation_report_detail = f"invalid validation report {validation_report}: {exc}"
     checks = [
         _doctor_check(
             "review_sheet",
@@ -2250,6 +2269,7 @@ def doctor_cluster_review(
         ),
         _doctor_check("static_slate_tsv", slate_tsv.exists(), str(slate_tsv)),
         _doctor_check("static_slate_markdown", slate_md.exists(), str(slate_md)),
+        _doctor_check("validation_report", validation_report_ok, validation_report_detail),
         _doctor_check("finish_from_slate_command", bool(finish_command), finish_command or "missing"),
     ]
     plumbing_passed = all(check["passed"] for check in checks)
