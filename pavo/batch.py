@@ -243,9 +243,34 @@ class BatchProofResult:
             f"- Review slate TSV: `{self.review_packet.get('slate_tsv')}`",
             f"- Review page: `{self.review_packet.get('review_page')}`",
             "",
-            "## Checks",
+            "## Speaker Review Queue",
             "",
         ]
+        top_items = self.review_packet.get("top_items") or []
+        if top_items:
+            for item in top_items:
+                lines.extend(
+                    [
+                        f"### {item.get('rank')}. Cluster `{item.get('cluster_id')}` row `{item.get('row_index')}`",
+                        "",
+                        f"- Question: {item.get('question')}",
+                        f"- Target speaker: `{item.get('target_speaker')}`",
+                        f"- Priority: `{item.get('priority_tier')}` / {item.get('priority_score')}",
+                        f"- Unlock: {item.get('unlockable_segments')} segments / {item.get('unlockable_seconds')} seconds",
+                        f"- Acoustic verdict: `{item.get('acoustic_verdict')}`",
+                        f"- Clip: `{item.get('clip_path')}`",
+                        "",
+                    ]
+                )
+        else:
+            lines.append("- None")
+        lines.extend(
+            [
+                "",
+                "## Checks",
+                "",
+            ]
+        )
         for check in self.doctor.checks:
             status = "pass" if check.get("passed") else "fail"
             lines.append(f"- `{status}` {check.get('name')}: {check.get('detail')}")

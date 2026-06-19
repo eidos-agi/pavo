@@ -152,6 +152,7 @@ class BatchDoctorTests(unittest.TestCase):
 
             result = prove_batch(root, refresh_cluster_gate=False)
             proof_report = json.loads(result.proof_report_path.read_text())
+            proof_markdown = result.proof_markdown_path.read_text()
             proof_markdown_exists = result.proof_markdown_path.exists()
             doctor_report_exists = result.doctor_report_path.exists()
             doctor_markdown_exists = result.doctor_markdown_path.exists()
@@ -168,6 +169,9 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(proof_report["review_packet"]["item_count"], 1)
         self.assertEqual(proof_report["review_packet"]["total_unlockable_segments"], 10)
         self.assertIn("pavo-cluster-review-decision-brief.html", proof_report["review_packet"]["decision_brief_html"])
+        self.assertIn("## Speaker Review Queue", proof_markdown)
+        self.assertIn("Cluster `S1` row `1`", proof_markdown)
+        self.assertIn("Unlock: 10 segments / 42.5 seconds", proof_markdown)
         self.assertTrue(proof_markdown_exists)
 
     def test_batch_proof_cli_strict_complete_fails_when_human_gate_pending(self):
