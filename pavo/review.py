@@ -6192,6 +6192,7 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
     .pill, .badge {{ display: inline-flex; align-items: center; border-radius: 999px; padding: 5px 10px; margin: 4px 6px 4px 0; font-weight: 700; background: #e8f0ff; color: #1d4ed8; }}
     .cards {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 20px; }}
     .card {{ background: white; border: 1px solid var(--line); border-left: 7px solid var(--blue); border-radius: 22px; padding: 20px; box-shadow: 0 12px 35px rgba(15, 23, 42, 0.07); }}
+    .card.active {{ outline: 4px solid rgba(37, 99, 235, 0.22); box-shadow: 0 18px 45px rgba(37, 99, 235, 0.16); }}
     .card.urgent_listen {{ border-left-color: var(--red); }}
     .card.careful_listen {{ border-left-color: var(--amber); }}
     .card.normal_listen {{ border-left-color: var(--green); }}
@@ -6210,6 +6211,8 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
     dd {{ margin: 0; }}
     blockquote {{ margin: 16px 0 0; padding: 12px 14px; background: #f8fafc; border-left: 4px solid #cbd5e1; border-radius: 10px; }}
     .clip {{ color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }}
+    .shortcut-grid {{ display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }}
+    .shortcut-grid span {{ background: #eef2ff; color: #3730a3; border-radius: 999px; padding: 5px 9px; font-weight: 800; }}
     @media print {{
       body {{ background: white; }}
       main {{ max-width: none; padding: 0; }}
@@ -6250,6 +6253,9 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
       <button type="button" class="secondary" id="copy-tsv">Copy TSV</button>
       <button type="button" class="secondary" id="reset-decisions">Reset to pending</button>
       <button type="button" class="secondary" id="clear-saved">Clear saved local decisions</button>
+      <div class="shortcut-grid" aria-label="Keyboard shortcuts">
+        <span>A approve</span><span>R reject</span><span>P pending</span><span>J next</span><span>K previous</span><span>Space play/pause</span>
+      </div>
       <textarea id="tsv-output" aria-label="Generated decision TSV" placeholder="Generated TSV appears here"></textarea>
     </section>
     <section class="blockers">
@@ -6290,6 +6296,40 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
     }}
     function currentRows() {{
       return Array.from(document.querySelectorAll("[data-review-card]")).map(rowFromCard);
+    }}
+    function cards() {{
+      return Array.from(document.querySelectorAll("[data-review-card]"));
+    }}
+    function activeCard() {{
+      return document.querySelector("[data-review-card].active") || cards()[0] || null;
+    }}
+    function setActiveCard(card, scroll = true) {{
+      if (!card) return;
+      cards().forEach(item => item.classList.toggle("active", item === card));
+      if (scroll) card.scrollIntoView({{ behavior: "smooth", block: "center" }});
+    }}
+    function moveActive(delta) {{
+      const all = cards();
+      if (!all.length) return;
+      const current = activeCard();
+      const index = Math.max(0, all.indexOf(current));
+      const next = all[Math.max(0, Math.min(all.length - 1, index + delta))];
+      setActiveCard(next);
+    }}
+    function setDecision(card, decision) {{
+      if (!card) return;
+      const radio = card.querySelector(`input[type=radio][value="${{decision}}"]`);
+      if (radio) {{
+        radio.checked = true;
+        writeTsv();
+      }}
+    }}
+    function toggleAudio(card) {{
+      const audio = card ? card.querySelector("audio") : null;
+      if (!audio) return;
+      document.querySelectorAll("audio").forEach(item => {{ if (item !== audio) item.pause(); }});
+      if (audio.paused) audio.play().catch(() => {{}});
+      else audio.pause();
     }}
     function buildTsv() {{
       const rows = currentRows();
@@ -6380,7 +6420,24 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
       element.addEventListener("change", writeTsv);
       element.addEventListener("input", writeTsv);
     }});
+    cards().forEach(card => {{
+      card.addEventListener("click", event => {{
+        if (event.target && ["TEXTAREA", "INPUT", "BUTTON"].includes(event.target.tagName)) return;
+        setActiveCard(card, false);
+      }});
+    }});
+    document.addEventListener("keydown", event => {{
+      if (event.target && ["TEXTAREA", "INPUT"].includes(event.target.tagName)) return;
+      const key = event.key.toLowerCase();
+      if (key === "a") {{ event.preventDefault(); setDecision(activeCard(), "approved"); }}
+      if (key === "r") {{ event.preventDefault(); setDecision(activeCard(), "rejected"); }}
+      if (key === "p") {{ event.preventDefault(); setDecision(activeCard(), "pending"); }}
+      if (key === "j") {{ event.preventDefault(); moveActive(1); }}
+      if (key === "k") {{ event.preventDefault(); moveActive(-1); }}
+      if (event.key === " ") {{ event.preventDefault(); toggleAudio(activeCard()); }}
+    }});
     restoreLocal();
+    setActiveCard(cards()[0], false);
     writeTsv();
   </script>
 </body>

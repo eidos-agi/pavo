@@ -957,6 +957,10 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("localStorage", html)
         self.assertIn("Clear saved local decisions", html)
         self.assertIn("Export anyway?", html)
+        self.assertIn("A approve", html)
+        self.assertIn("Space play/pause", html)
+        self.assertIn("document.addEventListener(\"keydown\"", html)
+        self.assertIn("setDecision(activeCard()", html)
 
     def test_cli_cluster_review_decision_brief_writes_json_and_markdown(self):
         from pavo.cli import main
