@@ -291,6 +291,8 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("status: pending_review", checked_stdout.getvalue())
         self.assertIn("fresh: true", checked_stdout.getvalue())
         self.assertIn("pending_count: 2", checked_stdout.getvalue())
+        self.assertIn("progress_percent: 0.0", checked_stdout.getvalue())
+        self.assertIn("next_action: review 2 pending proof TSV row(s), then rerun validate_command", checked_stdout.getvalue())
         self.assertIn("pending_count: 2", strict_stdout.getvalue())
         self.assertIn("artifact_checks:", checked_stdout.getvalue())
         self.assertIn("proof_review_slate_tsv: exists=true", checked_stdout.getvalue())
@@ -304,6 +306,13 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(json_report["validation"]["status"], "pending_review")
         self.assertTrue(json_report["validation"]["fresh"])
         self.assertEqual(json_report["validation"]["pending_count"], 2)
+        self.assertEqual(json_report["validation"]["reviewed_count"], 0)
+        self.assertEqual(json_report["validation"]["total_count"], 2)
+        self.assertEqual(json_report["validation"]["progress_percent"], 0.0)
+        self.assertEqual(
+            json_report["validation"]["next_action"],
+            "review 2 pending proof TSV row(s), then rerun validate_command",
+        )
         self.assertFalse(operator_handoff_ready_to_finish(json_report))
         self.assertIn("finish-from-slate", json_report["finish_command"])
 
@@ -335,6 +344,10 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertEqual(report["validation"]["status"], "ready_to_finish")
         self.assertTrue(report["validation"]["fresh"])
+        self.assertEqual(report["validation"]["reviewed_count"], 2)
+        self.assertEqual(report["validation"]["total_count"], 2)
+        self.assertEqual(report["validation"]["progress_percent"], 100.0)
+        self.assertEqual(report["validation"]["next_action"], "run finish_command, then strict_proof_command")
         self.assertTrue(operator_handoff_ready_to_finish(report))
 
     def test_batch_handoff_validation_marks_stale_when_slate_is_newer(self):
@@ -368,6 +381,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertEqual(report["validation"]["status"], "stale_validation")
         self.assertFalse(report["validation"]["fresh"])
+        self.assertEqual(report["validation"]["next_action"], "rerun validate_command before trusting this handoff")
         self.assertLess(report["validation"]["validation_mtime"], report["validation"]["slate_mtime"])
 
     def test_batch_proof_cli_strict_complete_fails_when_human_gate_pending(self):

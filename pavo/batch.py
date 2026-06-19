@@ -570,6 +570,7 @@ def enrich_operator_handoff_with_validation(handoff: dict[str, Any]) -> dict[str
         "path": str(validation_path) if validation_path else None,
         "exists": bool(validation_path and validation_path.exists()),
         "status": "missing",
+        "next_action": _handoff_validation_next_action("missing", 0),
     }
     if validation_path and validation_path.exists():
         try:
@@ -577,29 +578,59 @@ def enrich_operator_handoff_with_validation(handoff: dict[str, Any]) -> dict[str
             passed = bool(payload.get("passed"))
             ready = bool(payload.get("ready_to_finalize"))
             pending = int(payload.get("pending_count") or 0)
+            approved = int(payload.get("approved_count") or 0)
+            rejected = int(payload.get("rejected_count") or 0)
+            reviewed = approved + rejected
+            total = reviewed + pending
+            progress_percent = round((reviewed / total) * 100, 1) if total else 100.0
             slate_mtime = Path(slate).stat().st_mtime if slate and Path(slate).exists() else None
             validation_mtime = validation_path.stat().st_mtime
             fresh = slate_mtime is None or validation_mtime >= slate_mtime
+            status = "stale_validation" if not fresh else ("ready_to_finish" if ready else "pending_review")
             validation.update(
                 {
-                    "status": "stale_validation" if not fresh else ("ready_to_finish" if ready else "pending_review"),
+                    "status": status,
                     "fresh": fresh,
                     "slate_mtime": slate_mtime,
                     "validation_mtime": validation_mtime,
+                    "reviewed_count": reviewed,
+                    "total_count": total,
+                    "progress_percent": progress_percent,
+                    "next_action": _handoff_validation_next_action(status, pending),
                     "passed": passed,
                     "ready_to_finalize": ready,
                     "applied_count": payload.get("applied_count"),
-                    "approved_count": payload.get("approved_count"),
-                    "rejected_count": payload.get("rejected_count"),
+                    "approved_count": approved,
+                    "rejected_count": rejected,
                     "pending_count": pending,
                     "blockers": payload.get("blockers") or [],
                 }
             )
         except (OSError, json.JSONDecodeError, ValueError) as exc:
-            validation.update({"status": "unreadable", "error": str(exc)})
+            validation.update(
+                {
+                    "status": "unreadable",
+                    "error": str(exc),
+                    "next_action": _handoff_validation_next_action("unreadable", 0),
+                }
+            )
     enriched["artifact_checks"] = artifact_checks
     enriched["validation"] = validation
     return enriched
+
+
+def _handoff_validation_next_action(status: str, pending_count: int) -> str:
+    if status == "ready_to_finish":
+        return "run finish_command, then strict_proof_command"
+    if status == "stale_validation":
+        return "rerun validate_command before trusting this handoff"
+    if status == "pending_review":
+        return f"review {pending_count} pending proof TSV row(s), then rerun validate_command"
+    if status == "missing":
+        return "run validate_command to create a validation report"
+    if status == "unreadable":
+        return "repair or delete the unreadable validation report, then rerun validate_command"
+    return "inspect validation status"
 
 
 def operator_handoff_ready_to_finish(handoff: dict[str, Any]) -> bool:
@@ -670,6 +701,10 @@ def format_operator_handoff(handoff: dict[str, Any]) -> str:
                     f"approved_count: {validation.get('approved_count')}",
                     f"rejected_count: {validation.get('rejected_count')}",
                     f"pending_count: {validation.get('pending_count')}",
+                    f"reviewed_count: {validation.get('reviewed_count')}",
+                    f"total_count: {validation.get('total_count')}",
+                    f"progress_percent: {validation.get('progress_percent')}",
+                    f"next_action: {validation.get('next_action')}",
                 ]
             )
             blockers = validation.get("blockers") or []
