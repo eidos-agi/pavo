@@ -2316,6 +2316,11 @@ def verify_batch_decision_board(
             "structured reason controls",
         ),
         _check(
+            "has_reasoned_decision_shortcuts",
+            "setDecisionWithReason" in html and "Approve clean" in html and "Reject wrong speaker" in html,
+            "one-click reasoned decision shortcuts",
+        ),
+        _check(
             "has_review_reason_export_gate",
             "validateAuditReady" in html and "Missing review reason" in html,
             "client-side reason gate before audit export",
@@ -3175,6 +3180,8 @@ def _render_batch_decision_board_html(
     .card h2 {{ margin:0 0 6px; font-size:17px; }}
     .pill {{ display:inline-flex; align-items:center; border:1px solid var(--line); border-radius:999px; padding:3px 8px; font-size:12px; color:var(--muted); background:var(--soft); }}
     .decision {{ min-width:160px; display:grid; gap:8px; }}
+    .quick-reasons {{ display:grid; grid-template-columns:1fr; gap:6px; }}
+    .quick-reasons button {{ padding:7px 9px; font-size:12px; }}
     button {{ border:0; border-radius:10px; padding:9px 10px; color:#fff; font-weight:700; cursor:pointer; }}
     button.approve {{ background:var(--ok); }}
     button.reject {{ background:var(--bad); }}
@@ -3273,6 +3280,19 @@ pavo batch finalize-reviewed-proof {escape(str(proof_report_path))}</div>
       }}
       recordAudit({{ type: "decision", group, before, after: decision, reason }});
       renderTsv();
+    }}
+    function setDecisionWithReason(group, decision, reviewReason, reason = "reasoned_shortcut") {{
+      const row = rows.find(item => item.decision_group === group);
+      if (!row) return;
+      const before = row.review_reason || "";
+      row.review_reason = reviewReason;
+      const card = document.querySelector(`[data-group="${{CSS.escape(group)}}"]`);
+      if (card) {{
+        const select = card.querySelector("select");
+        if (select) select.value = reviewReason;
+      }}
+      recordAudit({{ type: "review_reason", group, before, after: reviewReason, reason }});
+      setDecision(group, decision, reason);
     }}
     function updateReviewReason(group, value) {{
       const row = rows.find(item => item.decision_group === group);
@@ -3421,9 +3441,9 @@ pavo batch finalize-reviewed-proof {escape(str(proof_report_path))}</div>
       const group = cards[activeIndex]?.dataset.group;
       if (event.key.toLowerCase() === "j") {{ focusCard(activeIndex + 1); event.preventDefault(); }}
       if (event.key.toLowerCase() === "k") {{ focusCard(activeIndex - 1); event.preventDefault(); }}
-      if (group && event.key.toLowerCase() === "a") {{ setDecision(group, "approved", "keyboard"); event.preventDefault(); }}
-      if (group && event.key.toLowerCase() === "r") {{ setDecision(group, "rejected", "keyboard"); event.preventDefault(); }}
-      if (group && event.key.toLowerCase() === "p") {{ setDecision(group, "pending", "keyboard"); event.preventDefault(); }}
+      if (group && event.key.toLowerCase() === "a") {{ setDecisionWithReason(group, "approved", "approved_clean_match", "keyboard"); event.preventDefault(); }}
+      if (group && event.key.toLowerCase() === "r") {{ setDecisionWithReason(group, "rejected", "rejected_wrong_speaker", "keyboard"); event.preventDefault(); }}
+      if (group && event.key.toLowerCase() === "p") {{ setDecisionWithReason(group, "pending", "pending_uncertain", "keyboard"); event.preventDefault(); }}
     }});
     loadState();
     renderTsv();
@@ -3468,6 +3488,15 @@ def _render_batch_decision_card(decision: dict[str, str], proof_rows: list[dict[
       <select onchange="updateReviewReason('{escape(group)}', this.value)">
         {"".join(reason_options)}
       </select>
+      <label>Reasoned shortcuts</label>
+      <div class="quick-reasons">
+        <button class="approve" onclick="setDecisionWithReason('{escape(group)}','approved','approved_clean_match')">Approve clean</button>
+        <button class="approve" onclick="setDecisionWithReason('{escape(group)}','approved','approved_speaker_corrected')">Approve corrected</button>
+        <button class="reject" onclick="setDecisionWithReason('{escape(group)}','rejected','rejected_wrong_speaker')">Reject wrong speaker</button>
+        <button class="reject" onclick="setDecisionWithReason('{escape(group)}','rejected','rejected_overlap_or_noise')">Reject noisy/overlap</button>
+        <button class="pending" onclick="setDecisionWithReason('{escape(group)}','pending','pending_uncertain')">Pending uncertain</button>
+        <button class="pending" onclick="setDecisionWithReason('{escape(group)}','pending','pending_second_listener')">Needs second listener</button>
+      </div>
       <button class="approve" onclick="setDecision('{escape(group)}','approved')">Approve</button>
       <button class="reject" onclick="setDecision('{escape(group)}','rejected')">Reject</button>
       <button class="pending" onclick="setDecision('{escape(group)}','pending')">Pending</button>

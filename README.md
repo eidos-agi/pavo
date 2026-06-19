@@ -250,7 +250,10 @@ when that reason is missing, so final identity decisions have a defensible
 human rationale. The browser board also blocks audit JSON download for final
 decisions that are missing a reason, surfacing the issue before the operator
 leaves the review page. Its header updates live with reviewed count, progress
-percent, missing reasons, and export-ready status as the reviewer works.
+percent, missing reasons, and export-ready status as the reviewer works. The
+board includes one-click reasoned shortcuts such as `Approve clean`,
+`Reject wrong speaker`, and `Pending uncertain`, so reviewers can make a
+defensible decision without separately hunting for the matching reason code.
 
 Use `pavo batch finalize-reviewed-proof` when the proof slate has been reviewed.
 It validates the proof slate, materializes the cluster decisions, writes speaker
