@@ -217,6 +217,7 @@ pavo audio decompose ./clip.mp4 --source-id youtube_<id> --include-rejected-stem
 pavo audio separate-overlaps youtube_<id> --start 17 --end 21 --min-duration 0.25
 pavo review anchors init docs/plaud-c37-speaker1-anchor-review-clips.json
 pavo review anchors corrections docs/plaud-c37-speaker1-anchor-review-sheet.json
+pavo review anchors decisions docs/pavo-review-cluster-sheet.json
 pavo video render youtube_<id> --title "Reviewed call" --duration 30
 pavo transcribe <recording-id> --context-term Plaud
 ```
@@ -260,6 +261,12 @@ separated stems, a score report for each stem, and `pavo-overlap-manifest.json`.
 clips. After a human marks clean rows as `approved`, `pavo review anchors
 corrections` prints the exact `--speaker-correction` flags for the corrected
 `pavo audio decompose` rerun.
+
+For mixed cluster review pages from `pavo brief --review-plan-clips`, use
+`pavo review anchors decisions <review-sheet>` instead. It writes a decision
+report with routeable rows, enrollment candidates, pending blockers, and the
+safety boundary for the next attribution pass without inventing speaker
+correction flags.
 
 ## Tests
 

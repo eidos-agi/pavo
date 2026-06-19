@@ -31,6 +31,36 @@ class AnchorReviewCorrectionsResult:
 
 
 @dataclass(frozen=True)
+class AnchorReviewDecisionExportResult:
+    review_sheet_path: Path
+    report_path: Path
+    passed: bool
+    human_reviewed: bool
+    candidate_count: int
+    approved_count: int
+    rejected_count: int
+    pending_count: int
+    routeable_count: int
+    enrollment_candidate_count: int
+    blockers: list[str]
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "passed": self.passed,
+            "review_sheet": str(self.review_sheet_path),
+            "report_path": str(self.report_path),
+            "human_reviewed": self.human_reviewed,
+            "candidate_count": self.candidate_count,
+            "approved_count": self.approved_count,
+            "rejected_count": self.rejected_count,
+            "pending_count": self.pending_count,
+            "routeable_count": self.routeable_count,
+            "enrollment_candidate_count": self.enrollment_candidate_count,
+            "blockers": self.blockers,
+        }
+
+
+@dataclass(frozen=True)
 class AnchorReviewPageResult:
     review_sheet_path: Path
     review_page_path: Path
@@ -245,12 +275,13 @@ def create_anchor_review_sheet(
 def compile_anchor_review_corrections(review_sheet_path: Path | str) -> AnchorReviewCorrectionsResult:
     sheet_path = Path(review_sheet_path)
     sheet = json.loads(sheet_path.read_text())
+    allow_correction_fallback = sheet.get("requires_rerun_instruction", True) is not False
     corrections = []
     for row in sheet.get("rows", []):
         if row.get("approved") is not True or row.get("status") != "approved":
             continue
         correction = row.get("suggested_speaker_correction")
-        if not correction:
+        if not correction and allow_correction_fallback:
             correction = _speaker_correction(row.get("start"), row.get("end"), row.get("target_speaker_label"))
         if correction:
             corrections.append(correction)
@@ -260,6 +291,63 @@ def compile_anchor_review_corrections(review_sheet_path: Path | str) -> AnchorRe
         approved_count=len(corrections),
         corrections=corrections,
         cli_args=cli_args,
+    )
+
+
+def export_anchor_review_decisions(
+    review_sheet_path: Path | str,
+    *,
+    out_path: Path | str | None = None,
+) -> AnchorReviewDecisionExportResult:
+    sheet_path = Path(review_sheet_path)
+    sheet = json.loads(sheet_path.read_text())
+    rows = sheet.get("rows", [])
+    decisions = [_review_decision_row(row) for row in rows]
+    approved = [decision for decision in decisions if decision["status"] == "approved"]
+    rejected = [decision for decision in decisions if decision["status"] == "rejected"]
+    pending = [decision for decision in decisions if decision["status"] == "pending"]
+    routeable = [decision for decision in approved if decision["routeable"]]
+    enrollment = [decision for decision in approved if decision["enrollment_candidate"]]
+    cluster_summary = _decision_cluster_summary(decisions)
+    blockers = []
+    if pending:
+        blockers.append(f"{len(pending)} review rows are still pending")
+    if not approved:
+        blockers.append("no reviewed rows were approved as usable")
+    report = {
+        "passed": bool(decisions and not pending and approved),
+        "human_reviewed": bool(decisions and not pending),
+        "review_sheet": str(sheet_path),
+        "review_title": sheet.get("review_title"),
+        "candidate_count": len(decisions),
+        "approved_count": len(approved),
+        "rejected_count": len(rejected),
+        "pending_count": len(pending),
+        "routeable_count": len(routeable),
+        "enrollment_candidate_count": len(enrollment),
+        "blockers": blockers,
+        "clusters": cluster_summary,
+        "decisions": decisions,
+        "next_required_proof": (
+            "Use approved routeable rows as reviewed speaker hints and enrollment candidates, "
+            "then rerun attribution/decomposition; do not mass-approve unreviewed cluster spans."
+        ),
+    }
+    report_path = Path(out_path) if out_path else sheet_path.with_name(sheet_path.stem.replace("-sheet", "-decisions") + ".json")
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    return AnchorReviewDecisionExportResult(
+        review_sheet_path=sheet_path,
+        report_path=report_path,
+        passed=bool(report["passed"]),
+        human_reviewed=bool(report["human_reviewed"]),
+        candidate_count=len(decisions),
+        approved_count=len(approved),
+        rejected_count=len(rejected),
+        pending_count=len(pending),
+        routeable_count=len(routeable),
+        enrollment_candidate_count=len(enrollment),
+        blockers=blockers,
     )
 
 
@@ -1635,6 +1723,85 @@ def _imported_review_row(original: dict[str, Any], reviewed: dict[str, Any]) -> 
     review_parse = reviewed.get("review_parse") if isinstance(reviewed.get("review_parse"), dict) else {}
     row["review_parse"] = review_parse
     return row
+
+
+def _review_decision_row(row: dict[str, Any]) -> dict[str, Any]:
+    status = str(row.get("status") or "pending")
+    speaker = str(row.get("target_speaker_label") or row.get("target_speaker_name") or "")
+    review_parse = row.get("review_parse") if isinstance(row.get("review_parse"), dict) else {}
+    issues = [str(issue) for issue in review_parse.get("issues") or []]
+    approved = status == "approved" and row.get("approved") is True
+    unknown = _is_unknown_review_speaker(speaker)
+    routeable = bool(approved and speaker and not unknown and "wrong_speaker" not in issues)
+    enrollment_candidate = bool(approved and speaker and not unknown)
+    return {
+        "index": row.get("index"),
+        "status": status,
+        "approved": bool(row.get("approved") is True),
+        "case": row.get("case"),
+        "speaker": speaker,
+        "start": row.get("start"),
+        "end": row.get("end"),
+        "duration": row.get("duration"),
+        "text": row.get("text"),
+        "confidence": row.get("confidence"),
+        "method": row.get("method"),
+        "clip_path": row.get("clip_path"),
+        "reviewer_note": row.get("reviewer_note"),
+        "review_parse": review_parse,
+        "routeable": routeable,
+        "enrollment_candidate": enrollment_candidate,
+        "safe_external_task_claim": routeable,
+        "recommended_action": _decision_recommended_action(status, speaker, issues),
+    }
+
+
+def _decision_cluster_summary(decisions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    clusters: dict[str, dict[str, Any]] = {}
+    for decision in decisions:
+        key = str(decision.get("case") or decision.get("speaker") or "uncategorized")
+        cluster = clusters.setdefault(
+            key,
+            {
+                "case": key,
+                "candidate_count": 0,
+                "approved_count": 0,
+                "rejected_count": 0,
+                "pending_count": 0,
+                "routeable_count": 0,
+                "enrollment_candidate_count": 0,
+            },
+        )
+        cluster["candidate_count"] += 1
+        status = str(decision.get("status") or "pending")
+        if status == "approved":
+            cluster["approved_count"] += 1
+        elif status == "rejected":
+            cluster["rejected_count"] += 1
+        else:
+            cluster["pending_count"] += 1
+        if decision.get("routeable"):
+            cluster["routeable_count"] += 1
+        if decision.get("enrollment_candidate"):
+            cluster["enrollment_candidate_count"] += 1
+    return sorted(clusters.values(), key=lambda item: (-item["candidate_count"], item["case"]))
+
+
+def _decision_recommended_action(status: str, speaker: str, issues: list[str]) -> str:
+    if status == "pending":
+        return "human_review_required"
+    if status == "rejected":
+        return "do_not_use_for_speaker_truth"
+    if _is_unknown_review_speaker(speaker):
+        return "identify_or_keep_unassigned_before_rerun"
+    if "wrong_speaker" in issues:
+        return "fix_speaker_label_before_rerun"
+    return "use_as_reviewed_speaker_hint_or_enrollment_candidate"
+
+
+def _is_unknown_review_speaker(value: Any) -> bool:
+    lowered = str(value or "").lower()
+    return not lowered or lowered.startswith("unknown") or lowered.startswith("unattributed") or lowered.endswith("-mentioned")
 
 
 def _review_card(row: dict[str, Any], *, labels: dict[str, Any], display_mode: str = "anchor_review") -> str:

@@ -25,6 +25,7 @@ from .review import (
     create_anchor_review_page,
     create_anchor_review_sheet,
     compile_anchor_review_corrections,
+    export_anchor_review_decisions,
     gate_anchor_review,
     import_anchor_review_sheet,
     serve_anchor_review_bundle,
@@ -178,6 +179,9 @@ def build_parser() -> argparse.ArgumentParser:
     review_anchors_status.add_argument("--report", type=Path, help="Write machine-readable status report JSON")
     review_anchors_corrections = review_anchors_sub.add_parser("corrections", help="Print approved --speaker-correction flags")
     review_anchors_corrections.add_argument("review_sheet", type=Path)
+    review_anchors_decisions = review_anchors_sub.add_parser("decisions", help="Export reviewed row decisions for cluster routing/enrollment")
+    review_anchors_decisions.add_argument("review_sheet", type=Path)
+    review_anchors_decisions.add_argument("--out", type=Path, help="Decision report JSON path")
 
     config = subparsers.add_parser("config", help="Inspect local Pavo config")
     config_sub = config.add_subparsers(dest="config_command", required=True)
@@ -595,6 +599,20 @@ def main(argv: list[str] | None = None) -> int:
                 if result.cli_args:
                     print(" ".join(result.cli_args))
                 return 0
+            if args.review_anchors_command == "decisions":
+                result = export_anchor_review_decisions(args.review_sheet, out_path=args.out)
+                print(f"passed: {str(result.passed).lower()}")
+                print(f"human_reviewed: {str(result.human_reviewed).lower()}")
+                print(f"candidate_count: {result.candidate_count}")
+                print(f"approved_count: {result.approved_count}")
+                print(f"rejected_count: {result.rejected_count}")
+                print(f"pending_count: {result.pending_count}")
+                print(f"routeable_count: {result.routeable_count}")
+                print(f"enrollment_candidate_count: {result.enrollment_candidate_count}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+                print(f"report: {result.report_path}")
+                return 0 if result.passed else 2
 
     if args.command == "config":
         pavo_home = init_home(home)

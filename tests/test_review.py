@@ -10,6 +10,7 @@ from pavo.review import (
     create_anchor_review_page,
     compile_anchor_review_corrections,
     create_anchor_review_sheet,
+    export_anchor_review_decisions,
     gate_anchor_review,
     import_anchor_review_sheet,
     parse_plain_english_review,
@@ -195,6 +196,97 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(sheet["review_title"], "Cluster Review")
         self.assertEqual(sheet["rows"][0]["target_speaker_label"], "Daniel")
         self.assertEqual(sheet["rows"][1]["target_speaker_label"], "Alex")
+
+    def test_cluster_human_review_does_not_export_fake_speaker_corrections(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sheet = root / "pavo-review-cluster-sheet.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "requires_rerun_instruction": False,
+                        "display_mode": "human_review",
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "approved",
+                                "approved": True,
+                                "target_speaker_label": "Daniel",
+                                "start": 1.0,
+                                "end": 2.0,
+                                "clip_path": "clips/daniel.mp3",
+                                "suggested_speaker_correction": "",
+                            }
+                        ],
+                    }
+                )
+            )
+
+            corrections = compile_anchor_review_corrections(sheet)
+
+        self.assertEqual(corrections.corrections, [])
+        self.assertEqual(corrections.cli_args, [])
+
+    def test_export_anchor_review_decisions_classifies_cluster_rows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sheet = root / "pavo-review-cluster-sheet.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "review_title": "Pavo Review Clusters",
+                        "display_mode": "human_review",
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "approved",
+                                "approved": True,
+                                "case": "Daniel / low_confidence_named_speaker",
+                                "target_speaker_label": "Daniel",
+                                "start": 1.0,
+                                "end": 2.0,
+                                "duration": 1.0,
+                                "text": "Daniel sample",
+                                "confidence": "low",
+                                "method": "named_speaker_evidence",
+                                "clip_path": "clips/daniel.mp3",
+                                "reviewer_note": "clear Daniel",
+                                "review_parse": {"decision": "approved", "heard_speakers": ["Daniel"], "issues": []},
+                            },
+                            {
+                                "index": 2,
+                                "status": "rejected",
+                                "approved": False,
+                                "case": "Unknown office speaker / unattributed_speaker",
+                                "target_speaker_label": "Unknown office speaker",
+                                "start": 3.0,
+                                "end": 4.0,
+                                "duration": 1.0,
+                                "text": "unknown sample",
+                                "confidence": "low",
+                                "method": "speaker_attribution",
+                                "clip_path": "clips/unknown.mp3",
+                                "reviewer_note": "mixed",
+                                "review_parse": {"decision": "rejected", "issues": ["overlap"]},
+                            },
+                        ],
+                    }
+                )
+            )
+
+            result = export_anchor_review_decisions(sheet)
+            report = json.loads(result.report_path.read_text())
+
+        self.assertTrue(result.passed)
+        self.assertTrue(result.human_reviewed)
+        self.assertEqual(result.approved_count, 1)
+        self.assertEqual(result.rejected_count, 1)
+        self.assertEqual(result.pending_count, 0)
+        self.assertEqual(result.routeable_count, 1)
+        self.assertEqual(result.enrollment_candidate_count, 1)
+        self.assertEqual(report["decisions"][0]["recommended_action"], "use_as_reviewed_speaker_hint_or_enrollment_candidate")
+        self.assertEqual(report["decisions"][1]["recommended_action"], "do_not_use_for_speaker_truth")
+        self.assertEqual(len(report["clusters"]), 2)
 
     def test_compile_anchor_review_corrections_exports_only_approved_rows(self):
         with tempfile.TemporaryDirectory() as tmp:
