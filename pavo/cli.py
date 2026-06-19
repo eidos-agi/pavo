@@ -259,6 +259,7 @@ def build_parser() -> argparse.ArgumentParser:
     review_clusters_validate_slate.add_argument("review_sheet", type=Path)
     review_clusters_validate_slate.add_argument("slate_tsv", type=Path)
     review_clusters_validate_slate.add_argument("--json", action="store_true", help="Print machine-readable validation JSON")
+    review_clusters_validate_slate.add_argument("--report", type=Path, help="Write machine-readable validation JSON report")
     review_clusters_finish_slate = review_clusters_sub.add_parser("finish-from-slate", help="Import a filled slate and finalize the cluster review when gates pass")
     review_clusters_finish_slate.add_argument("batch_root", type=Path)
     review_clusters_finish_slate.add_argument("review_sheet", type=Path)
@@ -912,6 +913,9 @@ def main(argv: list[str] | None = None) -> int:
                 return 0 if result.applied_count else 2
             if args.review_clusters_command == "validate-slate":
                 result = validate_cluster_review_slate(args.review_sheet, args.slate_tsv)
+                if args.report:
+                    args.report.parent.mkdir(parents=True, exist_ok=True)
+                    args.report.write_text(json.dumps(result.as_report(), indent=2, sort_keys=True) + "\n")
                 if args.json:
                     print(json.dumps(result.as_report(), indent=2, sort_keys=True))
                     return 0 if result.passed else 2

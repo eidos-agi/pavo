@@ -753,6 +753,8 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("open", result.next_command)
         self.assertIn("validate_slate", result.completion_commands)
         self.assertIn("pavo review clusters validate-slate", result.completion_commands["validate_slate"])
+        self.assertIn("--report", result.completion_commands["validate_slate"])
+        self.assertIn("pavo-cluster-review-validation.json", result.completion_commands["validate_slate"])
         self.assertIn("finish_from_slate", result.completion_commands)
         self.assertIn("pavo review clusters finish-from-slate", result.completion_commands["finish_from_slate"])
         self.assertIn("### Cluster `S1` row `1`", markdown)
@@ -1192,16 +1194,30 @@ class ReviewTests(unittest.TestCase):
             bad_path = slate.tsv_path.with_name("bad-slate.tsv")
             bad_path.write_text(bad)
             stdout = io.StringIO()
+            report_path = root / "validation.json"
 
             with redirect_stdout(stdout):
-                exit_code = main(["review", "clusters", "validate-slate", str(prepared.review_sheet_path), str(bad_path), "--json"])
+                exit_code = main(
+                    [
+                        "review",
+                        "clusters",
+                        "validate-slate",
+                        str(prepared.review_sheet_path),
+                        str(bad_path),
+                        "--json",
+                        "--report",
+                        str(report_path),
+                    ]
+                )
             payload = json.loads(stdout.getvalue())
+            report = json.loads(report_path.read_text())
 
         self.assertEqual(exit_code, 2)
         self.assertFalse(payload["passed"])
         self.assertFalse(payload["ready_to_finalize"])
         self.assertEqual(payload["applied_count"], 0)
         self.assertIn("changed cluster_id", "; ".join(payload["blockers"]))
+        self.assertEqual(report, payload)
 
     def test_cluster_review_advance_stops_at_human_review_boundary(self):
         with tempfile.TemporaryDirectory() as tmp:

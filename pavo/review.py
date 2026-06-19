@@ -2097,11 +2097,23 @@ def status_cluster_review(
     forecast = _load_optional_json(forecast_path)
     decision_report_path = sheet_path.with_name(sheet_path.stem.replace("-sheet", "-decisions") + ".json")
     slate_tsv_path = sheet_path.with_name("pavo-cluster-review-decision-slate.tsv")
+    validation_report_path = sheet_path.with_name("pavo-cluster-review-validation.json")
     status_json_path = root / "pavo-cluster-review-status.json"
     status_markdown_path = root / "pavo-cluster-review-status.md"
     completion_commands = {
         "open_review_page": shlex.join(["open", str(page_path)]),
-        "validate_slate": shlex.join(["pavo", "review", "clusters", "validate-slate", str(sheet_path), str(slate_tsv_path)]),
+        "validate_slate": shlex.join(
+            [
+                "pavo",
+                "review",
+                "clusters",
+                "validate-slate",
+                str(sheet_path),
+                str(slate_tsv_path),
+                "--report",
+                str(validation_report_path),
+            ]
+        ),
         "finish_from_slate": shlex.join(
             ["pavo", "review", "clusters", "finish-from-slate", str(root), str(sheet_path), str(slate_tsv_path)]
         ),
