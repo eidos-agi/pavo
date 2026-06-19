@@ -547,6 +547,42 @@ def _operator_handoff(result: BatchProofResult) -> dict[str, Any]:
     }
 
 
+def load_operator_handoff(proof_report_path: Path | str) -> dict[str, Any]:
+    path = Path(proof_report_path)
+    report = json.loads(path.read_text())
+    handoff = report.get("operator_handoff")
+    if not isinstance(handoff, dict):
+        raise ValueError(f"proof report missing operator_handoff: {path}")
+    return handoff
+
+
+def format_operator_handoff(handoff: dict[str, Any]) -> str:
+    lines = [
+        "Pavo Operator Handoff",
+        f"state: {handoff.get('state')}",
+        f"complete: {str(bool(handoff.get('complete'))).lower()}",
+        f"review_page: {handoff.get('review_page')}",
+        f"proof_review_slate_tsv: {handoff.get('proof_review_slate_tsv')}",
+        f"proof_slate_item_count: {handoff.get('proof_slate_item_count')}",
+        f"validate_command: {handoff.get('validate_command')}",
+        f"finish_command: {handoff.get('finish_command')}",
+        f"strict_proof_command: {handoff.get('strict_proof_command')}",
+        "",
+        "steps:",
+    ]
+    for index, step in enumerate(handoff.get("steps") or [], start=1):
+        lines.append(f"{index}. {step}")
+    lines.extend(
+        [
+            "",
+            f"expected_pending_state: {handoff.get('expected_pending_state')}",
+            f"expected_complete_state: {handoff.get('expected_complete_state')}",
+            f"safety_boundary: {handoff.get('safety_boundary')}",
+        ]
+    )
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def _review_packet_summary(batch_root: Path, cluster_gate: dict[str, Any] | None) -> dict[str, Any]:
     bundle = batch_root / "pavo-cluster-question-bundle"
     gate = cluster_gate or {}

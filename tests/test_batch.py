@@ -1,10 +1,12 @@
 import json
+import io
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from pavo.batch import doctor_batch, prove_batch, verify_batch_manifest
+from pavo.batch import doctor_batch, format_operator_handoff, load_operator_handoff, prove_batch, verify_batch_manifest
 from pavo.cli import main
 
 
@@ -217,6 +219,34 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("second supporting sample", proof_review_slate)
         self.assertTrue(proof_markdown_exists)
         self.assertTrue(proof_review_slate_exists)
+
+    def test_batch_handoff_cli_prints_existing_proof_operator_handoff(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+
+            text_stdout = io.StringIO()
+            with redirect_stdout(text_stdout):
+                text_exit = main(["batch", "handoff", str(result.proof_report_path)])
+
+            json_stdout = io.StringIO()
+            with redirect_stdout(json_stdout):
+                json_exit = main(["batch", "handoff", str(result.proof_report_path), "--json"])
+
+            loaded = load_operator_handoff(result.proof_report_path)
+            formatted = format_operator_handoff(loaded)
+            json_report = json.loads(json_stdout.getvalue())
+
+        self.assertEqual(text_exit, 0)
+        self.assertEqual(json_exit, 0)
+        self.assertIn("Pavo Operator Handoff", text_stdout.getvalue())
+        self.assertIn("validate_command:", text_stdout.getvalue())
+        self.assertIn("strict_proof_command:", text_stdout.getvalue())
+        self.assertEqual(text_stdout.getvalue(), formatted)
+        self.assertEqual(json_report["state"], "machine_ready_human_review_pending")
+        self.assertEqual(json_report["proof_slate_item_count"], 2)
+        self.assertIn("finish-from-slate", json_report["finish_command"])
 
     def test_batch_proof_cli_strict_complete_fails_when_human_gate_pending(self):
         with tempfile.TemporaryDirectory() as tmp:

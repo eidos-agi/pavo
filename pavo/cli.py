@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 from .audio import run_audio_doctor
-from .batch import doctor_batch, prove_batch, verify_batch_manifest
+from .batch import doctor_batch, format_operator_handoff, load_operator_handoff, prove_batch, verify_batch_manifest
 from .brief import (
     build_brief_improvement_report,
     build_meeting_brief,
@@ -103,6 +103,9 @@ def build_parser() -> argparse.ArgumentParser:
     batch_prove.add_argument("--json", action="store_true", help="Print full machine-readable proof JSON")
     batch_prove.add_argument("--strict-complete", action="store_true", help="Exit nonzero unless the human review gate is complete")
     batch_prove.add_argument("--no-refresh-cluster-gate", action="store_true", help="Read the existing cluster gate report instead of refreshing it")
+    batch_handoff = batch_sub.add_parser("handoff", help="Print the operator handoff from a pavo-batch-proof.json report")
+    batch_handoff.add_argument("proof_report", type=Path)
+    batch_handoff.add_argument("--json", action="store_true", help="Print machine-readable handoff JSON")
 
     brief = subparsers.add_parser("brief", help="Create a composed readiness and action brief for a meeting batch")
     brief.add_argument("root", type=Path)
@@ -555,6 +558,17 @@ def main(argv: list[str] | None = None) -> int:
             if args.strict_complete:
                 return 0 if result.complete else 3
             return 0 if result.passed else 2
+        if args.batch_command == "handoff":
+            try:
+                handoff = load_operator_handoff(args.proof_report)
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(handoff, indent=2, sort_keys=True))
+            else:
+                print(format_operator_handoff(handoff), end="")
+            return 0
 
     if args.command == "brief":
         if not args.root.exists():
