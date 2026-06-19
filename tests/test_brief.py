@@ -261,6 +261,133 @@ class BriefTests(unittest.TestCase):
             self.assertEqual(report["deltas"]["review_pressure_reduction"], 1)
             self.assertEqual(report["deltas"]["routeable_named_span_gain"], 1)
 
+    def test_reviewed_cluster_must_link_reduces_review_pressure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "call.mp3").write_bytes(b"source audio")
+            (root / "call.transcript.json").write_text('{"segments":[]}\n')
+            work = root / "_work"
+            work.mkdir()
+            (work / "diarization-segments.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "recording_id": "call",
+                            "start": 1.0,
+                            "end": 3.0,
+                            "speaker": "S1",
+                            "text": "This should become Daniel.",
+                        }
+                    ]
+                )
+            )
+            (work / "speaker-attribution.json").write_text(
+                json.dumps(
+                    {
+                        "segments": [
+                            {
+                                "recording_id": "call",
+                                "start": 1.0,
+                                "end": 3.0,
+                                "speaker": "Unknown office speaker",
+                                "confidence": "low",
+                                "text": "This should become Daniel.",
+                            }
+                        ]
+                    }
+                )
+            )
+            artifact_dir = root / "pavo-cluster-question-artifacts"
+            artifact_dir.mkdir()
+            (artifact_dir / "pavo-cluster-constraints.json").write_text(
+                json.dumps(
+                    {
+                        "passed": True,
+                        "constraint_count": 1,
+                        "constraints": [
+                            {
+                                "type": "must_link",
+                                "cluster_id": "S1",
+                                "speaker": "Daniel",
+                                "source_decision_index": 1,
+                            }
+                        ],
+                    }
+                )
+            )
+
+            brief = build_meeting_brief(root)
+
+        self.assertEqual(brief["review"]["total_count"], 0)
+        self.assertEqual(brief["speaker_confidence"], {"manual_confirmed": 1})
+        self.assertEqual(brief["speaker_ensemble"]["cluster_constraint_count"], 1)
+        self.assertEqual(brief["speaker_ensemble"]["cluster_constraint_source_counts"], {"must_link": 1})
+        self.assertEqual(brief["speaker_ensemble"]["source_counts"], {"reviewed_cluster_must_link": 1})
+        self.assertEqual(brief["speaker_ensemble"]["routeable_speaker_counts"], {"Daniel": 1})
+
+    def test_reviewed_cluster_cannot_link_blocks_wrong_routeable_speaker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "call.mp3").write_bytes(b"source audio")
+            (root / "call.transcript.json").write_text('{"segments":[]}\n')
+            work = root / "_work"
+            work.mkdir()
+            (work / "diarization-segments.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "recording_id": "call",
+                            "start": 1.0,
+                            "end": 3.0,
+                            "speaker": "S1",
+                            "text": "This is not Daniel.",
+                        }
+                    ]
+                )
+            )
+            (work / "speaker-attribution.json").write_text(
+                json.dumps(
+                    {
+                        "segments": [
+                            {
+                                "recording_id": "call",
+                                "start": 1.0,
+                                "end": 3.0,
+                                "speaker": "Daniel",
+                                "confidence": "medium",
+                                "text": "This is not Daniel.",
+                            }
+                        ]
+                    }
+                )
+            )
+            artifact_dir = root / "pavo-cluster-question-artifacts"
+            artifact_dir.mkdir()
+            (artifact_dir / "pavo-cluster-constraints.json").write_text(
+                json.dumps(
+                    {
+                        "passed": True,
+                        "constraint_count": 1,
+                        "constraints": [
+                            {
+                                "type": "cannot_link",
+                                "cluster_id": "S1",
+                                "speaker": "Daniel",
+                                "source_decision_index": 1,
+                            }
+                        ],
+                    }
+                )
+            )
+
+            brief = build_meeting_brief(root)
+
+        self.assertEqual(brief["review"]["total_count"], 1)
+        self.assertEqual(brief["speaker_confidence"], {"low": 1})
+        self.assertEqual(brief["speaker_ensemble"]["cluster_constraint_source_counts"], {"cannot_link": 1})
+        self.assertEqual(brief["speaker_ensemble"]["source_counts"], {"reviewed_cluster_cannot_link": 1})
+        self.assertEqual(brief["speaker_ensemble"]["routeable_named_segment_count"], 0)
+
     def test_cli_brief_apply_hints_writes_overlay(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

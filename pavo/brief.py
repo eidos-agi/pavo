@@ -90,9 +90,11 @@ def build_meeting_brief(root: Path, *, review_limit: int = 200, packet_limit: in
     )
     attribution_segments = _load_speaker_attribution_segments(root)
     named_evidence_segments = _load_named_evidence_segments(root)
+    diarization_segments = _load_diarization_segments(root)
+    cluster_constraints = _load_cluster_constraints(root)
     ensemble_segments = _ensemble_speaker_segments(attribution_segments, named_evidence_segments)
     ensemble_segments = _apply_temporal_speaker_continuity(ensemble_segments)
-    diarization_segments = _load_diarization_segments(root)
+    ensemble_segments = _apply_cluster_constraints(ensemble_segments, diarization_segments, cluster_constraints)
     review_items, review_summary = _build_review_items(root, ensemble_segments, limit=review_limit)
     review_clusters = _build_review_clusters(ensemble_segments)
     packets = _extract_task_packets(root, limit=packet_limit)
@@ -134,7 +136,12 @@ def build_meeting_brief(root: Path, *, review_limit: int = 200, packet_limit: in
             "ok": verification_ok,
             "gates": gates,
         },
-        "speaker_ensemble": _speaker_ensemble_summary(attribution_segments, named_evidence_segments, ensemble_segments),
+        "speaker_ensemble": _speaker_ensemble_summary(
+            attribution_segments,
+            named_evidence_segments,
+            ensemble_segments,
+            cluster_constraints=cluster_constraints,
+        ),
         "review": {
             "item_count": review_summary["sampled_count"],
             "total_count": review_summary["total_count"],
@@ -152,6 +159,11 @@ def build_meeting_brief(root: Path, *, review_limit: int = 200, packet_limit: in
         "next_actions": _rank_actions(str(root), gates, review_summary["total_count"], packets),
         "resume_commands": [
             f"pavo brief {root}",
+            f"pavo review clusters audit {root}",
+            f"pavo review clusters questions {root}",
+            "pavo review clusters bundle <pavo-cluster-question-plan.json>",
+            "pavo review clusters decisions <pavo-cluster-question-review-sheet.json>",
+            "pavo review clusters materialize-decisions <pavo-cluster-question-review-decisions.json>",
             f"pavo review anchors status <review-sheet>",
             f"pavo review anchors gate <review-sheet>",
             f"pavo audio decompose <audio-path> --source-id <source-id>",
@@ -802,6 +814,94 @@ def _load_diarization_segments(root: Path) -> list[dict[str, Any]]:
     return segments
 
 
+def _load_cluster_constraints(root: Path) -> list[dict[str, Any]]:
+    constraints: list[dict[str, Any]] = []
+    for path in sorted(root.rglob("pavo-cluster-constraints.json")):
+        payload = _read_json(path)
+        if not isinstance(payload, dict) or not payload.get("passed"):
+            continue
+        for item in payload.get("constraints") or []:
+            if not isinstance(item, dict):
+                continue
+            if item.get("type") not in {"must_link", "cannot_link"}:
+                continue
+            if not item.get("cluster_id") or not item.get("speaker"):
+                continue
+            enriched = dict(item)
+            enriched["_pavo_source"] = str(path)
+            constraints.append(enriched)
+    return constraints
+
+
+def _apply_cluster_constraints(
+    segments: list[dict[str, Any]],
+    diarization_segments: list[dict[str, Any]],
+    constraints: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if not segments or not diarization_segments or not constraints:
+        return segments
+
+    cluster_by_key = {
+        _segment_key(segment): str(segment.get("speaker") or "")
+        for segment in diarization_segments
+        if segment.get("speaker")
+    }
+    must_by_cluster: dict[str, set[str]] = {}
+    cannot_by_cluster: dict[str, set[str]] = {}
+    sources_by_cluster: dict[str, set[str]] = {}
+    for constraint in constraints:
+        cluster_id = str(constraint.get("cluster_id") or "")
+        speaker = str(constraint.get("speaker") or "")
+        if not cluster_id or _is_unknown_speaker(speaker):
+            continue
+        sources_by_cluster.setdefault(cluster_id, set()).add(str(constraint.get("_pavo_source") or "unknown"))
+        if constraint.get("type") == "must_link":
+            must_by_cluster.setdefault(cluster_id, set()).add(speaker)
+        elif constraint.get("type") == "cannot_link":
+            cannot_by_cluster.setdefault(cluster_id, set()).add(speaker)
+
+    constrained: list[dict[str, Any]] = []
+    for segment in segments:
+        cluster_id = cluster_by_key.get(_segment_key(segment))
+        if not cluster_id:
+            constrained.append(segment)
+            continue
+
+        current_speaker = str(segment.get("speaker") or "")
+        cannot_speakers = cannot_by_cluster.get(cluster_id, set())
+        if current_speaker in cannot_speakers:
+            enriched = dict(segment)
+            enriched["raw_speaker"] = segment.get("raw_speaker", segment.get("speaker"))
+            enriched["raw_confidence"] = segment.get("raw_confidence", segment.get("confidence"))
+            enriched["speaker"] = f"Unknown rejected {current_speaker}"
+            enriched["confidence"] = "low"
+            enriched["reason"] = f"reviewed cannot-link: cluster {cluster_id} is not {current_speaker}"
+            enriched["ensemble_source"] = "reviewed_cluster_cannot_link"
+            enriched["cluster_constraint_id"] = cluster_id
+            enriched["cluster_constraint_sources"] = sorted(sources_by_cluster.get(cluster_id, set()))
+            constrained.append(enriched)
+            continue
+
+        must_speakers = must_by_cluster.get(cluster_id, set())
+        safe_must_speakers = sorted(must_speakers - cannot_speakers)
+        if len(safe_must_speakers) == 1:
+            target = safe_must_speakers[0]
+            enriched = dict(segment)
+            enriched["raw_speaker"] = segment.get("raw_speaker", segment.get("speaker"))
+            enriched["raw_confidence"] = segment.get("raw_confidence", segment.get("confidence"))
+            enriched["speaker"] = target
+            enriched["confidence"] = "manual_confirmed"
+            enriched["reason"] = f"reviewed must-link: cluster {cluster_id} belongs to {target}"
+            enriched["ensemble_source"] = "reviewed_cluster_must_link"
+            enriched["cluster_constraint_id"] = cluster_id
+            enriched["cluster_constraint_sources"] = sorted(sources_by_cluster.get(cluster_id, set()))
+            constrained.append(enriched)
+            continue
+
+        constrained.append(segment)
+    return constrained
+
+
 def _read_json(path: Path) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -1044,6 +1144,8 @@ def _speaker_ensemble_summary(
     primary: list[dict[str, Any]],
     named: list[dict[str, Any]],
     ensemble: list[dict[str, Any]],
+    *,
+    cluster_constraints: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     routeable = [
         segment
@@ -1053,8 +1155,12 @@ def _speaker_ensemble_summary(
     return {
         "raw_segment_count": len(primary),
         "named_evidence_segment_count": len(named),
+        "cluster_constraint_count": len(cluster_constraints or []),
         "ensemble_segment_count": len(ensemble),
         "source_counts": dict(Counter(str(segment.get("ensemble_source") or "unknown") for segment in ensemble)),
+        "cluster_constraint_source_counts": dict(
+            Counter(str(item.get("type") or "unknown") for item in (cluster_constraints or []))
+        ),
         "routeable_named_segment_count": len(routeable),
         "routeable_speaker_counts": dict(Counter(str(segment.get("speaker") or "unknown") for segment in routeable)),
     }
