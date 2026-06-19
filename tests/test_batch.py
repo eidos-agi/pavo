@@ -6,7 +6,14 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from pavo.batch import doctor_batch, format_operator_handoff, load_operator_handoff, prove_batch, verify_batch_manifest
+from pavo.batch import (
+    doctor_batch,
+    enrich_operator_handoff_with_validation,
+    format_operator_handoff,
+    load_operator_handoff,
+    prove_batch,
+    verify_batch_manifest,
+)
 from pavo.cli import main
 
 
@@ -225,6 +232,19 @@ class BatchDoctorTests(unittest.TestCase):
             root = Path(tmp)
             _write_processed_batch(root, recording_ids=["rec-a"])
             result = prove_batch(root, refresh_cluster_gate=False)
+            result.proof_review_slate_path.with_suffix(".validation.json").write_text(
+                json.dumps(
+                    {
+                        "passed": False,
+                        "ready_to_finalize": False,
+                        "applied_count": 2,
+                        "approved_count": 0,
+                        "rejected_count": 0,
+                        "pending_count": 2,
+                        "blockers": ["2 cluster questions still need review"],
+                    }
+                )
+            )
 
             text_stdout = io.StringIO()
             with redirect_stdout(text_stdout):
@@ -232,20 +252,32 @@ class BatchDoctorTests(unittest.TestCase):
 
             json_stdout = io.StringIO()
             with redirect_stdout(json_stdout):
-                json_exit = main(["batch", "handoff", str(result.proof_report_path), "--json"])
+                json_exit = main(["batch", "handoff", str(result.proof_report_path), "--check-validation", "--json"])
+
+            checked_stdout = io.StringIO()
+            with redirect_stdout(checked_stdout):
+                checked_exit = main(["batch", "handoff", str(result.proof_report_path), "--check-validation"])
 
             loaded = load_operator_handoff(result.proof_report_path)
             formatted = format_operator_handoff(loaded)
+            enriched = enrich_operator_handoff_with_validation(loaded)
             json_report = json.loads(json_stdout.getvalue())
 
         self.assertEqual(text_exit, 0)
         self.assertEqual(json_exit, 0)
+        self.assertEqual(checked_exit, 0)
         self.assertIn("Pavo Operator Handoff", text_stdout.getvalue())
         self.assertIn("validate_command:", text_stdout.getvalue())
         self.assertIn("strict_proof_command:", text_stdout.getvalue())
         self.assertEqual(text_stdout.getvalue(), formatted)
+        self.assertEqual(checked_stdout.getvalue(), format_operator_handoff(enriched))
+        self.assertIn("validation:", checked_stdout.getvalue())
+        self.assertIn("status: pending_review", checked_stdout.getvalue())
+        self.assertIn("pending_count: 2", checked_stdout.getvalue())
         self.assertEqual(json_report["state"], "machine_ready_human_review_pending")
         self.assertEqual(json_report["proof_slate_item_count"], 2)
+        self.assertEqual(json_report["validation"]["status"], "pending_review")
+        self.assertEqual(json_report["validation"]["pending_count"], 2)
         self.assertIn("finish-from-slate", json_report["finish_command"])
 
     def test_batch_proof_cli_strict_complete_fails_when_human_gate_pending(self):

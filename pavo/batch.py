@@ -556,6 +556,39 @@ def load_operator_handoff(proof_report_path: Path | str) -> dict[str, Any]:
     return handoff
 
 
+def enrich_operator_handoff_with_validation(handoff: dict[str, Any]) -> dict[str, Any]:
+    enriched = dict(handoff)
+    slate = str(enriched.get("proof_review_slate_tsv") or "").strip()
+    validation_path = Path(slate).with_suffix(".validation.json") if slate else None
+    validation: dict[str, Any] = {
+        "path": str(validation_path) if validation_path else None,
+        "exists": bool(validation_path and validation_path.exists()),
+        "status": "missing",
+    }
+    if validation_path and validation_path.exists():
+        try:
+            payload = json.loads(validation_path.read_text())
+            passed = bool(payload.get("passed"))
+            ready = bool(payload.get("ready_to_finalize"))
+            pending = int(payload.get("pending_count") or 0)
+            validation.update(
+                {
+                    "status": "ready_to_finish" if ready else "pending_review",
+                    "passed": passed,
+                    "ready_to_finalize": ready,
+                    "applied_count": payload.get("applied_count"),
+                    "approved_count": payload.get("approved_count"),
+                    "rejected_count": payload.get("rejected_count"),
+                    "pending_count": pending,
+                    "blockers": payload.get("blockers") or [],
+                }
+            )
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            validation.update({"status": "unreadable", "error": str(exc)})
+    enriched["validation"] = validation
+    return enriched
+
+
 def format_operator_handoff(handoff: dict[str, Any]) -> str:
     lines = [
         "Pavo Operator Handoff",
@@ -580,6 +613,33 @@ def format_operator_handoff(handoff: dict[str, Any]) -> str:
             f"safety_boundary: {handoff.get('safety_boundary')}",
         ]
     )
+    validation = handoff.get("validation") if isinstance(handoff.get("validation"), dict) else None
+    if validation:
+        lines.extend(
+            [
+                "",
+                "validation:",
+                f"path: {validation.get('path')}",
+                f"exists: {str(bool(validation.get('exists'))).lower()}",
+                f"status: {validation.get('status')}",
+            ]
+        )
+        if validation.get("exists"):
+            lines.extend(
+                [
+                    f"passed: {str(bool(validation.get('passed'))).lower()}",
+                    f"ready_to_finalize: {str(bool(validation.get('ready_to_finalize'))).lower()}",
+                    f"applied_count: {validation.get('applied_count')}",
+                    f"approved_count: {validation.get('approved_count')}",
+                    f"rejected_count: {validation.get('rejected_count')}",
+                    f"pending_count: {validation.get('pending_count')}",
+                ]
+            )
+            blockers = validation.get("blockers") or []
+            if blockers:
+                lines.append("blockers: " + "; ".join(str(blocker) for blocker in blockers))
+        if validation.get("error"):
+            lines.append(f"error: {validation.get('error')}")
     return "\n".join(lines).rstrip() + "\n"
 
 
