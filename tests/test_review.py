@@ -748,6 +748,10 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("blockers", report)
         self.assertIn("Pavo Cluster Review Status", markdown)
         self.assertIn("needs_prepare", markdown)
+        self.assertIn("Reviewer Guide", markdown)
+        self.assertIn("Listen to the audio", markdown)
+        self.assertIn("Approve only", markdown)
+        self.assertIn("finalize will fail closed", markdown)
 
     def test_cli_cluster_review_status_writes_report_json(self):
         from pavo.cli import main
@@ -778,6 +782,8 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(payload["candidate_count"], 0)
         self.assertIn("pavo review clusters prepare", payload["next_command"])
         self.assertIn("Pavo Cluster Review Status", markdown)
+        self.assertIn("Reviewer Guide", markdown)
+        self.assertIn("transcript text alone is not speaker truth", markdown)
         self.assertIn("pavo review clusters prepare", markdown)
 
     def test_create_cluster_question_bundle_writes_review_page(self):
