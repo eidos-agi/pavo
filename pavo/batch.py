@@ -176,6 +176,87 @@ class BatchManifestVerificationResult:
         return "\n".join(lines).rstrip() + "\n"
 
 
+@dataclass(frozen=True)
+class BatchProofResult:
+    batch_root: Path
+    passed: bool
+    complete: bool
+    state: str
+    doctor: BatchDoctorResult
+    verification: BatchManifestVerificationResult
+    proof_report_path: Path
+    proof_markdown_path: Path
+    doctor_report_path: Path
+    doctor_markdown_path: Path
+    verification_markdown_path: Path
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "batch_root": str(self.batch_root),
+            "passed": self.passed,
+            "complete": self.complete,
+            "state": self.state,
+            "proof_report_path": str(self.proof_report_path),
+            "proof_markdown_path": str(self.proof_markdown_path),
+            "doctor_report_path": str(self.doctor_report_path),
+            "doctor_markdown_path": str(self.doctor_markdown_path),
+            "verification_markdown_path": str(self.verification_markdown_path),
+            "source_manifest_sha256": self.doctor.source_manifest_sha256,
+            "generated_manifest_sha256": self.doctor.generated_manifest_sha256,
+            "checked_artifact_count": self.verification.checked_artifact_count,
+            "mismatches": self.verification.mismatches,
+            "checks": self.doctor.checks,
+            "blockers": self.doctor.blockers,
+            "next_command": self.doctor.next_command,
+            "doctor": self.doctor.as_report(),
+            "verification": self.verification.as_report(),
+            "safety_boundary": "Batch proof verifies machine plumbing and artifact integrity. It does not mark speaker identity complete until human review gates pass.",
+        }
+
+    def as_markdown(self) -> str:
+        lines = [
+            "# Pavo Batch Proof",
+            "",
+            f"- Batch root: `{self.batch_root}`",
+            f"- Passed: `{str(self.passed).lower()}`",
+            f"- Complete: `{str(self.complete).lower()}`",
+            f"- State: `{self.state}`",
+            f"- Source manifest SHA-256: `{self.doctor.source_manifest_sha256}`",
+            f"- Generated manifest SHA-256: `{self.doctor.generated_manifest_sha256}`",
+            f"- Checked artifacts: {self.verification.checked_artifact_count}",
+            f"- Mismatches: {len(self.verification.mismatches)}",
+            f"- Next command: `{self.doctor.next_command}`",
+            "",
+            "## Reports",
+            "",
+            f"- Proof JSON: `{self.proof_report_path}`",
+            f"- Proof Markdown: `{self.proof_markdown_path}`",
+            f"- Doctor JSON: `{self.doctor_report_path}`",
+            f"- Doctor Markdown: `{self.doctor_markdown_path}`",
+            f"- Manifest verification Markdown: `{self.verification_markdown_path}`",
+            "",
+            "## Checks",
+            "",
+        ]
+        for check in self.doctor.checks:
+            status = "pass" if check.get("passed") else "fail"
+            lines.append(f"- `{status}` {check.get('name')}: {check.get('detail')}")
+        lines.extend(["", "## Blockers", ""])
+        if self.doctor.blockers:
+            lines.extend(f"- {blocker}" for blocker in self.doctor.blockers)
+        else:
+            lines.append("- None")
+        lines.extend(
+            [
+                "",
+                "## Safety Boundary",
+                "",
+                "Pavo can prove machine coverage and artifact integrity. Speaker identity remains incomplete until the review slate decisions are filled and the cluster gate passes.",
+            ]
+        )
+        return "\n".join(lines).rstrip() + "\n"
+
+
 def doctor_batch(batch_root: Path | str, *, refresh_cluster_gate: bool = True) -> BatchDoctorResult:
     root = Path(batch_root)
     recordings = _source_recordings(root)
@@ -299,6 +380,54 @@ def doctor_batch(batch_root: Path | str, *, refresh_cluster_gate: bool = True) -
         next_command=next_command,
         cluster_gate=cluster_gate,
     )
+
+
+def prove_batch(
+    batch_root: Path | str,
+    *,
+    out_dir: Path | str | None = None,
+    refresh_cluster_gate: bool = True,
+) -> BatchProofResult:
+    root = Path(batch_root)
+    target_dir = Path(out_dir) if out_dir else root
+    target_dir.mkdir(parents=True, exist_ok=True)
+    doctor_report_path = target_dir / "pavo-batch-doctor.json"
+    doctor_markdown_path = target_dir / "pavo-batch-doctor.md"
+    verification_markdown_path = target_dir / "pavo-batch-manifest-verification.md"
+    proof_report_path = target_dir / "pavo-batch-proof.json"
+    proof_markdown_path = target_dir / "pavo-batch-proof.md"
+
+    doctor = doctor_batch(root, refresh_cluster_gate=refresh_cluster_gate)
+    doctor_report_path.write_text(json.dumps(doctor.as_report(), indent=2, sort_keys=True) + "\n")
+    doctor_markdown_path.write_text(doctor.as_markdown())
+    verification = verify_batch_manifest(doctor_report_path)
+    verification_markdown_path.write_text(verification.as_markdown())
+
+    passed = bool(doctor.passed and verification.passed)
+    complete = bool(passed and doctor.complete)
+    if complete:
+        state = "complete"
+    elif passed:
+        state = "machine_ready_human_review_pending"
+    else:
+        state = "needs_machine_repair"
+
+    result = BatchProofResult(
+        batch_root=root,
+        passed=passed,
+        complete=complete,
+        state=state,
+        doctor=doctor,
+        verification=verification,
+        proof_report_path=proof_report_path,
+        proof_markdown_path=proof_markdown_path,
+        doctor_report_path=doctor_report_path,
+        doctor_markdown_path=doctor_markdown_path,
+        verification_markdown_path=verification_markdown_path,
+    )
+    proof_report_path.write_text(json.dumps(result.as_report(), indent=2, sort_keys=True) + "\n")
+    proof_markdown_path.write_text(result.as_markdown())
+    return result
 
 
 def verify_batch_manifest(report_path: Path | str) -> BatchManifestVerificationResult:

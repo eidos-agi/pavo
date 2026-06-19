@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from pavo.batch import doctor_batch, verify_batch_manifest
+from pavo.batch import doctor_batch, prove_batch, verify_batch_manifest
 from pavo.cli import main
 
 
@@ -144,6 +144,48 @@ class BatchDoctorTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         self.assertTrue(markdown_exists)
+
+    def test_batch_proof_writes_doctor_verification_and_proof_reports(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+
+            result = prove_batch(root, refresh_cluster_gate=False)
+            proof_report = json.loads(result.proof_report_path.read_text())
+            proof_markdown_exists = result.proof_markdown_path.exists()
+            doctor_report_exists = result.doctor_report_path.exists()
+            doctor_markdown_exists = result.doctor_markdown_path.exists()
+            verification_markdown_exists = result.verification_markdown_path.exists()
+
+        self.assertTrue(result.passed)
+        self.assertFalse(result.complete)
+        self.assertEqual(result.state, "machine_ready_human_review_pending")
+        self.assertEqual(result.verification.checked_artifact_count, 22)
+        self.assertTrue(doctor_report_exists)
+        self.assertTrue(doctor_markdown_exists)
+        self.assertTrue(verification_markdown_exists)
+        self.assertEqual(proof_report["state"], "machine_ready_human_review_pending")
+        self.assertTrue(proof_markdown_exists)
+
+    def test_batch_proof_cli_strict_complete_fails_when_human_gate_pending(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+
+            exit_code = main(
+                [
+                    "batch",
+                    "prove",
+                    str(root),
+                    "--json",
+                    "--strict-complete",
+                    "--no-refresh-cluster-gate",
+                ]
+            )
+            proof_markdown_exists = (root / "pavo-batch-proof.md").exists()
+
+        self.assertEqual(exit_code, 3)
+        self.assertTrue(proof_markdown_exists)
 
     def test_batch_doctor_refreshes_cluster_gate_by_default(self):
         with tempfile.TemporaryDirectory() as tmp:

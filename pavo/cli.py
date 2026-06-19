@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 from .audio import run_audio_doctor
-from .batch import doctor_batch, verify_batch_manifest
+from .batch import doctor_batch, prove_batch, verify_batch_manifest
 from .brief import (
     build_brief_improvement_report,
     build_meeting_brief,
@@ -97,6 +97,12 @@ def build_parser() -> argparse.ArgumentParser:
     batch_verify.add_argument("report", type=Path, help="Path to pavo-batch-doctor.json")
     batch_verify.add_argument("--json", action="store_true", help="Print full machine-readable verification JSON")
     batch_verify.add_argument("--markdown-report", type=Path, help="Write human-readable verification Markdown")
+    batch_prove = batch_sub.add_parser("prove", help="Run batch doctor, verify manifests, and write one proof packet")
+    batch_prove.add_argument("batch_root", type=Path)
+    batch_prove.add_argument("--out-dir", type=Path, help="Output directory; defaults to the batch root")
+    batch_prove.add_argument("--json", action="store_true", help="Print full machine-readable proof JSON")
+    batch_prove.add_argument("--strict-complete", action="store_true", help="Exit nonzero unless the human review gate is complete")
+    batch_prove.add_argument("--no-refresh-cluster-gate", action="store_true", help="Read the existing cluster gate report instead of refreshing it")
 
     brief = subparsers.add_parser("brief", help="Create a composed readiness and action brief for a meeting batch")
     brief.add_argument("root", type=Path)
@@ -526,6 +532,28 @@ def main(argv: list[str] | None = None) -> int:
             print(f"expected_source_manifest_sha256: {result.expected_source_manifest_sha256}")
             if result.mismatches:
                 print("mismatches: " + "; ".join(f"{m.get('artifact')}:{m.get('reason')}" for m in result.mismatches))
+            return 0 if result.passed else 2
+        if args.batch_command == "prove":
+            result = prove_batch(
+                args.batch_root,
+                out_dir=args.out_dir,
+                refresh_cluster_gate=not args.no_refresh_cluster_gate,
+            )
+            if args.json:
+                print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+            else:
+                print(f"passed: {str(result.passed).lower()}")
+                print(f"complete: {str(result.complete).lower()}")
+                print(f"state: {result.state}")
+                print(f"checked_artifact_count: {result.verification.checked_artifact_count}")
+                print(f"source_manifest_sha256: {result.doctor.source_manifest_sha256}")
+                print(f"generated_manifest_sha256: {result.doctor.generated_manifest_sha256}")
+                print(f"proof_report: {result.proof_report_path}")
+                print(f"proof_markdown: {result.proof_markdown_path}")
+                if result.doctor.blockers:
+                    print("blockers: " + "; ".join(result.doctor.blockers))
+            if args.strict_complete:
+                return 0 if result.complete else 3
             return 0 if result.passed else 2
 
     if args.command == "brief":

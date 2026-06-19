@@ -90,6 +90,9 @@ pavo batch doctor /path/to/meeting-batch --json \
 
 pavo batch verify-manifest /path/to/meeting-batch/pavo-batch-doctor.json --json \
   --markdown-report /path/to/meeting-batch/pavo-batch-manifest-verification.md
+
+pavo batch prove /path/to/meeting-batch --json
+pavo batch prove /path/to/meeting-batch --strict-complete
 ```
 
 The brief writes `pavo-meeting-brief.json` and `pavo-meeting-brief.md` with
@@ -115,6 +118,12 @@ Use `pavo batch verify-manifest` later to re-read the doctor JSON and verify
 that the source files and generated outputs still match their recorded byte
 counts and SHA-256 hashes. It exits nonzero if any tracked artifact is missing
 or changed.
+
+Use `pavo batch prove` as the simple operator front door. It refreshes the
+batch doctor, writes the doctor reports, verifies the manifest immediately, and
+writes `pavo-batch-proof.json` plus `pavo-batch-proof.md`. By default it exits
+zero when machine proof passes. With `--strict-complete`, it exits nonzero until
+the human speaker review gate is complete.
 
 When `--review-plan` is passed, Pavo also writes
 `pavo-review-cluster-plan.json` and `pavo-review-cluster-plan.md`. The plan
