@@ -186,6 +186,7 @@ class BatchProofResult:
     verification: BatchManifestVerificationResult
     proof_report_path: Path
     proof_markdown_path: Path
+    proof_review_slate_path: Path
     doctor_report_path: Path
     doctor_markdown_path: Path
     verification_markdown_path: Path
@@ -199,6 +200,7 @@ class BatchProofResult:
             "state": self.state,
             "proof_report_path": str(self.proof_report_path),
             "proof_markdown_path": str(self.proof_markdown_path),
+            "proof_review_slate_path": str(self.proof_review_slate_path),
             "doctor_report_path": str(self.doctor_report_path),
             "doctor_markdown_path": str(self.doctor_markdown_path),
             "verification_markdown_path": str(self.verification_markdown_path),
@@ -236,6 +238,7 @@ class BatchProofResult:
             "",
             f"- Proof JSON: `{self.proof_report_path}`",
             f"- Proof Markdown: `{self.proof_markdown_path}`",
+            f"- Proof review slate TSV: `{self.proof_review_slate_path}`",
             f"- Doctor JSON: `{self.doctor_report_path}`",
             f"- Doctor Markdown: `{self.doctor_markdown_path}`",
             f"- Manifest verification Markdown: `{self.verification_markdown_path}`",
@@ -448,6 +451,7 @@ def prove_batch(
     verification_markdown_path = target_dir / "pavo-batch-manifest-verification.md"
     proof_report_path = target_dir / "pavo-batch-proof.json"
     proof_markdown_path = target_dir / "pavo-batch-proof.md"
+    proof_review_slate_path = target_dir / "pavo-batch-proof.review-slate.tsv"
 
     doctor = doctor_batch(root, refresh_cluster_gate=refresh_cluster_gate)
     doctor_report_path.write_text(json.dumps(doctor.as_report(), indent=2, sort_keys=True) + "\n")
@@ -464,6 +468,11 @@ def prove_batch(
     else:
         state = "needs_machine_repair"
 
+    review_packet = _review_packet_summary(root, doctor.cluster_gate)
+    proof_review_slate_path.write_text(
+        "\n".join(_review_packet_slate_tsv_lines(review_packet.get("top_items") or [])) + "\n"
+    )
+
     result = BatchProofResult(
         batch_root=root,
         passed=passed,
@@ -473,10 +482,11 @@ def prove_batch(
         verification=verification,
         proof_report_path=proof_report_path,
         proof_markdown_path=proof_markdown_path,
+        proof_review_slate_path=proof_review_slate_path,
         doctor_report_path=doctor_report_path,
         doctor_markdown_path=doctor_markdown_path,
         verification_markdown_path=verification_markdown_path,
-        review_packet=_review_packet_summary(root, doctor.cluster_gate),
+        review_packet=review_packet,
     )
     proof_report_path.write_text(json.dumps(result.as_report(), indent=2, sort_keys=True) + "\n")
     proof_markdown_path.write_text(result.as_markdown())
