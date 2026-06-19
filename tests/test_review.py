@@ -1534,6 +1534,9 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("/api/review-sheet", html)
         self.assertIn("Record note", html)
         self.assertIn("Parse note", html)
+        self.assertIn("Keyboard shortcuts:", html)
+        self.assertIn("handleReviewShortcut", html)
+        self.assertIn('tabindex="0"', html)
         self.assertIn("data-waveform", html)
         self.assertIn('data-approve="1"', html)
         self.assertIn('data-reject="1"', html)
@@ -1575,6 +1578,8 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.reject_count, 1)
         self.assertEqual(result.pending_button_count, 1)
         self.assertEqual(result.note_count, 1)
+        self.assertTrue(result.shortcut_panel_present)
+        self.assertTrue(result.keyboard_handler_present)
         self.assertTrue(result.embedded_sheet_present)
         self.assertTrue(result.import_instruction_present)
         self.assertTrue(result.rerun_instruction_present)
@@ -1653,6 +1658,8 @@ class ReviewTests(unittest.TestCase):
 
         self.assertFalse(result.passed)
         self.assertIn("approve buttons: expected 1, found 0", result.missing)
+        self.assertIn("shortcut panel", result.missing)
+        self.assertIn("keyboard shortcuts", result.missing)
         self.assertIn("embedded sheet JSON", result.missing)
 
     def test_summary_requires_all_rows_reviewed_before_human_reviewed_is_true(self):

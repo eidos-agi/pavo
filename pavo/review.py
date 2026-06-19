@@ -132,6 +132,8 @@ class AnchorReviewPageVerificationResult:
     note_count: int
     export_button_present: bool
     reset_button_present: bool
+    shortcut_panel_present: bool
+    keyboard_handler_present: bool
     embedded_sheet_present: bool
     import_instruction_present: bool
     rerun_instruction_present: bool
@@ -150,6 +152,8 @@ class AnchorReviewPageVerificationResult:
             "note_count": self.note_count,
             "export_button_present": self.export_button_present,
             "reset_button_present": self.reset_button_present,
+            "shortcut_panel_present": self.shortcut_panel_present,
+            "keyboard_handler_present": self.keyboard_handler_present,
             "embedded_sheet_present": self.embedded_sheet_present,
             "import_instruction_present": self.import_instruction_present,
             "rerun_instruction_present": self.rerun_instruction_present,
@@ -1940,6 +1944,20 @@ def create_anchor_review_page(
       align-items: center;
       margin: 18px 0;
     }}
+    .shortcut-panel {{
+      margin: 0 0 18px;
+      padding: 12px 16px;
+      border: 1px solid #d9e5db;
+      background: #fbfdf9;
+      color: #315044;
+    }}
+    .shortcut-panel strong {{
+      color: #17211c;
+    }}
+    .shortcut-panel code {{
+      margin: 0 4px;
+      font-weight: 700;
+    }}
     .save-status {{
       color: #315044;
       font-weight: 700;
@@ -1968,6 +1986,10 @@ def create_anchor_review_page(
       border: 1px solid #cfdfd1;
       border-radius: 8px;
       background: #ffffff;
+    }}
+    article:focus {{
+      outline: 3px solid #8ed39a;
+      outline-offset: 2px;
     }}
     .row-head {{
       display: flex;
@@ -2120,6 +2142,15 @@ def create_anchor_review_page(
   </header>
   <main>
     {instructions}
+    <section class="shortcut-panel" id="shortcut-panel">
+      <strong>Keyboard shortcuts:</strong>
+      <code>A</code> approve/supports decision,
+      <code>R</code> reject/contradicts decision,
+      <code>U</code> uncertain,
+      <code>J</code>/<code>K</code> next/previous clip,
+      <code>/</code> note,
+      <code>S</code> save/export.
+    </section>
     <section class="actions">
       <button type="button" id="save-review">Save review</button>
       <button type="button" id="export-json">{escape(str(export_label))}</button>
@@ -2488,6 +2519,71 @@ def create_anchor_review_page(
       }});
     }}
 
+    function reviewCards() {{
+      return Array.from(document.querySelectorAll("[data-review-index]"));
+    }}
+
+    function currentReviewCard() {{
+      const focused = document.activeElement ? document.activeElement.closest("[data-review-index]") : null;
+      if (focused) return focused;
+      return reviewCards().find((card) => card.classList.contains("review-pending")) || reviewCards()[0] || null;
+    }}
+
+    function focusReviewCard(card) {{
+      if (!card) return;
+      card.focus({{ preventScroll: true }});
+      card.scrollIntoView({{ block: "center", behavior: "smooth" }});
+    }}
+
+    function moveReviewFocus(delta) {{
+      const cards = reviewCards();
+      if (!cards.length) return;
+      const current = currentReviewCard();
+      const currentIndex = Math.max(0, cards.indexOf(current));
+      const nextIndex = Math.min(cards.length - 1, Math.max(0, currentIndex + delta));
+      focusReviewCard(cards[nextIndex]);
+    }}
+
+    function shortcutTargetIsTyping(event) {{
+      const target = event.target;
+      if (!target) return false;
+      const tag = (target.tagName || "").toLowerCase();
+      return tag === "textarea" || tag === "input" || tag === "select" || target.isContentEditable === true;
+    }}
+
+    function handleReviewShortcut(event) {{
+      if (event.metaKey || event.ctrlKey || event.altKey || shortcutTargetIsTyping(event)) return;
+      const key = event.key.toLowerCase();
+      const card = currentReviewCard();
+      if (!card && !["j", "k"].includes(key)) return;
+      if (key === "a") {{
+        event.preventDefault();
+        setDecision(card.dataset.reviewIndex, "approved");
+        moveReviewFocus(1);
+      }} else if (key === "r") {{
+        event.preventDefault();
+        setDecision(card.dataset.reviewIndex, "rejected");
+        moveReviewFocus(1);
+      }} else if (key === "u") {{
+        event.preventDefault();
+        setDecision(card.dataset.reviewIndex, "pending");
+        moveReviewFocus(1);
+      }} else if (key === "j") {{
+        event.preventDefault();
+        moveReviewFocus(1);
+      }} else if (key === "k") {{
+        event.preventDefault();
+        moveReviewFocus(-1);
+      }} else if (key === "/") {{
+        event.preventDefault();
+        const note = card.querySelector("[data-note]");
+        if (note) note.focus();
+      }} else if (key === "s") {{
+        event.preventDefault();
+        saveReview().catch((error) => setSaveStatus(error.message));
+      }}
+    }}
+
     document.querySelectorAll("[data-approve]").forEach((button) => {{
       button.addEventListener("click", () => setDecision(button.dataset.approve, "approved"));
     }});
@@ -2497,6 +2593,7 @@ def create_anchor_review_page(
     document.querySelectorAll("[data-pending]").forEach((button) => {{
       button.addEventListener("click", () => setDecision(button.dataset.pending, "pending"));
     }});
+    document.addEventListener("keydown", handleReviewShortcut);
     document.querySelectorAll("[data-note]").forEach((note) => {{
       note.addEventListener("input", () => setNote(note.dataset.note, note.value));
     }});
@@ -2945,6 +3042,8 @@ def verify_anchor_review_page(
     checks = {
         "export button": parser.export_button_present,
         "reset button": parser.reset_button_present,
+        "shortcut panel": parser.shortcut_panel_present,
+        "keyboard shortcuts": "handleReviewShortcut" in html and 'addEventListener("keydown", handleReviewShortcut)' in html,
         "embedded sheet JSON": embedded_sheet_present,
         "import instruction": (not requires_import) or "pavo review anchors import" in html,
         "rerun instruction": (not requires_rerun) or "pavo review anchors rerun-command" in html,
@@ -2964,6 +3063,8 @@ def verify_anchor_review_page(
         note_count=parser.note_count,
         export_button_present=parser.export_button_present,
         reset_button_present=parser.reset_button_present,
+        shortcut_panel_present=checks["shortcut panel"],
+        keyboard_handler_present=checks["keyboard shortcuts"],
         embedded_sheet_present=embedded_sheet_present,
         import_instruction_present=checks["import instruction"],
         rerun_instruction_present=checks["rerun instruction"],
@@ -4207,7 +4308,7 @@ def _anchor_review_card(row: dict[str, Any], *, labels: dict[str, Any]) -> str:
         if expected
         else f"""    <dt>Correction</dt><dd><code>{escape(str(correction or ''))}</code></dd>"""
     )
-    return f"""<article data-review-index="{index}" class="review-{escape(status)}">
+    return f"""<article data-review-index="{index}" class="review-{escape(status)}" tabindex="0">
   <div class="row-head">
     <h2>Clip {index}</h2>
     <span class="status" data-status>{escape(str(status_label))}</span>
@@ -4268,7 +4369,7 @@ def _human_review_card(row: dict[str, Any], *, labels: dict[str, Any]) -> str:
         for label, value in technical_rows
         if value
     )
-    return f"""<article data-review-index="{index}" class="review-{escape(status)}">
+    return f"""<article data-review-index="{index}" class="review-{escape(status)}" tabindex="0">
   <div class="row-head">
     <div>
       <h2>{escape(str(title))}</h2>
@@ -4366,6 +4467,7 @@ class _ReviewPageParser(HTMLParser):
         self.note_count = 0
         self.export_button_present = False
         self.reset_button_present = False
+        self.shortcut_panel_present = False
         self._in_review_sheet_script = False
         self._review_sheet_chunks: list[str] = []
 
@@ -4389,6 +4491,8 @@ class _ReviewPageParser(HTMLParser):
             self.export_button_present = True
         if attr.get("id") == "reset-review":
             self.reset_button_present = True
+        if attr.get("id") == "shortcut-panel":
+            self.shortcut_panel_present = True
         if tag == "script" and attr.get("id") == "review-sheet-data":
             self._in_review_sheet_script = True
 
