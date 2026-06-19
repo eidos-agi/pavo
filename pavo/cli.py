@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .audio import run_audio_doctor
 from .batch import (
+    apply_batch_decision_board_audit,
     apply_batch_decision_slate,
     build_batch_speaker_memory_candidates,
     doctor_batch,
@@ -136,6 +137,15 @@ def build_parser() -> argparse.ArgumentParser:
     batch_apply_decision_slate.add_argument("decision_slate", type=Path, help="Path to pavo-batch-proof.decision-slate.tsv")
     batch_apply_decision_slate.add_argument("--out", type=Path, required=True, help="Output proof review slate TSV")
     batch_apply_decision_slate.add_argument("--json", action="store_true", help="Print machine-readable apply report")
+    batch_apply_decision_board_audit = batch_sub.add_parser(
+        "apply-decision-board-audit",
+        help="Convert downloaded decision-board audit JSON into reviewed decision and proof slates",
+    )
+    batch_apply_decision_board_audit.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_apply_decision_board_audit.add_argument("audit_json", type=Path, help="Downloaded pavo-batch-proof.decision-board.audit.json")
+    batch_apply_decision_board_audit.add_argument("--out", type=Path, required=True, help="Output proof review slate TSV")
+    batch_apply_decision_board_audit.add_argument("--decision-slate-out", type=Path, help="Output reviewed decision slate TSV")
+    batch_apply_decision_board_audit.add_argument("--json", action="store_true", help="Print machine-readable audit import report")
     batch_speaker_memory = batch_sub.add_parser(
         "speaker-memory-candidates",
         help="Build reviewed speaker memory candidates from an approved proof review slate",
@@ -660,6 +670,33 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"rejected_row_count: {result.rejected_row_count}")
                 print(f"pending_row_count: {result.pending_row_count}")
                 print(f"skipped_row_count: {result.skipped_row_count}")
+                if result.missing_decision_groups:
+                    print("missing_decision_groups: " + ", ".join(result.missing_decision_groups))
+            return 0 if not result.missing_decision_groups else 2
+        if args.batch_command == "apply-decision-board-audit":
+            try:
+                result = apply_batch_decision_board_audit(
+                    args.proof_report,
+                    args.audit_json,
+                    proof_review_slate_out_path=args.out,
+                    decision_slate_out_path=args.decision_slate_out,
+                )
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+            else:
+                print(f"decision_slate_out_path: {result.decision_slate_out_path}")
+                print(f"proof_review_slate_out_path: {result.proof_review_slate_out_path}")
+                print(f"decision_count: {result.decision_count}")
+                print(f"approved_decision_count: {result.approved_decision_count}")
+                print(f"rejected_decision_count: {result.rejected_decision_count}")
+                print(f"pending_decision_count: {result.pending_decision_count}")
+                print(f"applied_row_count: {result.applied_row_count}")
+                print(f"approved_row_count: {result.approved_row_count}")
+                print(f"rejected_row_count: {result.rejected_row_count}")
+                print(f"pending_row_count: {result.pending_row_count}")
                 if result.missing_decision_groups:
                     print("missing_decision_groups: " + ", ".join(result.missing_decision_groups))
             return 0 if not result.missing_decision_groups else 2

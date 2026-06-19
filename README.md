@@ -94,6 +94,10 @@ pavo batch verify-manifest /path/to/meeting-batch/pavo-batch-doctor.json --json 
 pavo batch prove /path/to/meeting-batch --json
 pavo batch prove /path/to/meeting-batch --strict-complete
 pavo batch decision-board /path/to/meeting-batch/pavo-batch-proof.json
+pavo batch apply-decision-board-audit \
+  /path/to/meeting-batch/pavo-batch-proof.json \
+  /path/to/meeting-batch/pavo-batch-proof.decision-board.audit.json \
+  --out /path/to/meeting-batch/pavo-batch-proof.review-slate.tsv
 pavo batch apply-decision-slate \
   /path/to/meeting-batch/pavo-batch-proof.json \
   /path/to/meeting-batch/pavo-batch-proof.decision-slate.tsv \
@@ -148,6 +152,12 @@ grouped speaker decisions again when you need to regenerate just that artifact.
 It shows each decision, supporting clips and transcript samples, keyboard
 shortcuts, and a generated decision TSV surface for the reviewer. It does not
 write reviewed decisions by itself.
+
+Use `pavo batch apply-decision-board-audit` when the reviewer uses the browser
+board's "Download Audit JSON" button. It validates that the audit came from the
+same proof packet, writes a reviewed decision slate TSV, then expands that into
+the row-level proof review slate through the same gate as `apply-decision-slate`.
+It does not validate or finalize speaker identity by itself.
 
 Use `pavo batch apply-decision-slate` after editing the compact decision slate.
 It expands each grouped `approved` / `rejected` / `pending` decision back onto

@@ -26,6 +26,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --check-validation", readme)
         self.assertIn("pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --strict-ready", readme)
         self.assertIn("pavo batch apply-decision-slate", readme)
+        self.assertIn("pavo batch apply-decision-board-audit", readme)
         self.assertIn("pavo batch decision-board", readme)
         self.assertIn("pavo batch review-pack", readme)
         self.assertIn("pavo batch finalize-reviewed-proof", readme)
@@ -330,6 +331,69 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(report["pending_row_count"], 0)
         self.assertIn("1\tS1\tapproved\tDaniel Reviewed", applied_text)
         self.assertIn("2\tS1\tapproved\tDaniel Reviewed", applied_text)
+
+    def test_batch_apply_decision_board_audit_cli_updates_review_slate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            decision_lines = result.proof_decision_slate_path.read_text().splitlines()
+            headers = decision_lines[0].split("\t")
+            values = decision_lines[1].split("\t")
+            row = dict(zip(headers, values, strict=True))
+            row["decision"] = "approved"
+            row["speaker"] = "Daniel Audit"
+            audit_path = root / "decision-board.audit.json"
+            audit_path.write_text(
+                json.dumps(
+                    {
+                        "source": {"proofReport": str(result.proof_report_path)},
+                        "summary": {"decisionCount": 1, "pendingCount": 0},
+                        "rows": [row],
+                        "auditEvents": [
+                            {
+                                "type": "decision",
+                                "group": row["decision_group"],
+                                "before": "pending",
+                                "after": "approved",
+                            }
+                        ],
+                    }
+                )
+                + "\n"
+            )
+            applied_slate = root / "audit-applied-review-slate.tsv"
+            decision_slate = root / "audit-reviewed-decision-slate.tsv"
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "batch",
+                        "apply-decision-board-audit",
+                        str(result.proof_report_path),
+                        str(audit_path),
+                        "--out",
+                        str(applied_slate),
+                        "--decision-slate-out",
+                        str(decision_slate),
+                        "--json",
+                    ]
+                )
+
+            report = json.loads(stdout.getvalue())
+            applied_text = applied_slate.read_text()
+            decision_text = decision_slate.read_text()
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(report["decision_count"], 1)
+        self.assertEqual(report["approved_decision_count"], 1)
+        self.assertEqual(report["pending_decision_count"], 0)
+        self.assertEqual(report["applied_row_count"], 2)
+        self.assertEqual(report["approved_row_count"], 2)
+        self.assertIn("D01\tapproved\tDaniel Audit", decision_text)
+        self.assertIn("1\tS1\tapproved\tDaniel Audit", applied_text)
+        self.assertIn("2\tS1\tapproved\tDaniel Audit", applied_text)
 
     def test_batch_speaker_memory_candidates_cli_exports_only_approved_rows(self):
         with tempfile.TemporaryDirectory() as tmp:

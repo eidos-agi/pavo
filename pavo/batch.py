@@ -502,6 +502,41 @@ class BatchReviewPackResult:
         }
 
 
+@dataclass(frozen=True)
+class BatchDecisionBoardAuditApplyResult:
+    proof_report_path: Path
+    audit_path: Path
+    decision_slate_out_path: Path
+    proof_review_slate_out_path: Path
+    decision_count: int
+    approved_decision_count: int
+    rejected_decision_count: int
+    pending_decision_count: int
+    applied_row_count: int
+    approved_row_count: int
+    rejected_row_count: int
+    pending_row_count: int
+    missing_decision_groups: list[str]
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "proof_report_path": str(self.proof_report_path),
+            "audit_path": str(self.audit_path),
+            "decision_slate_out_path": str(self.decision_slate_out_path),
+            "proof_review_slate_out_path": str(self.proof_review_slate_out_path),
+            "decision_count": self.decision_count,
+            "approved_decision_count": self.approved_decision_count,
+            "rejected_decision_count": self.rejected_decision_count,
+            "pending_decision_count": self.pending_decision_count,
+            "applied_row_count": self.applied_row_count,
+            "approved_row_count": self.approved_row_count,
+            "rejected_row_count": self.rejected_row_count,
+            "pending_row_count": self.pending_row_count,
+            "missing_decision_groups": self.missing_decision_groups,
+            "safety_boundary": "Decision-board audit import turns reviewed board state into TSV artifacts. It does not validate or finalize speaker identity by itself.",
+        }
+
+
 def doctor_batch(batch_root: Path | str, *, refresh_cluster_gate: bool = True) -> BatchDoctorResult:
     root = Path(batch_root)
     recordings = _source_recordings(root)
@@ -1615,6 +1650,92 @@ def apply_batch_decision_slate(
         pending_row_count=pending_row_count,
         skipped_row_count=skipped_row_count,
         missing_decision_groups=missing_decision_groups,
+    )
+
+
+def apply_batch_decision_board_audit(
+    proof_report_path: Path | str,
+    audit_path: Path | str,
+    *,
+    proof_review_slate_out_path: Path | str,
+    decision_slate_out_path: Path | str | None = None,
+) -> BatchDecisionBoardAuditApplyResult:
+    proof_path = Path(proof_report_path)
+    audit = Path(audit_path)
+    payload = json.loads(audit.read_text())
+    source = payload.get("source") if isinstance(payload.get("source"), dict) else {}
+    source_proof = str(source.get("proofReport") or "").strip()
+    if source_proof and Path(source_proof) != proof_path:
+        raise ValueError(
+            f"decision-board audit was exported for {source_proof}, not {proof_path}; "
+            "use the matching proof report"
+        )
+    rows = payload.get("rows")
+    if not isinstance(rows, list) or not rows:
+        raise ValueError(f"decision-board audit has no rows: {audit}")
+    decision_slate_out = (
+        Path(decision_slate_out_path)
+        if decision_slate_out_path
+        else audit.with_name("pavo-batch-proof.decision-slate.reviewed.tsv")
+    )
+    fieldnames = [
+        "decision_group",
+        "decision",
+        "speaker",
+        "cluster_id",
+        "question",
+        "row_indices",
+        "clip_count",
+        "priority_tier",
+        "priority_score",
+        "priority_reason",
+        "acoustic_verdict",
+        "clip_paths",
+        "transcript_samples",
+    ]
+    decision_rows: list[dict[str, str]] = []
+    approved_decision_count = 0
+    rejected_decision_count = 0
+    pending_decision_count = 0
+    for index, row in enumerate(rows, start=1):
+        if not isinstance(row, dict):
+            raise ValueError(f"decision-board audit row {index} is not an object")
+        decision_group = str(row.get("decision_group") or "").strip()
+        if not decision_group:
+            raise ValueError(f"decision-board audit row {index} is missing decision_group")
+        decision = str(row.get("decision") or "").strip().lower()
+        if decision not in VALID_REVIEW_DECISIONS:
+            raise ValueError(
+                f"decision-board audit row {index} has invalid decision {decision!r}; "
+                f"expected one of {sorted(VALID_REVIEW_DECISIONS)}"
+            )
+        if decision == "approved":
+            approved_decision_count += 1
+        elif decision == "rejected":
+            rejected_decision_count += 1
+        else:
+            pending_decision_count += 1
+        decision_rows.append({field: _tsv_safe(str(row.get(field) or "")) for field in fieldnames})
+    _write_tsv(decision_slate_out, decision_rows, fieldnames)
+    applied = apply_batch_decision_slate(
+        proof_path,
+        decision_slate_out,
+        out_path=proof_review_slate_out_path,
+    )
+    return BatchDecisionBoardAuditApplyResult(
+        proof_report_path=proof_path,
+        audit_path=audit,
+        decision_slate_out_path=decision_slate_out,
+        proof_review_slate_out_path=Path(proof_review_slate_out_path),
+        decision_count=len(decision_rows),
+        approved_decision_count=approved_decision_count,
+        rejected_decision_count=rejected_decision_count,
+        pending_decision_count=pending_decision_count,
+        applied_row_count=applied.applied_row_count,
+        approved_row_count=applied.approved_row_count,
+        rejected_row_count=applied.rejected_row_count,
+        pending_row_count=applied.pending_row_count,
+        missing_decision_groups=applied.missing_decision_groups,
     )
 
 
