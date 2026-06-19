@@ -768,6 +768,50 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.review_effort["minimum_reviews"], 0)
         self.assertTrue(result.page_verified)
         self.assertIn("finalize", result.next_command)
+        self.assertIn("finalize", result.completion_commands)
+        self.assertIn("decisions", result.completion_commands)
+
+    def test_cluster_review_status_finds_bundle_local_materialized_artifacts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bundle = root / "pavo-cluster-question-bundle"
+            artifacts = bundle / "pavo-cluster-question-artifacts"
+            artifacts.mkdir(parents=True)
+            sheet = bundle / "pavo-cluster-question-review-sheet.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "approved",
+                                "approved": True,
+                                "target_speaker_label": "Daniel",
+                                "cluster_question": {"cluster_id": "S1", "dominant_speaker": "Daniel"},
+                            }
+                        ]
+                    }
+                )
+            )
+            create_anchor_review_page(sheet, out_path=bundle / "index.html")
+            (artifacts / "pavo-cluster-constraints.json").write_text(
+                json.dumps({"passed": True, "constraint_count": 1, "constraints": [{"type": "must_link"}]})
+            )
+            (artifacts / "pavo-cluster-reviewed-hints.json").write_text(
+                json.dumps({"passed": True, "hint_count": 1, "hints": [{"speaker": "Daniel"}]})
+            )
+
+            result = status_cluster_review(root)
+            report = result.as_report()
+            markdown = result.as_markdown()
+
+        self.assertEqual(result.constraints_count, 1)
+        self.assertEqual(result.hint_count, 1)
+        self.assertEqual(result.materialized_artifact_dir, artifacts)
+        self.assertEqual(report["materialized_artifact_dir"], str(artifacts))
+        self.assertIn("completion_commands", report)
+        self.assertIn("materialize_decisions", report["completion_commands"])
+        self.assertIn("Completion Commands", markdown)
 
     def test_cluster_review_status_report_is_machine_readable(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -787,9 +831,12 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(report["next_review_plan"], [])
         self.assertEqual(report["review_effort"]["possible_reviews_saved"], 0)
         self.assertIn("next_command", report)
+        self.assertIn("completion_commands", report)
+        self.assertIn("prepare", report["completion_commands"])
         self.assertIn("blockers", report)
         self.assertIn("Pavo Cluster Review Status", markdown)
         self.assertIn("needs_prepare", markdown)
+        self.assertIn("Completion Commands", markdown)
         self.assertIn("Reviewer Guide", markdown)
         self.assertIn("Cluster consensus", markdown)
         self.assertIn("Listen to the audio", markdown)

@@ -359,10 +359,12 @@ class ClusterReviewStatusResult:
     acoustic_report_path: Path | None
     forecast_risk_adjusted_segments: int | None
     forecast_report_path: Path | None
+    materialized_artifact_dir: Path | None
     review_pressure_reduction: int | None
     routeable_named_span_gain: int | None
     next_review_plan: list[dict[str, Any]]
     next_command: str
+    completion_commands: dict[str, str]
     blockers: list[str]
 
     def as_report(self) -> dict[str, Any]:
@@ -391,10 +393,12 @@ class ClusterReviewStatusResult:
             "acoustic_report": str(self.acoustic_report_path) if self.acoustic_report_path else None,
             "forecast_risk_adjusted_segments": self.forecast_risk_adjusted_segments,
             "forecast_report": str(self.forecast_report_path) if self.forecast_report_path else None,
+            "materialized_artifact_dir": str(self.materialized_artifact_dir) if self.materialized_artifact_dir else None,
             "review_pressure_reduction": self.review_pressure_reduction,
             "routeable_named_span_gain": self.routeable_named_span_gain,
             "next_review_plan": self.next_review_plan,
             "next_command": self.next_command,
+            "completion_commands": self.completion_commands,
             "blockers": self.blockers,
         }
 
@@ -417,6 +421,7 @@ class ClusterReviewStatusResult:
             f"- Constraints / hints: {self.constraints_count} / {self.hint_count}",
             f"- Acoustic evidence: {self.acoustic_analyzed_count} analyzed / {self.acoustic_attention_cluster_count} attention clusters",
             f"- Forecast risk-adjusted unlock: {self.forecast_risk_adjusted_segments} segments",
+            f"- Materialized artifact dir: `{self.materialized_artifact_dir}`",
             f"- Review pressure reduction: {self.review_pressure_reduction}",
             f"- Routeable named span gain: {self.routeable_named_span_gain}",
             "",
@@ -436,6 +441,18 @@ class ClusterReviewStatusResult:
                 "## Next Action",
                 "",
                 f"`{self.next_command}`",
+                "",
+                "## Completion Commands",
+                "",
+            ]
+        )
+        if self.completion_commands:
+            for label, command in self.completion_commands.items():
+                lines.append(f"- {label}: `{command}`")
+        else:
+            lines.append("- None")
+        lines.extend(
+            [
                 "",
                 "## Reviewer Guide",
                 "",
@@ -1784,6 +1801,7 @@ def status_cluster_review(
     root = Path(batch_root)
     sheet_path = Path(review_sheet_path) if review_sheet_path else root / "pavo-cluster-question-bundle" / "pavo-cluster-question-review-sheet.json"
     if not sheet_path.exists():
+        prepare_command = shlex.join(["pavo", "review", "clusters", "prepare", str(root)])
         return ClusterReviewStatusResult(
             batch_root=root,
             review_sheet_path=None,
@@ -1809,10 +1827,12 @@ def status_cluster_review(
             acoustic_report_path=None,
             forecast_risk_adjusted_segments=None,
             forecast_report_path=None,
+            materialized_artifact_dir=None,
             review_pressure_reduction=None,
             routeable_named_span_gain=None,
             next_review_plan=[],
-            next_command=f"pavo review clusters prepare {root}",
+            next_command=prepare_command,
+            completion_commands={"prepare": prepare_command},
             blockers=["cluster question review sheet is missing"],
         )
 
@@ -1842,13 +1862,58 @@ def status_cluster_review(
 
     impact_path = sheet_path.with_name(sheet_path.stem.replace("-sheet", "-impact") + ".json")
     impact = _load_optional_json(impact_path)
-    constraints = _load_optional_json(root / "pavo-cluster-question-artifacts" / "pavo-cluster-constraints.json")
-    hints = _load_optional_json(root / "pavo-cluster-question-artifacts" / "pavo-cluster-reviewed-hints.json")
-    improvement = _load_optional_json(root / "pavo-cluster-question-artifacts" / "pavo-brief-improvement-report.json")
+    root_artifact_dir = root / "pavo-cluster-question-artifacts"
+    bundle_artifact_dir = sheet_path.with_name("pavo-cluster-question-artifacts")
+    constraints, constraints_path = _load_first_optional_json(
+        [
+            root_artifact_dir / "pavo-cluster-constraints.json",
+            bundle_artifact_dir / "pavo-cluster-constraints.json",
+        ]
+    )
+    hints, hints_path = _load_first_optional_json(
+        [
+            root_artifact_dir / "pavo-cluster-reviewed-hints.json",
+            bundle_artifact_dir / "pavo-cluster-reviewed-hints.json",
+        ]
+    )
+    improvement, improvement_path = _load_first_optional_json(
+        [
+            root_artifact_dir / "pavo-brief-improvement-report.json",
+            bundle_artifact_dir / "pavo-brief-improvement-report.json",
+        ]
+    )
+    materialized_artifact_dir = None
+    for path in [constraints_path, hints_path, improvement_path]:
+        if path is not None:
+            materialized_artifact_dir = path.parent
+            break
     acoustic_path = sheet_path.with_name("pavo-cluster-question-acoustic-evidence.json")
     acoustic = _load_optional_json(acoustic_path)
     forecast_path = sheet_path.with_name("pavo-cluster-review-forecast.json")
     forecast = _load_optional_json(forecast_path)
+    decision_report_path = sheet_path.with_name(sheet_path.stem.replace("-sheet", "-decisions") + ".json")
+    status_json_path = root / "pavo-cluster-review-status.json"
+    status_markdown_path = root / "pavo-cluster-review-status.md"
+    completion_commands = {
+        "open_review_page": shlex.join(["open", str(page_path)]),
+        "decisions": shlex.join(["pavo", "review", "clusters", "decisions", str(sheet_path), "--out", str(decision_report_path)]),
+        "materialize_decisions": shlex.join(["pavo", "review", "clusters", "materialize-decisions", str(decision_report_path)]),
+        "finalize": shlex.join(["pavo", "review", "clusters", "finalize", str(sheet_path), str(root)]),
+        "refresh_status": shlex.join(
+            [
+                "pavo",
+                "review",
+                "clusters",
+                "status",
+                str(root),
+                "--json",
+                "--report",
+                str(status_json_path),
+                "--markdown-report",
+                str(status_markdown_path),
+            ]
+        ),
+    }
 
     blockers: list[str] = []
     if not page_verified:
@@ -1866,24 +1931,24 @@ def status_cluster_review(
 
     if conflicted_cluster_count:
         state = "review_conflicted"
-        next_command = f"open {page_path}"
+        next_command = completion_commands["open_review_page"]
     elif unresolved_cluster_count:
         state = "review_pending"
-        next_command = f"open {page_path}"
+        next_command = completion_commands["open_review_page"]
     elif not rows:
         state = "needs_prepare"
         blockers.append("cluster review sheet has no rows")
-        next_command = f"pavo review clusters prepare {root}"
+        next_command = shlex.join(["pavo", "review", "clusters", "prepare", str(root)])
     elif not constraints.get("passed") or not improvement:
         state = "ready_to_finalize"
-        next_command = f"pavo review clusters finalize {sheet_path} {root}"
+        next_command = completion_commands["finalize"]
     elif improvement.get("passed"):
         state = "finalized_passed"
-        next_command = f"pavo brief {root}"
+        next_command = shlex.join(["pavo", "brief", str(root)])
     else:
         state = "finalized_attention"
         blockers.extend(improvement.get("blockers") or [])
-        next_command = f"pavo review clusters impact {sheet_path}"
+        next_command = shlex.join(["pavo", "review", "clusters", "impact", str(sheet_path)])
 
     top_cluster = impact.get("top_cluster_id")
     if not top_cluster and rows:
@@ -1915,10 +1980,12 @@ def status_cluster_review(
         acoustic_report_path=acoustic_path if acoustic else None,
         forecast_risk_adjusted_segments=int(forecast.get("risk_adjusted_segments")) if forecast and forecast.get("risk_adjusted_segments") is not None else None,
         forecast_report_path=forecast_path if forecast else None,
+        materialized_artifact_dir=materialized_artifact_dir,
         review_pressure_reduction=int(review_delta) if review_delta is not None else None,
         routeable_named_span_gain=int(routeable_delta) if routeable_delta is not None else None,
         next_review_plan=next_review_plan,
         next_command=next_command,
+        completion_commands=completion_commands,
         blockers=list(dict.fromkeys(blockers)),
     )
 
@@ -5195,6 +5262,13 @@ def _load_optional_json(path: Path | str | None) -> dict[str, Any]:
         return {}
     json_path = Path(path)
     return json.loads(json_path.read_text()) if json_path.exists() else {}
+
+
+def _load_first_optional_json(paths: list[Path]) -> tuple[dict[str, Any], Path | None]:
+    for path in paths:
+        if path.exists():
+            return json.loads(path.read_text()), path
+    return {}, None
 
 
 def _bundle_clip_name(row: dict[str, Any], source: Path) -> str:
