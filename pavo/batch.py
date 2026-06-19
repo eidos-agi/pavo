@@ -1839,6 +1839,7 @@ def _render_batch_decision_board_html(
     pending_count = sum(1 for row in decisions if str(row.get("decision") or "").strip().lower() == "pending")
     supporting_count = sum(len(rows_by_group.get(str(row.get("decision_group") or ""), [])) for row in decisions)
     rows_json = json.dumps(decisions, sort_keys=True)
+    storage_key = json.dumps(f"pavo-decision-board:{proof_report_path}:{decision_slate_path}")
     cards = "\n".join(
         _render_batch_decision_card(row, rows_by_group.get(str(row.get("decision_group") or ""), []))
         for row in decisions
@@ -1892,7 +1893,8 @@ def _render_batch_decision_board_html(
     <div class="sub">Human review surface for grouped speaker decisions. This page does not write files or approve identity by itself.</div>
     <div class="scorebar">
       <div class="score"><strong>{len(decisions)}</strong> decisions</div>
-      <div class="score"><strong>{pending_count}</strong> pending</div>
+      <div class="score"><strong id="pending-count">{pending_count}</strong> pending</div>
+      <div class="score"><strong id="reviewed-count">0</strong> reviewed</div>
       <div class="score"><strong>{supporting_count}</strong> supporting clips</div>
     </div>
   </header>
@@ -1909,34 +1911,93 @@ pavo batch finalize-reviewed-proof {escape(str(proof_report_path))}</div>
       <h2 style="margin-top:16px;">Generated Decision TSV</h2>
       <textarea id="tsv" spellcheck="false"></textarea>
       <button class="approve" style="margin-top:8px;" onclick="downloadTsv()">Download TSV</button>
+      <button class="pending" style="margin-top:8px;" onclick="downloadAudit()">Download Audit JSON</button>
+      <button class="reject" style="margin-top:8px;" onclick="resetSavedState()">Reset Saved Board State</button>
+      <p class="notice" id="autosave-status">Autosave ready.</p>
       <p class="notice">Batch root: <code>{escape(batch_root)}</code></p>
     </aside>
   </main>
   <script>
     const rows = {rows_json};
     const headers = ["decision_group","decision","speaker","cluster_id","question","row_indices","clip_count","priority_tier","priority_score","priority_reason","acoustic_verdict","clip_paths","transcript_samples"];
+    const storageKey = {storage_key};
+    const source = {{
+      proofReport: {json.dumps(str(proof_report_path))},
+      proofReviewSlate: {json.dumps(str(proof_slate_path))},
+      decisionSlate: {json.dumps(str(decision_slate_path))},
+      batchRoot: {json.dumps(batch_root)}
+    }};
+    let auditEvents = [];
     let activeIndex = 0;
     function clean(value) {{ return String(value ?? "").replace(/[\\t\\r\\n]+/g, " ").trim(); }}
-    function setDecision(group, decision) {{
+    function setDecision(group, decision, reason = "manual") {{
       const row = rows.find(item => item.decision_group === group);
       if (!row) return;
+      const before = row.decision;
       row.decision = decision;
       const card = document.querySelector(`[data-group="${{CSS.escape(group)}}"]`);
       if (card) {{
         card.querySelector("[data-status]").textContent = decision;
         card.querySelector("[data-status]").className = "pill " + decision;
       }}
+      recordAudit({{ type: "decision", group, before, after: decision, reason }});
       renderTsv();
     }}
     function updateSpeaker(group, value) {{
       const row = rows.find(item => item.decision_group === group);
-      if (row) row.speaker = value;
+      if (row) {{
+        const before = row.speaker;
+        row.speaker = value;
+        recordAudit({{ type: "speaker", group, before, after: value, reason: "manual" }});
+      }}
       renderTsv();
     }}
     function renderTsv() {{
       const lines = [headers.join("\\t")];
       for (const row of rows) lines.push(headers.map(key => clean(row[key])).join("\\t"));
       document.getElementById("tsv").value = lines.join("\\n") + "\\n";
+      updateProgress();
+      saveState();
+    }}
+    function updateProgress() {{
+      const pending = rows.filter(row => row.decision === "pending").length;
+      const reviewed = rows.length - pending;
+      document.getElementById("pending-count").textContent = String(pending);
+      document.getElementById("reviewed-count").textContent = String(reviewed);
+      document.getElementById("autosave-status").textContent = `Autosaved locally. ${{reviewed}}/${{rows.length}} decisions reviewed.`;
+    }}
+    function recordAudit(event) {{
+      auditEvents.push({{ ...event, at: new Date().toISOString() }});
+    }}
+    function saveState() {{
+      const payload = {{ savedAt: new Date().toISOString(), source, rows, auditEvents }};
+      try {{ localStorage.setItem(storageKey, JSON.stringify(payload)); }} catch (_err) {{}}
+    }}
+    function loadState() {{
+      try {{
+        const raw = localStorage.getItem(storageKey);
+        if (!raw) return;
+        const payload = JSON.parse(raw);
+        if (Array.isArray(payload.auditEvents)) auditEvents = payload.auditEvents;
+        if (Array.isArray(payload.rows)) {{
+          for (const saved of payload.rows) {{
+            const row = rows.find(item => item.decision_group === saved.decision_group);
+            if (row) {{
+              row.decision = saved.decision || row.decision;
+              row.speaker = saved.speaker || row.speaker;
+            }}
+          }}
+        }}
+        for (const row of rows) {{
+          const card = document.querySelector(`[data-group="${{CSS.escape(row.decision_group)}}"]`);
+          if (card) {{
+            card.querySelector("[data-status]").textContent = row.decision;
+            card.querySelector("[data-status]").className = "pill " + row.decision;
+            const input = card.querySelector("input");
+            if (input) input.value = row.speaker;
+          }}
+        }}
+      }} catch (_err) {{}}
     }}
     function focusCard(index) {{
       const cards = Array.from(document.querySelectorAll("[data-group]"));
@@ -1954,16 +2015,45 @@ pavo batch finalize-reviewed-proof {escape(str(proof_report_path))}</div>
       link.click();
       URL.revokeObjectURL(url);
     }}
+    function auditPayload() {{
+      return {{
+        exportedAt: new Date().toISOString(),
+        source,
+        summary: {{
+          decisionCount: rows.length,
+          pendingCount: rows.filter(row => row.decision === "pending").length,
+          approvedCount: rows.filter(row => row.decision === "approved").length,
+          rejectedCount: rows.filter(row => row.decision === "rejected").length
+        }},
+        rows,
+        auditEvents,
+        safetyBoundary: "This audit records human review-board edits. It is not a voiceprint and does not prove identity by itself."
+      }};
+    }}
+    function downloadAudit() {{
+      const blob = new Blob([JSON.stringify(auditPayload(), null, 2) + "\\n"], {{ type: "application/json" }});
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "pavo-batch-proof.decision-board.audit.json";
+      link.click();
+      URL.revokeObjectURL(url);
+    }}
+    function resetSavedState() {{
+      localStorage.removeItem(storageKey);
+      location.reload();
+    }}
     document.addEventListener("keydown", event => {{
       if (["INPUT","TEXTAREA"].includes(document.activeElement.tagName)) return;
       const cards = Array.from(document.querySelectorAll("[data-group]"));
       const group = cards[activeIndex]?.dataset.group;
       if (event.key.toLowerCase() === "j") {{ focusCard(activeIndex + 1); event.preventDefault(); }}
       if (event.key.toLowerCase() === "k") {{ focusCard(activeIndex - 1); event.preventDefault(); }}
-      if (group && event.key.toLowerCase() === "a") {{ setDecision(group, "approved"); event.preventDefault(); }}
-      if (group && event.key.toLowerCase() === "r") {{ setDecision(group, "rejected"); event.preventDefault(); }}
-      if (group && event.key.toLowerCase() === "p") {{ setDecision(group, "pending"); event.preventDefault(); }}
+      if (group && event.key.toLowerCase() === "a") {{ setDecision(group, "approved", "keyboard"); event.preventDefault(); }}
+      if (group && event.key.toLowerCase() === "r") {{ setDecision(group, "rejected", "keyboard"); event.preventDefault(); }}
+      if (group && event.key.toLowerCase() === "p") {{ setDecision(group, "pending", "keyboard"); event.preventDefault(); }}
     }});
+    loadState();
     renderTsv();
   </script>
 </body>

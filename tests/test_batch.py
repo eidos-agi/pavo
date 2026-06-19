@@ -430,6 +430,10 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("hello from the sample", html)
         self.assertIn("Generated Decision TSV", html)
         self.assertIn("Keyboard", html)
+        self.assertIn("Download Audit JSON", html)
+        self.assertIn("localStorage", html)
+        self.assertIn("auditEvents", html)
+        self.assertIn("Autosaved locally", html)
         self.assertIn("pavo batch finalize-reviewed-proof", html)
 
     def test_batch_finalize_reviewed_proof_fails_closed_when_pending(self):
