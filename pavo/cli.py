@@ -128,6 +128,13 @@ def build_parser() -> argparse.ArgumentParser:
     batch_handoff.add_argument("--check-validation", action="store_true", help="Include current proof-slate validation report status when present")
     batch_handoff.add_argument("--strict-ready", action="store_true", help="Exit nonzero unless validation is fresh and ready to finish")
     batch_handoff.add_argument("--json", action="store_true", help="Print machine-readable handoff JSON")
+    batch_status = batch_sub.add_parser(
+        "status",
+        help="Print a concise operator status line for a batch proof packet",
+    )
+    batch_status.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_status.add_argument("--pack-dir", type=Path, help="Review pack directory; defaults beside the proof report")
+    batch_status.add_argument("--json", action="store_true", help="Print machine-readable status report")
     batch_readiness = batch_sub.add_parser(
         "readiness",
         help="Summarize proof, board, review-pack, validation, and final human-review readiness",
@@ -692,7 +699,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.strict_ready:
                 return 0 if operator_handoff_ready_to_finish(handoff) else 3
             return 0
-        if args.batch_command == "readiness":
+        if args.batch_command in {"readiness", "status"}:
             try:
                 result = summarize_batch_readiness(args.proof_report, pack_dir=args.pack_dir)
             except (OSError, json.JSONDecodeError, ValueError) as exc:
@@ -700,6 +707,18 @@ def main(argv: list[str] | None = None) -> int:
                 return 2
             if args.json:
                 print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+            elif args.batch_command == "status":
+                sprint = result.review_sprint or {}
+                print(f"state: {result.state}")
+                print(f"complete: {str(result.complete).lower()}")
+                print(f"machine_ready: {str(result.machine_ready).lower()}")
+                print(f"human_gate: {'complete' if result.complete else 'pending'}")
+                print(f"pending_decisions: {result.pending_decision_count}")
+                print(f"pending_clips: {sprint.get('pending_clip_count')}")
+                print(f"estimated_review_minutes: {sprint.get('estimated_minutes')}")
+                print(f"next_action: {result.next_action}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
             else:
                 print(f"state: {result.state}")
                 print(f"complete: {str(result.complete).lower()}")

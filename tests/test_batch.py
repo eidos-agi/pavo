@@ -32,6 +32,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("pavo batch verify-decision-board", readme)
         self.assertIn("pavo batch review-pack", readme)
         self.assertIn("pavo batch verify-review-pack", readme)
+        self.assertIn("pavo batch status", readme)
         self.assertIn("pavo batch readiness", readme)
         self.assertIn("pavo batch review-sprint", readme)
         self.assertIn("pavo batch verify-review-sprint", readme)
@@ -765,6 +766,38 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertFalse(report["blockers"])
         self.assertTrue(report["board"]["passed"])
         self.assertTrue(report["review_pack"]["passed"])
+
+    def test_batch_status_cli_prints_concise_operator_answer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            out_dir = root / "handoff-pack"
+            main(["batch", "finalize-reviewed-proof", str(result.proof_report_path), "--json"])
+            main(["batch", "review-pack", str(result.proof_report_path), "--out-dir", str(out_dir), "--json"])
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "batch",
+                        "status",
+                        str(result.proof_report_path),
+                        "--pack-dir",
+                        str(out_dir),
+                    ]
+                )
+
+            text = stdout.getvalue()
+
+        self.assertEqual(exit_code, 3)
+        self.assertIn("state: machine_ready_human_review_pending", text)
+        self.assertIn("machine_ready: true", text)
+        self.assertIn("human_gate: pending", text)
+        self.assertIn("pending_decisions: 1", text)
+        self.assertIn("pending_clips: 2", text)
+        self.assertIn("estimated_review_minutes: 1.8", text)
+        self.assertIn("next_action: review 1 pending speaker decision", text)
 
     def test_batch_readiness_cli_reports_machine_repair_when_review_pack_missing(self):
         with tempfile.TemporaryDirectory() as tmp:

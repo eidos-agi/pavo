@@ -111,6 +111,7 @@ pavo batch speaker-memory-candidates \
   --out /path/to/meeting-batch/pavo-speaker-memory-candidates.json
 pavo batch review-pack /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch verify-review-pack /path/to/meeting-batch/pavo-batch-proof.json
+pavo batch status /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch readiness /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch review-sprint /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch verify-review-sprint /path/to/meeting-batch/pavo-batch-proof.json
@@ -205,6 +206,13 @@ README and zip exist, verifies no raw audio files were copied, recomputes the
 artifact manifest hash, and runs `verify-decision-board` against the source
 proof. It exits `3` if the pack is stale, tampered, incomplete, or missing the
 safe finish commands.
+
+Use `pavo batch status` when you want the short operator answer. It uses the
+same readiness engine as `pavo batch readiness`, but text output is intentionally
+compact: state, machine readiness, human gate, pending decisions/clips,
+estimated review minutes, and next action. It exits `0` only when strict proof
+is complete, `3` when machine surfaces are healthy but human review remains, and
+`2` when machine repair is needed.
 
 Use `pavo batch readiness` as the concise operator rollup across proof, board,
 review pack, validation, and human-review gates. It exits `0` only when strict
