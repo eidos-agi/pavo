@@ -82,6 +82,7 @@ After a batch is processed, use one command to get the operational truth:
 pavo brief /path/to/meeting-batch
 pavo brief /path/to/meeting-batch --review-plan
 pavo brief /path/to/meeting-batch --review-plan-clips
+pavo brief-improvement baseline/pavo-meeting-brief.json current/pavo-meeting-brief.json
 ```
 
 The brief writes `pavo-meeting-brief.json` and `pavo-meeting-brief.md` with
@@ -101,6 +102,13 @@ When `--review-plan-clips` is passed, Pavo also extracts the sampled cluster
 spans into local audio clips, writes `pavo-review-cluster-clips.json`, creates
 `pavo-review-cluster-sheet.json`, renders `pavo-review-cluster.html`, and builds
 `pavo-review-cluster-bundle/` for localhost review.
+
+`pavo brief-improvement` compares two meeting briefs and writes
+`pavo-brief-improvement-report.json` plus Markdown. It gates on review-pressure
+reduction, routeable named-span gain, readiness score, and recording parity. It
+fails closed when the before/after metrics are unchanged. Generated review clips
+and Pavo artifacts are excluded from source recording counts so Pavo does not
+poison its own future briefs.
 
 The problems Pavo is built around:
 

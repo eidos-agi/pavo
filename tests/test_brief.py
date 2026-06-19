@@ -4,8 +4,10 @@ import unittest
 from pathlib import Path
 
 from pavo.brief import (
+    build_brief_improvement_report,
     build_meeting_brief,
     build_review_cluster_plan,
+    write_brief_improvement_report,
     write_meeting_brief,
     write_review_cluster_clip_packet,
     write_review_cluster_plan,
@@ -82,6 +84,24 @@ class BriefTests(unittest.TestCase):
             self.assertEqual(main(["brief", str(root), "--json"]), 0)
             self.assertTrue((root / "pavo-meeting-brief.json").exists())
             self.assertTrue((root / "pavo-meeting-brief.md").exists())
+
+    def test_brief_ignores_generated_review_clip_audio_for_recording_parity(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "call.mp3").write_bytes(b"source audio")
+            (root / "call.transcript.json").write_text('{"segments":[]}\n')
+            generated = root / "pavo-review-cluster-clips"
+            generated.mkdir()
+            (generated / "cluster-01-sample-01.mp3").write_bytes(b"generated review clip")
+
+            brief = build_meeting_brief(root)
+
+        self.assertEqual(brief["counts"]["audio_files"], 1)
+        self.assertEqual(brief["counts"]["transcript_json_files"], 1)
+        self.assertEqual(
+            {gate["name"]: gate["status"] for gate in brief["verification"]["gates"]}["recording_parity"],
+            "pass",
+        )
 
     def test_brief_dedupes_generated_and_repeated_task_lines(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -297,6 +317,40 @@ class BriefTests(unittest.TestCase):
             self.assertEqual(packet["clips"][0]["recording_id"], "rec-1")
             self.assertTrue(Path(packet["clips"][0]["clip_path"]).exists())
 
+    def test_brief_improvement_report_scores_pressure_and_routeable_gain(self):
+        baseline = _brief_payload(review_total=100, routeable=10, score=80, parity="pass", root="/tmp/baseline")
+        current = _brief_payload(review_total=25, routeable=18, score=90, parity="pass", root="/tmp/current")
+
+        report = build_brief_improvement_report(baseline, current, label="reviewed rerun")
+
+        self.assertTrue(report["passed"])
+        self.assertEqual(report["deltas"]["review_pressure_reduction"], 75)
+        self.assertEqual(report["deltas"]["review_pressure_reduction_percent"], 75.0)
+        self.assertEqual(report["deltas"]["routeable_named_span_gain"], 8)
+        self.assertEqual(report["deltas"]["readiness_score_gain"], 10)
+        self.assertEqual(report["blockers"], [])
+
+    def test_brief_improvement_report_blocks_when_metrics_are_unchanged(self):
+        baseline = _brief_payload(review_total=100, routeable=10, score=80, parity="pass", root="/tmp/same")
+        current = _brief_payload(review_total=100, routeable=10, score=80, parity="pass", root="/tmp/same")
+
+        report = build_brief_improvement_report(baseline, current)
+
+        self.assertFalse(report["passed"])
+        self.assertIn("baseline and current metrics are unchanged", report["blockers"])
+
+    def test_cli_brief_improvement_writes_report(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            baseline = root / "baseline.json"
+            current = root / "current.json"
+            baseline.write_text(json.dumps(_brief_payload(review_total=100, routeable=10, score=80, parity="pass", root="/tmp/b")))
+            current.write_text(json.dumps(_brief_payload(review_total=50, routeable=12, score=85, parity="pass", root="/tmp/c")))
+
+            self.assertEqual(main(["brief-improvement", str(baseline), str(current), "--out-dir", str(root)]), 0)
+            self.assertTrue((root / "pavo-brief-improvement-report.json").exists())
+            self.assertTrue((root / "pavo-brief-improvement-report.md").exists())
+
 
 def _write_test_wav(path: Path) -> None:
     import math
@@ -311,3 +365,32 @@ def _write_test_wav(path: Path) -> None:
         for index in range(sample_rate):
             value = int(12000 * math.sin(2 * math.pi * 440 * index / sample_rate))
             wav.writeframes(struct.pack("<h", value))
+
+
+def _brief_payload(*, review_total: int, routeable: int, score: int, parity: str, root: str) -> dict:
+    return {
+        "root": root,
+        "state": "needs_human_review" if review_total else "ready_for_task_routing",
+        "readiness_score": {"score": score, "grade": "usable_with_review"},
+        "counts": {"audio_files": 1, "transcript_json_files": 1},
+        "verification": {
+            "ok": parity == "pass",
+            "gates": [{"name": "recording_parity", "status": parity, "message": "audio and transcript counts match"}],
+        },
+        "speaker_ensemble": {
+            "routeable_named_segment_count": routeable,
+            "routeable_speaker_counts": {"Daniel": routeable},
+        },
+        "review": {
+            "item_count": min(review_total, 200),
+            "total_count": review_total,
+            "clusters": [
+                {
+                    "speaker": "Unknown office speaker",
+                    "reason": "unattributed_speaker",
+                    "segment_count": review_total,
+                    "duration_seconds": float(review_total),
+                }
+            ],
+        },
+    }

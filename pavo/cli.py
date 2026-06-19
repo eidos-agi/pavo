@@ -8,8 +8,10 @@ from pathlib import Path
 
 from .audio import run_audio_doctor
 from .brief import (
+    build_brief_improvement_report,
     build_meeting_brief,
     build_review_cluster_plan,
+    write_brief_improvement_report,
     write_meeting_brief,
     write_review_cluster_clip_packet,
     write_review_cluster_plan,
@@ -63,6 +65,13 @@ def build_parser() -> argparse.ArgumentParser:
     brief.add_argument("--review-plan-clips", action="store_true", help="Extract sampled review clips and render a review page")
     brief.add_argument("--review-plan-clip-limit", type=int, default=25, help="Maximum review-plan clips to extract")
     brief.add_argument("--json", action="store_true", help="Print the full brief payload as JSON")
+
+    brief_improvement = subparsers.add_parser("brief-improvement", help="Compare two Pavo meeting briefs and score improvement")
+    brief_improvement.add_argument("baseline", type=Path, help="Baseline pavo-meeting-brief.json")
+    brief_improvement.add_argument("current", type=Path, help="Current pavo-meeting-brief.json")
+    brief_improvement.add_argument("--out-dir", type=Path, help="Output directory; defaults to the current brief directory")
+    brief_improvement.add_argument("--label", help="Human label for the comparison")
+    brief_improvement.add_argument("--json", action="store_true", help="Print the full improvement report as JSON")
 
     audio = subparsers.add_parser("audio", help="Audio intelligence checks")
     audio_sub = audio.add_subparsers(dest="audio_command", required=True)
@@ -325,6 +334,39 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"review_page: {review_page_path}")
                 print(f"review_bundle: {review_bundle_path}")
         return 0
+
+    if args.command == "brief-improvement":
+        if not args.baseline.exists():
+            print(f"baseline brief not found: {args.baseline}", file=sys.stderr)
+            return 2
+        if not args.current.exists():
+            print(f"current brief not found: {args.current}", file=sys.stderr)
+            return 2
+        baseline = __import__("json").loads(args.baseline.read_text())
+        current = __import__("json").loads(args.current.read_text())
+        report = build_brief_improvement_report(baseline, current, label=args.label)
+        outputs = write_brief_improvement_report(report, args.out_dir or args.current.parent)
+        if args.json:
+            print(
+                __import__("json").dumps(
+                    {
+                        "improvement_json": str(outputs.json_path),
+                        "improvement_markdown": str(outputs.markdown_path),
+                        **report,
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+        else:
+            print(f"passed: {str(report['passed']).lower()}")
+            print(f"review_pressure_reduction: {report['deltas']['review_pressure_reduction']}")
+            print(f"routeable_named_span_gain: {report['deltas']['routeable_named_span_gain']}")
+            if report["blockers"]:
+                print("blockers: " + "; ".join(report["blockers"]))
+            print(f"improvement_json: {outputs.json_path}")
+            print(f"improvement_markdown: {outputs.markdown_path}")
+        return 0 if report["passed"] else 2
 
     if args.command == "audio":
         if args.audio_command == "doctor":

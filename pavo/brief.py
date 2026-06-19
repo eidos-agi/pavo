@@ -61,6 +61,12 @@ class ReviewClusterClipPacketOutputs:
     missing_audio_count: int
 
 
+@dataclass(frozen=True)
+class BriefImprovementOutputs:
+    json_path: Path
+    markdown_path: Path
+
+
 def build_meeting_brief(root: Path, *, review_limit: int = 200, packet_limit: int = 25) -> dict[str, Any]:
     root = root.expanduser().resolve()
     audio_files = _find_files(root, AUDIO_SUFFIXES)
@@ -292,6 +298,70 @@ def write_review_cluster_clip_packet(
     )
 
 
+def build_brief_improvement_report(
+    baseline: dict[str, Any],
+    current: dict[str, Any],
+    *,
+    label: str | None = None,
+) -> dict[str, Any]:
+    baseline_metrics = _brief_metrics(baseline)
+    current_metrics = _brief_metrics(current)
+    review_delta = baseline_metrics["review_pressure_total"] - current_metrics["review_pressure_total"]
+    routeable_delta = current_metrics["routeable_named_spans"] - baseline_metrics["routeable_named_spans"]
+    score_delta = current_metrics["readiness_score"] - baseline_metrics["readiness_score"]
+    baseline_clusters = _cluster_map(baseline)
+    current_clusters = _cluster_map(current)
+    cluster_deltas = []
+    for key in sorted(set(baseline_clusters) | set(current_clusters)):
+        before = baseline_clusters.get(key, {})
+        after = current_clusters.get(key, {})
+        cluster_deltas.append(
+            {
+                "cluster": key,
+                "before_segments": int(before.get("segment_count") or 0),
+                "after_segments": int(after.get("segment_count") or 0),
+                "segment_delta": int(before.get("segment_count") or 0) - int(after.get("segment_count") or 0),
+                "before_duration_seconds": float(before.get("duration_seconds") or 0.0),
+                "after_duration_seconds": float(after.get("duration_seconds") or 0.0),
+            }
+        )
+    cluster_deltas.sort(key=lambda item: (-abs(item["segment_delta"]), item["cluster"]))
+    blockers = _improvement_blockers(baseline_metrics, current_metrics, review_delta, routeable_delta)
+    passed = (
+        current_metrics["verification_ok"]
+        and review_delta >= 0
+        and routeable_delta >= 0
+        and current_metrics["recording_parity_status"] == "pass"
+        and not blockers
+    )
+    return {
+        "generated_at": _utc_now(),
+        "label": label or "Pavo brief improvement",
+        "passed": bool(passed),
+        "baseline": baseline_metrics,
+        "current": current_metrics,
+        "deltas": {
+            "review_pressure_reduction": review_delta,
+            "review_pressure_reduction_percent": _percent_delta(review_delta, baseline_metrics["review_pressure_total"]),
+            "routeable_named_span_gain": routeable_delta,
+            "readiness_score_gain": score_delta,
+        },
+        "cluster_deltas": cluster_deltas,
+        "blockers": blockers,
+        "next_required_proof": "Run a reviewed-hint attribution pass, regenerate the brief, and require review pressure to fall without losing routeable named spans.",
+    }
+
+
+def write_brief_improvement_report(report: dict[str, Any], out_dir: Path) -> BriefImprovementOutputs:
+    out_dir = out_dir.expanduser().resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    json_path = out_dir / "pavo-brief-improvement-report.json"
+    markdown_path = out_dir / "pavo-brief-improvement-report.md"
+    json_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    markdown_path.write_text(render_brief_improvement_markdown(report), encoding="utf-8")
+    return BriefImprovementOutputs(json_path=json_path, markdown_path=markdown_path)
+
+
 def render_meeting_brief_markdown(brief: dict[str, Any]) -> str:
     counts = brief["counts"]
     lines = [
@@ -383,6 +453,40 @@ def render_meeting_brief_markdown(brief: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def render_brief_improvement_markdown(report: dict[str, Any]) -> str:
+    baseline = report["baseline"]
+    current = report["current"]
+    deltas = report["deltas"]
+    lines = [
+        "# Pavo Brief Improvement Report",
+        "",
+        f"Generated: {report['generated_at']}",
+        f"Label: {report['label']}",
+        f"Passed: `{str(report['passed']).lower()}`",
+        "",
+        "## Scoreboard",
+        "",
+        f"- Review pressure: {baseline['review_pressure_total']} -> {current['review_pressure_total']} ({deltas['review_pressure_reduction']} fewer, {deltas['review_pressure_reduction_percent']}%)",
+        f"- Routeable named spans: {baseline['routeable_named_spans']} -> {current['routeable_named_spans']} ({deltas['routeable_named_span_gain']} gain)",
+        f"- Readiness score: {baseline['readiness_score']} -> {current['readiness_score']} ({deltas['readiness_score_gain']} gain)",
+        f"- Recording parity: `{baseline['recording_parity_status']}` -> `{current['recording_parity_status']}`",
+        "",
+        "## Blockers",
+        "",
+    ]
+    if report.get("blockers"):
+        lines.extend(f"- {blocker}" for blocker in report["blockers"])
+    else:
+        lines.append("- None")
+    lines.extend(["", "## Largest Cluster Changes", ""])
+    for item in report.get("cluster_deltas", [])[:10]:
+        lines.append(
+            f"- {item['cluster']}: {item['before_segments']} -> {item['after_segments']} ({item['segment_delta']} fewer)"
+        )
+    lines.extend(["", "## Next Required Proof", "", report["next_required_proof"], ""])
+    return "\n".join(lines)
+
+
 def render_review_cluster_plan_markdown(plan: dict[str, Any]) -> str:
     summary = plan.get("summary") or {}
     boundary = plan.get("approval_boundary") or {}
@@ -439,7 +543,7 @@ def render_review_cluster_plan_markdown(plan: dict[str, Any]) -> str:
 
 
 def _find_files(root: Path, suffixes: set[str]) -> list[Path]:
-    return sorted(path for path in root.rglob("*") if path.is_file() and path.suffix.lower() in suffixes)
+    return sorted(path for path in root.rglob("*") if path.is_file() and path.suffix.lower() in suffixes and not _skip_path(path))
 
 
 def _find_named(root: Path, predicate: Any) -> list[Path]:
@@ -447,7 +551,18 @@ def _find_named(root: Path, predicate: Any) -> list[Path]:
 
 
 def _skip_path(path: Path) -> bool:
-    return any(part in {".git", ".venv", "__pycache__", "node_modules"} for part in path.parts)
+    generated_dirs = {
+        ".git",
+        ".venv",
+        "__pycache__",
+        "node_modules",
+        "pavo-review-cluster-clips",
+        "pavo-review-cluster-bundle",
+        "pavo-reviewed-speaker-artifacts",
+    }
+    if any(part in generated_dirs for part in path.parts):
+        return True
+    return path.name.startswith("pavo-") and path.suffix.lower() in {".json", ".md", ".html"}
 
 
 def _load_speaker_attribution_segments(root: Path) -> list[dict[str, Any]]:
@@ -798,6 +913,59 @@ def _speaker_ensemble_summary(
         "routeable_named_segment_count": len(routeable),
         "routeable_speaker_counts": dict(Counter(str(segment.get("speaker") or "unknown") for segment in routeable)),
     }
+
+
+def _brief_metrics(brief: dict[str, Any]) -> dict[str, Any]:
+    review = brief.get("review") or {}
+    ensemble = brief.get("speaker_ensemble") or {}
+    readiness = brief.get("readiness_score") or {}
+    counts = brief.get("counts") or {}
+    gates = {gate.get("name"): gate for gate in (brief.get("verification") or {}).get("gates", [])}
+    return {
+        "root": brief.get("root"),
+        "state": brief.get("state"),
+        "verification_ok": bool((brief.get("verification") or {}).get("ok")),
+        "readiness_score": int(readiness.get("score") or 0),
+        "readiness_grade": readiness.get("grade"),
+        "review_pressure_total": int(review.get("total_count") or review.get("item_count") or 0),
+        "sampled_review_items": int(review.get("item_count") or 0),
+        "routeable_named_spans": int(ensemble.get("routeable_named_segment_count") or 0),
+        "routeable_speaker_counts": ensemble.get("routeable_speaker_counts") or {},
+        "audio_files": int(counts.get("audio_files") or 0),
+        "transcript_json_files": int(counts.get("transcript_json_files") or 0),
+        "recording_parity_status": (gates.get("recording_parity") or {}).get("status", "unknown"),
+    }
+
+
+def _cluster_map(brief: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    clusters = (brief.get("review") or {}).get("clusters") or []
+    return {f"{cluster.get('speaker')} / {cluster.get('reason')}": cluster for cluster in clusters}
+
+
+def _percent_delta(delta: int, baseline: int) -> float:
+    if not baseline:
+        return 0.0
+    return round((delta / baseline) * 100, 2)
+
+
+def _improvement_blockers(
+    baseline: dict[str, Any],
+    current: dict[str, Any],
+    review_delta: int,
+    routeable_delta: int,
+) -> list[str]:
+    blockers = []
+    if current["recording_parity_status"] != "pass":
+        blockers.append("current brief recording parity is not passing")
+    if not current["verification_ok"]:
+        blockers.append("current brief verification is not passing")
+    if review_delta < 0:
+        blockers.append("review pressure increased")
+    if routeable_delta < 0:
+        blockers.append("routeable named spans decreased")
+    if baseline["root"] == current["root"] and review_delta == 0 and routeable_delta == 0:
+        blockers.append("baseline and current metrics are unchanged")
+    return blockers
 
 
 def _extract_task_packets(root: Path, *, limit: int) -> list[dict[str, Any]]:
