@@ -2321,6 +2321,15 @@ def verify_batch_decision_board(
             "one-click reasoned decision shortcuts",
         ),
         _check(
+            "has_inline_evidence_hints",
+            "Review guidance" in html
+            and "Decision shape" in html
+            and "Decision risk" in html
+            and "Suggested action" in html
+            and "Evidence hints" in html,
+            "inline speaker evidence guidance",
+        ),
+        _check(
             "has_review_reason_export_gate",
             "validateAuditReady" in html and "Missing review reason" in html,
             "client-side reason gate before audit export",
@@ -3285,6 +3294,9 @@ def _render_batch_decision_board_html(
     input, select, textarea {{ width:100%; border:1px solid var(--line); border-radius:10px; padding:8px 10px; font:inherit; }}
     .body {{ padding:16px; }}
     .meta {{ display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 12px; }}
+    .guidance {{ border:1px solid #bfdbfe; background:#eff6ff; border-radius:14px; padding:12px; margin-bottom:14px; }}
+    .guidance strong {{ display:block; margin-bottom:6px; }}
+    .guidance ul {{ margin:8px 0 0; padding-left:20px; color:#334155; font-size:13px; line-height:1.45; }}
     .sample {{ border-top:1px solid var(--line); padding:12px 0; }}
     .sample:first-child {{ border-top:0; padding-top:0; }}
     audio {{ width:100%; margin:8px 0; }}
@@ -3572,6 +3584,7 @@ def _render_batch_decision_card(decision: dict[str, str], proof_rows: list[dict[
     samples = "\n".join(_render_batch_decision_sample(row) for row in proof_rows)
     if not samples:
         samples = '<div class="sample"><p class="notice">No supporting proof rows found for this decision group.</p></div>'
+    guidance = _render_batch_decision_guidance(decision, proof_rows)
     return f"""<article class="card" data-group="{escape(group)}">
   <div class="card-head">
     <div>
@@ -3610,9 +3623,33 @@ def _render_batch_decision_card(decision: dict[str, str], proof_rows: list[dict[
       <span class="pill">Acoustic: {escape(str(decision.get('acoustic_verdict') or 'unknown'))}</span>
       <span class="pill">Rows: {escape(str(decision.get('row_indices') or ''))}</span>
     </div>
+    {guidance}
     {samples}
   </div>
 </article>"""
+
+
+def _render_batch_decision_guidance(decision: dict[str, str], proof_rows: list[dict[str, str]]) -> str:
+    clip_count = _optional_int(decision.get("clip_count")) or len(proof_rows)
+    shape = _batch_speaker_decision_shape(decision)
+    risk = _batch_speaker_decision_risk(decision, clip_count=clip_count)
+    action = _batch_speaker_suggested_review_action(decision, clip_count=clip_count)
+    hints = _batch_speaker_evidence_hints(decision, clip_count=clip_count)
+    hint_html = "\n".join(f"<li>{escape(hint)}</li>" for hint in hints)
+    if not hint_html:
+        hint_html = "<li>Listen to every supporting clip before making a speaker decision.</li>"
+    return f"""<div class="guidance">
+      <strong>Review guidance</strong>
+      <div class="meta">
+        <span class="pill">Decision shape: {escape(shape)}</span>
+        <span class="pill">Decision risk: {escape(risk)}</span>
+      </div>
+      <div class="notice"><strong>Suggested action:</strong> {escape(action)}</div>
+      <div class="notice"><strong>Evidence hints:</strong></div>
+      <ul>
+        {hint_html}
+      </ul>
+    </div>"""
 
 
 def _batch_decision_review_seconds(_decision: dict[str, str], proof_rows: list[dict[str, str]]) -> int:

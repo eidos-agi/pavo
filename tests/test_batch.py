@@ -573,6 +573,12 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("Approve corrected", html)
         self.assertIn("Reject wrong speaker", html)
         self.assertIn("Pending uncertain", html)
+        self.assertIn("Review guidance", html)
+        self.assertIn("Decision shape: confirm_or_reject_proposed_identity", html)
+        self.assertIn("Decision risk: high", html)
+        self.assertIn("Suggested action", html)
+        self.assertIn("Evidence hints", html)
+        self.assertIn("approval requires every clip to match", html)
         self.assertIn("validateAuditReady", html)
         self.assertIn("Missing review reason", html)
         self.assertIn("export_blocked", html)
@@ -612,6 +618,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertRegex(report["board_fingerprint"]["sha256"], r"^[0-9a-f]{64}$")
         self.assertIn("has_review_sprint", {check["name"] for check in report["checks"] if check["passed"]})
         self.assertIn("has_audit_completion_summary", {check["name"] for check in report["checks"] if check["passed"]})
+        self.assertIn("has_inline_evidence_hints", {check["name"] for check in report["checks"] if check["passed"]})
         self.assertFalse(report["blockers"])
 
     def test_batch_verify_decision_board_cli_fails_when_control_missing(self):
