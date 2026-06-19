@@ -6087,6 +6087,7 @@ def _render_cluster_review_decision_brief_markdown(payload: dict[str, Any]) -> s
 
 def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
     summary = payload["summary"]
+    review_key = json.dumps(f"pavo-cluster-decision-brief:{payload.get('review_sheet')}")
     tier_counts = summary.get("tier_counts") or {}
     tier_bits = "".join(
         f'<span class="pill">{escape(str(tier))}: {count}</span>'
@@ -6180,6 +6181,9 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
     .stat span {{ color: var(--muted); }}
     .commands, .blockers {{ background: white; border: 1px solid var(--line); border-radius: 18px; padding: 18px; margin: 18px 0; }}
     .export-panel {{ background: #fffdf5; border: 1px solid #f2d79b; border-radius: 18px; padding: 18px; margin: 18px 0; }}
+    .completion-summary {{ display: inline-block; border-radius: 999px; padding: 8px 12px; font-weight: 850; background: #fff7ed; color: #9a3412; }}
+    .completion-summary.ready {{ background: #ecfdf3; color: #027a48; }}
+    .completion-summary.incomplete {{ background: #fff7ed; color: #9a3412; }}
     code {{ background: #f1f5f9; border: 1px solid #dbe3ee; border-radius: 8px; padding: 2px 5px; overflow-wrap: anywhere; }}
     button {{ border: 0; border-radius: 12px; background: var(--blue); color: white; padding: 10px 14px; font-weight: 800; cursor: pointer; margin-right: 8px; }}
     button.secondary {{ background: #475467; }}
@@ -6241,9 +6245,11 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
     <section class="export-panel">
       <h2>Decision Export</h2>
       <p>Mark each card, adjust speaker if needed, add notes, then export the TSV. The output is compatible with <code>pavo review clusters finish-from-slate</code>.</p>
+      <p id="completion-summary" class="completion-summary">Pending review...</p>
       <button type="button" id="export-tsv">Export reviewed TSV</button>
       <button type="button" class="secondary" id="copy-tsv">Copy TSV</button>
       <button type="button" class="secondary" id="reset-decisions">Reset to pending</button>
+      <button type="button" class="secondary" id="clear-saved">Clear saved local decisions</button>
       <textarea id="tsv-output" aria-label="Generated decision TSV" placeholder="Generated TSV appears here"></textarea>
     </section>
     <section class="blockers">
@@ -6255,6 +6261,7 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
     </section>
   </main>
   <script>
+    const STORAGE_KEY = {review_key};
     const HEADERS = ["row_index", "cluster_id", "decision", "speaker", "note", "priority_tier", "priority_score", "priority_reason", "question", "expected_impact", "acoustic_verdict", "clip_path", "transcript"];
     function cell(value) {{
       return String(value ?? "").replace(/\\t/g, " ").replace(/\\r?\\n/g, " ").trim();
@@ -6281,16 +6288,66 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
         transcript: metadata.transcript
       }};
     }}
+    function currentRows() {{
+      return Array.from(document.querySelectorAll("[data-review-card]")).map(rowFromCard);
+    }}
     function buildTsv() {{
-      const rows = Array.from(document.querySelectorAll("[data-review-card]")).map(rowFromCard);
+      const rows = currentRows();
       return [HEADERS.join("\\t"), ...rows.map(row => HEADERS.map(key => cell(row[key])).join("\\t"))].join("\\n") + "\\n";
+    }}
+    function completion(rows = currentRows()) {{
+      return rows.reduce((acc, row) => {{
+        acc.total += 1;
+        acc[row.decision] = (acc[row.decision] || 0) + 1;
+        if (row.decision !== "pending") acc.reviewed += 1;
+        return acc;
+      }}, {{ total: 0, reviewed: 0, approved: 0, rejected: 0, pending: 0 }});
+    }}
+    function writeCompletion(rows = currentRows()) {{
+      const stats = completion(rows);
+      const summary = document.getElementById("completion-summary");
+      const done = stats.pending === 0 && stats.total > 0;
+      summary.textContent = `${{stats.reviewed}}/${{stats.total}} reviewed · ${{stats.approved}} approved · ${{stats.rejected}} rejected · ${{stats.pending}} pending${{done ? " · ready to export" : " · incomplete"}}`;
+      summary.classList.toggle("ready", done);
+      summary.classList.toggle("incomplete", !done);
+      return stats;
+    }}
+    function saveLocal() {{
+      const decisions = currentRows().map(row => ({{
+        row_index: row.row_index,
+        decision: row.decision,
+        speaker: row.speaker,
+        note: row.note
+      }}));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({{ saved_at: new Date().toISOString(), decisions }}));
+    }}
+    function restoreLocal() {{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      let saved;
+      try {{ saved = JSON.parse(raw); }} catch (error) {{ return; }}
+      const byRow = new Map((saved.decisions || []).map(item => [String(item.row_index), item]));
+      document.querySelectorAll("[data-review-card]").forEach(card => {{
+        const savedRow = byRow.get(String(card.dataset.rowIndex || ""));
+        if (!savedRow) return;
+        const radio = card.querySelector(`input[type=radio][value="${{savedRow.decision || "pending"}}"]`);
+        if (radio) radio.checked = true;
+        const speaker = card.querySelector("[data-speaker]");
+        if (speaker && savedRow.speaker !== undefined) speaker.value = savedRow.speaker;
+        const note = card.querySelector("[data-note]");
+        if (note && savedRow.note !== undefined) note.value = savedRow.note;
+      }});
     }}
     function writeTsv() {{
       const output = document.getElementById("tsv-output");
       output.value = buildTsv();
+      writeCompletion();
+      saveLocal();
       return output.value;
     }}
     document.getElementById("export-tsv").addEventListener("click", () => {{
+      const stats = writeCompletion();
+      if (stats.pending > 0 && !confirm(`${{stats.pending}} decisions are still pending. Export anyway?`)) return;
       const text = writeTsv();
       const blob = new Blob([text], {{ type: "text/tab-separated-values" }});
       const url = URL.createObjectURL(blob);
@@ -6315,10 +6372,15 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
       }});
       writeTsv();
     }});
+    document.getElementById("clear-saved").addEventListener("click", () => {{
+      localStorage.removeItem(STORAGE_KEY);
+      alert("Saved local decisions cleared for this review sheet.");
+    }});
     document.querySelectorAll("[data-review-card] input, [data-review-card] textarea").forEach(element => {{
       element.addEventListener("change", writeTsv);
       element.addEventListener("input", writeTsv);
     }});
+    restoreLocal();
     writeTsv();
   </script>
 </body>
