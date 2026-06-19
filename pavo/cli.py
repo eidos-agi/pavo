@@ -1284,6 +1284,7 @@ def main(argv: list[str] | None = None) -> int:
                 board_result = write_batch_decision_board(args.proof_report)
                 sprint_result = write_batch_review_sprint(args.proof_report)
                 answer_sheet_result = write_batch_speaker_answer_sheet(args.proof_report)
+                active_correction_status = write_batch_active_correction_status(args.proof_report)
                 pack_result = write_batch_review_pack(args.proof_report, out_dir=args.pack_dir)
                 review_bundle_result = write_batch_review_bundle(args.proof_report)
                 review_bundle_verification = verify_batch_review_bundle(args.proof_report)
@@ -1323,6 +1324,7 @@ def main(argv: list[str] | None = None) -> int:
                 "decision_board_written": board_result.as_report(),
                 "review_sprint_written": sprint_result.as_report(),
                 "speaker_answer_sheet_written": answer_sheet_result.as_report(),
+                "active_correction_status": active_correction_status.as_report(),
                 "review_pack_written": pack_result.as_report(),
                 "review_bundle_written": review_bundle_result.as_report(),
                 "review_bundle_verification": review_bundle_verification.as_report(),
@@ -1335,6 +1337,7 @@ def main(argv: list[str] | None = None) -> int:
                 "review_bundle_path": str(review_bundle_verification.markdown_path),
                 "review_completion_path": str(review_completion_verification.markdown_path),
                 "speaker_suggestions_path": str(speaker_suggestions_verification.markdown_path),
+                "active_correction_status_path": str(active_correction_status.markdown_path),
                 "review_cockpit_path": cockpit_verification.get("cockpit_path"),
                 "opened": opened,
                 "next_action": readiness.next_action,
@@ -1364,6 +1367,9 @@ def main(argv: list[str] | None = None) -> int:
                 first_action = next_actions[0] if next_actions and isinstance(next_actions[0], dict) else {}
                 print(f"review_triage_strategy: {speaker_review_triage.get('strategy')}")
                 print(f"review_stop_rule: {stop_rule.get('name')} first {stop_rule.get('minimum_decision_count')} decisions")
+                print(f"active_correction_status: {active_correction_status.markdown_path}")
+                print(f"active_correction_stop_rule_satisfied: {str(active_correction_status.stop_rule_satisfied).lower()}")
+                print(f"active_correction_next_action: {active_correction_status.payload.get('next_action')}")
                 if first_action:
                     print(
                         "review_first_action: "

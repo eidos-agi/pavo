@@ -1697,8 +1697,9 @@ def write_batch_review_bundle(
     proof_path = Path(proof_report_path)
     target_dir = Path(out_dir) if out_dir else proof_path.parent
     target_dir.mkdir(parents=True, exist_ok=True)
-    pack_result = write_batch_review_pack(proof_path)
     completion_result = write_batch_review_completion(proof_path)
+    active_status_result = write_batch_active_correction_status(proof_path)
+    pack_result = write_batch_review_pack(proof_path)
     verify_pack = verify_batch_review_pack(proof_path)
     verify_completion = verify_batch_review_completion(proof_path)
     verify_cockpit = verify_batch_review_cockpit(proof_path)
@@ -1735,6 +1736,7 @@ def write_batch_review_bundle(
         "artifacts": artifact_fingerprints,
         "missing_artifacts": missing,
         "review_completion": completion_result.payload.get("review_completion"),
+        "active_correction_status": active_status_result.payload,
         "verifications": {
             "review_pack": verify_pack.as_report(),
             "review_completion": verify_completion.as_report(),
@@ -1786,6 +1788,9 @@ def verify_batch_review_bundle(
         _check("markdown_has_title", "Pavo Review Bundle" in markdown, "title"),
         _check("markdown_has_safety_boundary", "does not approve speaker identity" in markdown, "safety boundary"),
         _check("markdown_has_completion", "Review completion" in markdown, "review completion"),
+        _check("has_active_correction_status", "active_correction_status" in payload, "active correction status"),
+        _check("markdown_has_active_correction_status", "Active correction status" in markdown, "active correction status"),
+        _check("has_active_correction_artifacts", "active_correction_status_json" in artifacts and "active_correction_status_markdown" in artifacts, "active correction artifacts"),
     ]
     for name, fingerprint in artifacts.items():
         if isinstance(fingerprint, dict):
@@ -1817,6 +1822,8 @@ def _batch_review_bundle_artifacts(proof_path: Path, pack_result: BatchReviewPac
         "review_cockpit": proof_path.with_name("pavo-batch-review-cockpit.html"),
         "review_completion_json": proof_path.with_name("pavo-batch-review-completion.json"),
         "review_completion_markdown": proof_path.with_name("pavo-batch-review-completion.md"),
+        "active_correction_status_json": proof_path.with_name("pavo-batch-active-correction-status.json"),
+        "active_correction_status_markdown": proof_path.with_name("pavo-batch-active-correction-status.md"),
         "speaker_suggestions_json": proof_path.with_name("pavo-batch-speaker-suggestions.json"),
         "speaker_suggestions_markdown": proof_path.with_name("pavo-batch-speaker-suggestions.md"),
         "speaker_suggestions_tsv": proof_path.with_name("pavo-batch-speaker-suggestions.tsv"),
@@ -1830,6 +1837,7 @@ def _batch_review_bundle_artifacts(proof_path: Path, pack_result: BatchReviewPac
 
 def _render_batch_review_bundle_markdown(payload: dict[str, Any]) -> str:
     completion = payload.get("review_completion") if isinstance(payload.get("review_completion"), dict) else {}
+    active_status = payload.get("active_correction_status") if isinstance(payload.get("active_correction_status"), dict) else {}
     artifacts = payload.get("artifacts") if isinstance(payload.get("artifacts"), dict) else {}
     lines = [
         "# Pavo Review Bundle",
@@ -1845,6 +1853,14 @@ def _render_batch_review_bundle_markdown(payload: dict[str, Any]) -> str:
         f"- Pending decisions: `{completion.get('pending_decision_count')}`",
         f"- Missing reason decisions: `{completion.get('missing_reason_decision_count')}`",
         f"- Progress: `{completion.get('progress_percent')}`%",
+        "",
+        "## Active correction status",
+        "",
+        f"- Stop rule satisfied: `{str(bool(active_status.get('stop_rule_satisfied'))).lower()}`",
+        f"- Required stop-rule decisions: `{active_status.get('required_stop_rule_count')}`",
+        f"- Reviewed stop-rule decisions: `{active_status.get('reviewed_stop_rule_count')}`",
+        f"- Pending stop-rule groups: `{', '.join(active_status.get('pending_stop_rule_groups') or []) or 'none'}`",
+        f"- Next action: {active_status.get('next_action')}",
         "",
         "## Artifacts",
         "",
@@ -3018,6 +3034,7 @@ def write_batch_review_pack(
     answer_sheet_result = write_batch_speaker_answer_sheet(proof_path, out_dir=proof_path.parent)
     write_batch_speaker_suggestions(proof_path, out_dir=proof_path.parent)
     write_batch_review_completion(proof_path, out_dir=proof_path.parent)
+    write_batch_active_correction_status(proof_path, out_dir=proof_path.parent)
     calibration_result = write_batch_speaker_calibration(proof_path, out_dir=proof_path.parent)
     _write_batch_review_pack_cockpit(
         proof_path,
@@ -5426,6 +5443,8 @@ def _batch_review_pack_artifacts(
         "proof_review_sprint_markdown": proof_path.with_name("pavo-batch-review-sprint.md"),
         "review_completion_json": proof_path.with_name("pavo-batch-review-completion.json"),
         "review_completion_markdown": proof_path.with_name("pavo-batch-review-completion.md"),
+        "active_correction_status_json": proof_path.with_name("pavo-batch-active-correction-status.json"),
+        "active_correction_status_markdown": proof_path.with_name("pavo-batch-active-correction-status.md"),
         "speaker_answer_sheet_markdown": proof_path.with_name("pavo-batch-speaker-answer-sheet.md"),
         "speaker_answer_sheet_tsv": proof_path.with_name("pavo-batch-speaker-answer-sheet.tsv"),
         "speaker_suggestions_json": proof_path.with_name("pavo-batch-speaker-suggestions.json"),
@@ -5478,6 +5497,7 @@ def _render_batch_review_pack_readme(manifest: dict[str, Any]) -> str:
     readiness_command = f"pavo batch readiness {shlex.quote(proof_report)}"
     completion_command = f"pavo batch review-completion {shlex.quote(proof_report)}"
     verify_completion_command = f"pavo batch verify-review-completion {shlex.quote(proof_report)}"
+    active_correction_command = f"pavo batch active-correction-status {shlex.quote(proof_report)}"
     cockpit_command = f"pavo batch review-cockpit {shlex.quote(proof_report)}"
     verify_cockpit_command = f"pavo batch verify-review-cockpit {shlex.quote(proof_report)}"
     suggestions_command = f"pavo batch speaker-suggestions {shlex.quote(proof_report)}"
@@ -5498,6 +5518,7 @@ def _render_batch_review_pack_readme(manifest: dict[str, Any]) -> str:
         "## What To Open",
         "",
         "- Start with the artifact manifest entry named `review_cockpit_html` for the one-page operator cockpit.",
+        "- Use the entry named `active_correction_status_markdown` to see whether the high-value stop rule is satisfied.",
         "- Use the entry named `review_completion_markdown` for the exact remaining human-review gate.",
         "- Use the entry named `speaker_suggestions_markdown` to see machine hypotheses and safety blockers before listening.",
         "- Use the artifact manifest entry named `proof_decision_board_html` for the human speaker decisions.",
@@ -5516,7 +5537,7 @@ def _render_batch_review_pack_readme(manifest: dict[str, Any]) -> str:
         "",
         "Run readiness before and after review to prove whether this pack is machine-clean, human-pending, or complete. After reviewing the board, download `pavo-batch-proof.decision-board.audit.json`, place it beside this README or run from your download directory, then use the one-command finalize path. The lower-level import command is included as a fallback.",
         "",
-        f"```bash\n{readiness_command}\n{completion_command}\n{verify_completion_command}\n{cockpit_command}\n{verify_cockpit_command}\n{suggestions_command}\n{verify_suggestions_command}\n{calibration_command}\n{audit_finalize_command}\n{readiness_command}\n\n# Optional second-listener agreement scoring after calibration TSV is filled:\n{agreement_command}\n\n# Fallback/manual path:\n{audit_import_command}\n{handoff.get('validate_command')}\n{handoff.get('finish_command')}\n{handoff.get('strict_proof_command')}\n```",
+        f"```bash\n{readiness_command}\n{completion_command}\n{verify_completion_command}\n{active_correction_command}\n{cockpit_command}\n{verify_cockpit_command}\n{suggestions_command}\n{verify_suggestions_command}\n{calibration_command}\n{audit_finalize_command}\n{readiness_command}\n\n# Optional second-listener agreement scoring after calibration TSV is filled:\n{agreement_command}\n\n# Fallback/manual path:\n{audit_import_command}\n{handoff.get('validate_command')}\n{handoff.get('finish_command')}\n{handoff.get('strict_proof_command')}\n```",
         "",
         "## Safety Boundary",
         "",
