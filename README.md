@@ -93,6 +93,8 @@ pavo batch verify-manifest /path/to/meeting-batch/pavo-batch-doctor.json --json 
 
 pavo batch prove /path/to/meeting-batch --json
 pavo batch prove /path/to/meeting-batch --strict-complete
+pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --check-validation
+pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --strict-ready
 ```
 
 The brief writes `pavo-meeting-brief.json` and `pavo-meeting-brief.md` with
@@ -124,6 +126,17 @@ batch doctor, writes the doctor reports, verifies the manifest immediately, and
 writes `pavo-batch-proof.json` plus `pavo-batch-proof.md`. By default it exits
 zero when machine proof passes. With `--strict-complete`, it exits nonzero until
 the human speaker review gate is complete.
+
+Use `pavo batch handoff` when you already have a proof packet and need to know
+what to do next without re-running the batch. It reads `pavo-batch-proof.json`
+and prints the review page, proof TSV, validate command, finish command, strict
+proof command, expected pending/complete states, and safety boundary. Add
+`--check-validation` to include the current proof-slate validation report,
+artifact existence checks, stale-validation detection, and approved/rejected/
+pending counts. Add `--strict-ready` in automation: it exits `0` only when all
+handoff artifacts exist, validation is fresh, and validation says the slate is
+ready to finish; it exits `3` when the handoff exists but is still pending,
+stale, or otherwise not ready.
 
 When `--review-plan` is passed, Pavo also writes
 `pavo-review-cluster-plan.json` and `pavo-review-cluster-plan.md`. The plan

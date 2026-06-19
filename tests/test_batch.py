@@ -20,6 +20,15 @@ from pavo.cli import main
 
 
 class BatchDoctorTests(unittest.TestCase):
+    def test_readme_documents_batch_handoff_operator_gate(self):
+        readme = (Path(__file__).resolve().parents[1] / "README.md").read_text()
+
+        self.assertIn("pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --check-validation", readme)
+        self.assertIn("pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --strict-ready", readme)
+        self.assertIn("stale-validation detection", readme)
+        self.assertIn("it exits `0` only when all", readme)
+        self.assertIn("it exits `3` when the handoff exists", readme)
+
     def test_batch_doctor_reports_machine_ready_with_human_gate_pending(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
