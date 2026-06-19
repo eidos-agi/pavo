@@ -537,6 +537,39 @@ class BatchDecisionBoardAuditApplyResult:
         }
 
 
+@dataclass(frozen=True)
+class BatchDecisionBoardAuditFinalizeResult:
+    proof_report_path: Path
+    audit_path: Path
+    decision_slate_out_path: Path
+    proof_review_slate_out_path: Path
+    passed: bool
+    finalized: bool
+    validation_ready: bool
+    finish_passed: bool
+    strict_proof_complete: bool
+    import_report: dict[str, Any]
+    finalization_report: dict[str, Any]
+    blockers: list[str]
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "proof_report_path": str(self.proof_report_path),
+            "audit_path": str(self.audit_path),
+            "decision_slate_out_path": str(self.decision_slate_out_path),
+            "proof_review_slate_out_path": str(self.proof_review_slate_out_path),
+            "passed": self.passed,
+            "finalized": self.finalized,
+            "validation_ready": self.validation_ready,
+            "finish_passed": self.finish_passed,
+            "strict_proof_complete": self.strict_proof_complete,
+            "import": self.import_report,
+            "finalization": self.finalization_report,
+            "blockers": self.blockers,
+            "safety_boundary": "Finalize-from-board-audit imports reviewed board state and runs the existing validation/finalization gates. It still fails closed while decisions are pending.",
+        }
+
+
 def doctor_batch(batch_root: Path | str, *, refresh_cluster_gate: bool = True) -> BatchDoctorResult:
     root = Path(batch_root)
     recordings = _source_recordings(root)
@@ -1884,6 +1917,60 @@ def finalize_batch_reviewed_proof(
     )
 
 
+def finalize_batch_decision_board_audit(
+    proof_report_path: Path | str,
+    audit_path: Path | str,
+    *,
+    proof_review_slate_out_path: Path | str | None = None,
+    decision_slate_out_path: Path | str | None = None,
+    baseline_brief_path: Path | str | None = None,
+    out_dir: Path | str | None = None,
+) -> BatchDecisionBoardAuditFinalizeResult:
+    proof_path = Path(proof_report_path)
+    proof_report = json.loads(proof_path.read_text())
+    batch_root_value = str(proof_report.get("batch_root") or "").strip()
+    if not batch_root_value:
+        raise ValueError(f"proof report does not name a batch root: {proof_path}")
+    batch_root = Path(batch_root_value)
+    proof_review_slate_out = (
+        Path(proof_review_slate_out_path)
+        if proof_review_slate_out_path
+        else batch_root / "pavo-batch-proof.review-slate.tsv"
+    )
+    decision_slate_out = (
+        Path(decision_slate_out_path)
+        if decision_slate_out_path
+        else batch_root / "pavo-batch-proof.decision-slate.reviewed.tsv"
+    )
+    imported = apply_batch_decision_board_audit(
+        proof_path,
+        audit_path,
+        proof_review_slate_out_path=proof_review_slate_out,
+        decision_slate_out_path=decision_slate_out,
+    )
+    finalized = finalize_batch_reviewed_proof(
+        proof_path,
+        proof_review_slate_path=proof_review_slate_out,
+        baseline_brief_path=baseline_brief_path,
+        out_dir=out_dir,
+    )
+    blockers = list(dict.fromkeys((finalized.blockers or []) + (imported.missing_decision_groups or [])))
+    return BatchDecisionBoardAuditFinalizeResult(
+        proof_report_path=proof_path,
+        audit_path=Path(audit_path),
+        decision_slate_out_path=decision_slate_out,
+        proof_review_slate_out_path=proof_review_slate_out,
+        passed=bool(finalized.passed and not imported.missing_decision_groups),
+        finalized=finalized.finalized,
+        validation_ready=finalized.validation_ready,
+        finish_passed=finalized.finish_passed,
+        strict_proof_complete=finalized.strict_proof_complete,
+        import_report=imported.as_report(),
+        finalization_report=finalized.as_report(),
+        blockers=blockers,
+    )
+
+
 def write_batch_decision_board(
     proof_report_path: Path | str,
     *,
@@ -2099,6 +2186,13 @@ def _render_batch_review_pack_readme(manifest: dict[str, Any]) -> str:
         f"--out {shlex.quote(proof_review_slate)} "
         f"--decision-slate-out {shlex.quote(reviewed_decision_slate)}"
     )
+    audit_finalize_command = (
+        "pavo batch finalize-board-audit "
+        f"{shlex.quote(proof_report)} "
+        "pavo-batch-proof.decision-board.audit.json "
+        f"--out {shlex.quote(proof_review_slate)} "
+        f"--decision-slate-out {shlex.quote(reviewed_decision_slate)}"
+    )
     lines = [
         "# Pavo Batch Review Pack",
         "",
@@ -2126,9 +2220,9 @@ def _render_batch_review_pack_readme(manifest: dict[str, Any]) -> str:
         "",
         "## Commands",
         "",
-        "After reviewing the board, download `pavo-batch-proof.decision-board.audit.json`, place it beside this README or run from your download directory, then import it before validation.",
+        "After reviewing the board, download `pavo-batch-proof.decision-board.audit.json`, place it beside this README or run from your download directory, then use the one-command finalize path. The lower-level import command is included as a fallback.",
         "",
-        f"```bash\n{audit_import_command}\n{handoff.get('validate_command')}\n{handoff.get('finish_command')}\n{handoff.get('strict_proof_command')}\n```",
+        f"```bash\n{audit_finalize_command}\n\n# Fallback/manual path:\n{audit_import_command}\n{handoff.get('validate_command')}\n{handoff.get('finish_command')}\n{handoff.get('strict_proof_command')}\n```",
         "",
         "## Safety Boundary",
         "",
@@ -2276,8 +2370,10 @@ def _render_batch_decision_board_html(
     </section>
     <aside>
       <h2>Finish Flow</h2>
-      <p class="notice">Use the buttons to update the TSV below. Fastest safe path: download the audit JSON, then import it with <code>apply-decision-board-audit</code>. Keyboard: <strong>A</strong> approve, <strong>R</strong> reject, <strong>P</strong> pending, <strong>J/K</strong> move.</p>
-      <div class="commands">pavo batch apply-decision-board-audit {escape(str(proof_report_path))} pavo-batch-proof.decision-board.audit.json --out {escape(str(proof_slate_path))} --decision-slate-out {escape(str(decision_slate_path.with_name("pavo-batch-proof.decision-slate.reviewed.tsv")))}
+      <p class="notice">Use the buttons to update the TSV below. Fastest safe path: download the audit JSON, then run <code>finalize-board-audit</code>. Keyboard: <strong>A</strong> approve, <strong>R</strong> reject, <strong>P</strong> pending, <strong>J/K</strong> move.</p>
+      <div class="commands">pavo batch finalize-board-audit {escape(str(proof_report_path))} pavo-batch-proof.decision-board.audit.json --out {escape(str(proof_slate_path))} --decision-slate-out {escape(str(decision_slate_path.with_name("pavo-batch-proof.decision-slate.reviewed.tsv")))}
+
+pavo batch apply-decision-board-audit {escape(str(proof_report_path))} pavo-batch-proof.decision-board.audit.json --out {escape(str(proof_slate_path))} --decision-slate-out {escape(str(decision_slate_path.with_name("pavo-batch-proof.decision-slate.reviewed.tsv")))}
 
 pavo batch apply-decision-slate {escape(str(proof_report_path))} {escape(str(decision_slate_path))} --out {escape(str(proof_slate_path))}
 

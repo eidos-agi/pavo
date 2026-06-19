@@ -98,6 +98,9 @@ pavo batch apply-decision-board-audit \
   /path/to/meeting-batch/pavo-batch-proof.json \
   /path/to/meeting-batch/pavo-batch-proof.decision-board.audit.json \
   --out /path/to/meeting-batch/pavo-batch-proof.review-slate.tsv
+pavo batch finalize-board-audit \
+  /path/to/meeting-batch/pavo-batch-proof.json \
+  /path/to/meeting-batch/pavo-batch-proof.decision-board.audit.json
 pavo batch apply-decision-slate \
   /path/to/meeting-batch/pavo-batch-proof.json \
   /path/to/meeting-batch/pavo-batch-proof.decision-slate.tsv \
@@ -158,6 +161,12 @@ board's "Download Audit JSON" button. It validates that the audit came from the
 same proof packet, writes a reviewed decision slate TSV, then expands that into
 the row-level proof review slate through the same gate as `apply-decision-slate`.
 It does not validate or finalize speaker identity by itself.
+
+Use `pavo batch finalize-board-audit` for the one-command path after human
+review. It imports the downloaded decision-board audit JSON, validates the
+review slate, materializes the speaker decisions, writes speaker memory
+candidates, and reruns strict proof. It exits `3` while any reviewed board
+decision remains pending.
 
 Use `pavo batch apply-decision-slate` after editing the compact decision slate.
 It expands each grouped `approved` / `rejected` / `pending` decision back onto

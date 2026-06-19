@@ -27,6 +27,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --strict-ready", readme)
         self.assertIn("pavo batch apply-decision-slate", readme)
         self.assertIn("pavo batch apply-decision-board-audit", readme)
+        self.assertIn("pavo batch finalize-board-audit", readme)
         self.assertIn("pavo batch decision-board", readme)
         self.assertIn("pavo batch review-pack", readme)
         self.assertIn("pavo batch finalize-reviewed-proof", readme)
@@ -497,6 +498,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("Keyboard", html)
         self.assertIn("Download Audit JSON", html)
         self.assertIn("pavo batch apply-decision-board-audit", html)
+        self.assertIn("pavo batch finalize-board-audit", html)
         self.assertIn("pavo-batch-proof.decision-board.audit.json", html)
         self.assertIn("localStorage", html)
         self.assertIn("auditEvents", html)
@@ -542,6 +544,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertNotIn("audio", "\n".join(artifact_names))
         self.assertIn("Raw audio copied: `false`", readme)
         self.assertIn("pavo batch apply-decision-board-audit", readme)
+        self.assertIn("pavo batch finalize-board-audit", readme)
         self.assertIn("pavo-batch-proof.decision-board.audit.json", readme)
         self.assertIn("pavo batch prove", readme)
         self.assertRegex(report["artifact_manifest_sha256"], r"^[0-9a-f]{64}$")
@@ -619,6 +622,71 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(report["speaker_memory_candidate_count"], 2)
         self.assertEqual(report["speaker_memory_speaker_count"], 1)
         self.assertEqual(memory["candidates"][0]["speaker"], "Daniel Reviewed")
+
+    def test_batch_finalize_board_audit_imports_and_runs_strict_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            decision_lines = result.proof_decision_slate_path.read_text().splitlines()
+            headers = decision_lines[0].split("\t")
+            values = decision_lines[1].split("\t")
+            row = dict(zip(headers, values, strict=True))
+            row["decision"] = "approved"
+            row["speaker"] = "Daniel Board"
+            audit_path = root / "decision-board.audit.json"
+            audit_path.write_text(
+                json.dumps(
+                    {
+                        "source": {"proofReport": str(result.proof_report_path)},
+                        "summary": {"decisionCount": 1, "pendingCount": 0},
+                        "rows": [row],
+                        "auditEvents": [{"type": "decision", "group": row["decision_group"], "after": "approved"}],
+                    }
+                )
+                + "\n"
+            )
+            applied_slate = root / "board-audit-review-slate.tsv"
+            decision_slate = root / "board-audit-decision-slate.tsv"
+
+            with (
+                patch("pavo.batch.validate_cluster_review_slate", return_value=_FakeSlateValidationReady()),
+                patch("pavo.batch.finish_cluster_review_from_slate", return_value=_FakeFinishResult()),
+                patch("pavo.batch.prove_batch", return_value=_FakeStrictProofResult()),
+            ):
+                stdout = io.StringIO()
+                with redirect_stdout(stdout):
+                    exit_code = main(
+                        [
+                            "batch",
+                            "finalize-board-audit",
+                            str(result.proof_report_path),
+                            str(audit_path),
+                            "--out",
+                            str(applied_slate),
+                            "--decision-slate-out",
+                            str(decision_slate),
+                            "--out-dir",
+                            str(root),
+                            "--json",
+                        ]
+                    )
+
+            report = json.loads(stdout.getvalue())
+            memory_path = Path(report["finalization"]["speaker_memory_candidates_path"])
+            memory = json.loads(memory_path.read_text())
+            applied_text = applied_slate.read_text()
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(report["passed"])
+        self.assertTrue(report["finalized"])
+        self.assertTrue(report["validation_ready"])
+        self.assertTrue(report["finish_passed"])
+        self.assertTrue(report["strict_proof_complete"])
+        self.assertEqual(report["import"]["approved_decision_count"], 1)
+        self.assertEqual(report["import"]["approved_row_count"], 2)
+        self.assertIn("1\tS1\tapproved\tDaniel Board", applied_text)
+        self.assertEqual(memory["candidates"][0]["speaker"], "Daniel Board")
 
     def test_batch_handoff_cli_prints_existing_proof_operator_handoff(self):
         with tempfile.TemporaryDirectory() as tmp:

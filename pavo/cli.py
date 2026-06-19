@@ -15,6 +15,7 @@ from .batch import (
     build_batch_speaker_memory_candidates,
     doctor_batch,
     enrich_operator_handoff_with_validation,
+    finalize_batch_decision_board_audit,
     finalize_batch_reviewed_proof,
     format_operator_handoff,
     load_operator_handoff,
@@ -163,6 +164,17 @@ def build_parser() -> argparse.ArgumentParser:
     batch_finalize_reviewed_proof.add_argument("--baseline-brief", type=Path, help="Optional baseline pavo-meeting-brief.json for improvement scoring")
     batch_finalize_reviewed_proof.add_argument("--out-dir", type=Path, help="Output directory; defaults to the batch root")
     batch_finalize_reviewed_proof.add_argument("--json", action="store_true", help="Print machine-readable finalization report")
+    batch_finalize_board_audit = batch_sub.add_parser(
+        "finalize-board-audit",
+        help="Import decision-board audit JSON, validate, finalize, export memory candidates, and rerun strict proof",
+    )
+    batch_finalize_board_audit.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_finalize_board_audit.add_argument("audit_json", type=Path, help="Downloaded pavo-batch-proof.decision-board.audit.json")
+    batch_finalize_board_audit.add_argument("--out", type=Path, help="Output proof review slate TSV; defaults to the proof slate in the batch")
+    batch_finalize_board_audit.add_argument("--decision-slate-out", type=Path, help="Output reviewed decision slate TSV")
+    batch_finalize_board_audit.add_argument("--baseline-brief", type=Path, help="Optional baseline pavo-meeting-brief.json for improvement scoring")
+    batch_finalize_board_audit.add_argument("--out-dir", type=Path, help="Output directory for finalization artifacts; defaults to the batch root")
+    batch_finalize_board_audit.add_argument("--json", action="store_true", help="Print machine-readable finalization report")
     batch_review_pack = batch_sub.add_parser(
         "review-pack",
         help="Create a portable proof-review pack with board, slates, checklist, hashes, and next commands",
@@ -742,6 +754,32 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"speaker_memory_candidates_path: {result.speaker_memory_candidates_path}")
                 print(f"speaker_memory_candidate_count: {result.speaker_memory_candidate_count}")
                 print(f"speaker_memory_speaker_count: {result.speaker_memory_speaker_count}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+            return 0 if result.passed else 3
+        if args.batch_command == "finalize-board-audit":
+            try:
+                result = finalize_batch_decision_board_audit(
+                    args.proof_report,
+                    args.audit_json,
+                    proof_review_slate_out_path=args.out,
+                    decision_slate_out_path=args.decision_slate_out,
+                    baseline_brief_path=args.baseline_brief,
+                    out_dir=args.out_dir,
+                )
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+            else:
+                print(f"passed: {str(result.passed).lower()}")
+                print(f"finalized: {str(result.finalized).lower()}")
+                print(f"validation_ready: {str(result.validation_ready).lower()}")
+                print(f"finish_passed: {str(result.finish_passed).lower()}")
+                print(f"strict_proof_complete: {str(result.strict_proof_complete).lower()}")
+                print(f"decision_slate_out_path: {result.decision_slate_out_path}")
+                print(f"proof_review_slate_out_path: {result.proof_review_slate_out_path}")
                 if result.blockers:
                     print("blockers: " + "; ".join(result.blockers))
             return 0 if result.passed else 3
