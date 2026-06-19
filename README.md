@@ -100,6 +100,7 @@ pavo batch apply-decision-slate \
 pavo batch speaker-memory-candidates \
   /path/to/meeting-batch/pavo-batch-proof.json \
   --out /path/to/meeting-batch/pavo-speaker-memory-candidates.json
+pavo batch finalize-reviewed-proof /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --check-validation
 pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --strict-ready
 ```
@@ -147,6 +148,11 @@ Use `pavo batch speaker-memory-candidates` after human review has approved rows
 in the proof slate. It writes reviewed speaker sample candidates grouped by
 speaker, with clip/transcript/provenance fields for later enrollment or
 verification. It does not create voiceprints or prove identity by itself.
+
+Use `pavo batch finalize-reviewed-proof` when the proof slate has been reviewed.
+It validates the proof slate, materializes the cluster decisions, writes speaker
+memory candidates, and reruns batch proof in one audited command. It fails
+closed while any speaker decision remains pending.
 
 Use `pavo batch handoff` when you already have a proof packet and need to know
 what to do next without re-running the batch. It reads `pavo-batch-proof.json`

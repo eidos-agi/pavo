@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .review import gate_cluster_review
+from .review import finish_cluster_review_from_slate, gate_cluster_review, validate_cluster_review_slate
 
 
 SOURCE_REQUIRED_FILES = [
@@ -395,6 +395,49 @@ class BatchSpeakerMemoryCandidateResult:
             "pending_row_count": self.pending_row_count,
             "candidates": self.candidates,
             "safety_boundary": "Speaker memory candidates are reviewed samples for later enrollment or verification. They are not voiceprints and do not prove identity by themselves.",
+        }
+
+
+@dataclass(frozen=True)
+class BatchReviewedProofFinalizeResult:
+    proof_report_path: Path
+    batch_root: Path
+    review_sheet_path: Path
+    proof_review_slate_path: Path
+    validation_report_path: Path
+    passed: bool
+    finalized: bool
+    validation_ready: bool
+    finish_passed: bool
+    strict_proof_complete: bool
+    speaker_memory_candidates_path: Path | None
+    speaker_memory_candidate_count: int
+    speaker_memory_speaker_count: int
+    blockers: list[str]
+    validation: dict[str, Any]
+    finish: dict[str, Any] | None
+    strict_proof: dict[str, Any] | None
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "proof_report_path": str(self.proof_report_path),
+            "batch_root": str(self.batch_root),
+            "review_sheet_path": str(self.review_sheet_path),
+            "proof_review_slate_path": str(self.proof_review_slate_path),
+            "validation_report_path": str(self.validation_report_path),
+            "passed": self.passed,
+            "finalized": self.finalized,
+            "validation_ready": self.validation_ready,
+            "finish_passed": self.finish_passed,
+            "strict_proof_complete": self.strict_proof_complete,
+            "speaker_memory_candidates_path": str(self.speaker_memory_candidates_path) if self.speaker_memory_candidates_path else None,
+            "speaker_memory_candidate_count": self.speaker_memory_candidate_count,
+            "speaker_memory_speaker_count": self.speaker_memory_speaker_count,
+            "blockers": self.blockers,
+            "validation": self.validation,
+            "finish": self.finish,
+            "strict_proof": self.strict_proof,
+            "safety_boundary": "Finalizing a reviewed proof requires human-filled slate decisions. Pavo validates and materializes them, but it does not approve speaker identity from machine inference alone.",
         }
 
 
@@ -1570,6 +1613,83 @@ def build_batch_speaker_memory_candidates(
     )
     target.write_text(json.dumps(result.as_report(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return result
+
+
+def finalize_batch_reviewed_proof(
+    proof_report_path: Path | str,
+    *,
+    proof_review_slate_path: Path | str | None = None,
+    baseline_brief_path: Path | str | None = None,
+    out_dir: Path | str | None = None,
+) -> BatchReviewedProofFinalizeResult:
+    proof_path = Path(proof_report_path)
+    proof_report = json.loads(proof_path.read_text())
+    batch_root_value = str(proof_report.get("batch_root") or "").strip()
+    if not batch_root_value:
+        raise ValueError(f"proof report does not name a batch root: {proof_path}")
+    batch_root = Path(batch_root_value)
+    review_packet = proof_report.get("review_packet") if isinstance(proof_report.get("review_packet"), dict) else {}
+    review_sheet_value = review_packet.get("review_sheet")
+    if not review_sheet_value:
+        raise ValueError(f"proof report does not name a review sheet: {proof_path}")
+    review_sheet_path = Path(str(review_sheet_value))
+    proof_slate_path = Path(proof_review_slate_path) if proof_review_slate_path else _proof_review_slate_path_from_report(proof_path)
+    target_dir = Path(out_dir) if out_dir else batch_root
+    target_dir.mkdir(parents=True, exist_ok=True)
+    validation_report_path = proof_slate_path.with_suffix(".validation.json")
+    validation = validate_cluster_review_slate(review_sheet_path, proof_slate_path)
+    validation_report_path.write_text(json.dumps(validation.as_report(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    blockers = list(validation.blockers)
+    finish_report = None
+    strict_proof_report = None
+    memory_result = None
+
+    if validation.ready_to_finalize:
+        finish = finish_cluster_review_from_slate(
+            batch_root,
+            review_sheet_path,
+            proof_slate_path,
+            baseline_brief_path=baseline_brief_path,
+            out_dir=target_dir,
+        )
+        finish_report = finish.as_report()
+        blockers.extend(finish.blockers)
+        if finish.passed:
+            memory_result = build_batch_speaker_memory_candidates(
+                proof_path,
+                proof_review_slate_path=proof_slate_path,
+                out_path=target_dir / "pavo-speaker-memory-candidates.json",
+            )
+            strict_proof = prove_batch(batch_root, out_dir=target_dir)
+            strict_proof_report = strict_proof.as_report()
+            if not strict_proof_report.get("complete"):
+                blockers.append("strict proof did not complete after finalization")
+    else:
+        blockers.append("proof slate is not ready to finalize")
+
+    blockers = list(dict.fromkeys(blockers))
+    finish_passed = bool(finish_report and finish_report.get("passed"))
+    strict_complete = bool(strict_proof_report and strict_proof_report.get("complete"))
+    passed = bool(validation.ready_to_finalize and finish_passed and strict_complete and not blockers)
+    return BatchReviewedProofFinalizeResult(
+        proof_report_path=proof_path,
+        batch_root=batch_root,
+        review_sheet_path=review_sheet_path,
+        proof_review_slate_path=proof_slate_path,
+        validation_report_path=validation_report_path,
+        passed=passed,
+        finalized=finish_passed,
+        validation_ready=validation.ready_to_finalize,
+        finish_passed=finish_passed,
+        strict_proof_complete=strict_complete,
+        speaker_memory_candidates_path=memory_result.out_path if memory_result else None,
+        speaker_memory_candidate_count=memory_result.candidate_count if memory_result else 0,
+        speaker_memory_speaker_count=memory_result.speaker_count if memory_result else 0,
+        blockers=blockers,
+        validation=validation.as_report(),
+        finish=finish_report,
+        strict_proof=strict_proof_report,
+    )
 
 
 def _proof_review_slate_path_from_report(proof_path: Path) -> Path:

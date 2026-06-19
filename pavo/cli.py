@@ -14,6 +14,7 @@ from .batch import (
     build_batch_speaker_memory_candidates,
     doctor_batch,
     enrich_operator_handoff_with_validation,
+    finalize_batch_reviewed_proof,
     format_operator_handoff,
     load_operator_handoff,
     operator_handoff_ready_to_finish,
@@ -134,6 +135,15 @@ def build_parser() -> argparse.ArgumentParser:
     batch_speaker_memory.add_argument("--slate", type=Path, help="Reviewed proof review slate TSV; defaults to the slate named in the proof report")
     batch_speaker_memory.add_argument("--out", type=Path, required=True, help="Output speaker memory candidates JSON")
     batch_speaker_memory.add_argument("--json", action="store_true", help="Print machine-readable candidate report")
+    batch_finalize_reviewed_proof = batch_sub.add_parser(
+        "finalize-reviewed-proof",
+        help="Validate a reviewed proof slate, materialize decisions, export memory candidates, and rerun strict proof",
+    )
+    batch_finalize_reviewed_proof.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_finalize_reviewed_proof.add_argument("--slate", type=Path, help="Reviewed proof review slate TSV; defaults to the slate named in the proof report")
+    batch_finalize_reviewed_proof.add_argument("--baseline-brief", type=Path, help="Optional baseline pavo-meeting-brief.json for improvement scoring")
+    batch_finalize_reviewed_proof.add_argument("--out-dir", type=Path, help="Output directory; defaults to the batch root")
+    batch_finalize_reviewed_proof.add_argument("--json", action="store_true", help="Print machine-readable finalization report")
 
     brief = subparsers.add_parser("brief", help="Create a composed readiness and action brief for a meeting batch")
     brief.add_argument("root", type=Path)
@@ -641,6 +651,31 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"rejected_row_count: {result.rejected_row_count}")
                 print(f"pending_row_count: {result.pending_row_count}")
             return 0
+        if args.batch_command == "finalize-reviewed-proof":
+            try:
+                result = finalize_batch_reviewed_proof(
+                    args.proof_report,
+                    proof_review_slate_path=args.slate,
+                    baseline_brief_path=args.baseline_brief,
+                    out_dir=args.out_dir,
+                )
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+            else:
+                print(f"passed: {str(result.passed).lower()}")
+                print(f"finalized: {str(result.finalized).lower()}")
+                print(f"validation_ready: {str(result.validation_ready).lower()}")
+                print(f"finish_passed: {str(result.finish_passed).lower()}")
+                print(f"strict_proof_complete: {str(result.strict_proof_complete).lower()}")
+                print(f"speaker_memory_candidates_path: {result.speaker_memory_candidates_path}")
+                print(f"speaker_memory_candidate_count: {result.speaker_memory_candidate_count}")
+                print(f"speaker_memory_speaker_count: {result.speaker_memory_speaker_count}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+            return 0 if result.passed else 3
 
     if args.command == "brief":
         if not args.root.exists():

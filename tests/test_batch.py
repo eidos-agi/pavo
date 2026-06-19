@@ -26,6 +26,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --check-validation", readme)
         self.assertIn("pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --strict-ready", readme)
         self.assertIn("pavo batch apply-decision-slate", readme)
+        self.assertIn("pavo batch finalize-reviewed-proof", readme)
         self.assertIn("stale-validation detection", readme)
         self.assertIn("it exits `0` only when all", readme)
         self.assertIn("it exits `3` when the handoff exists", readme)
@@ -385,6 +386,80 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(report["candidate_count"], 0)
         self.assertEqual(report["approved_row_count"], 0)
         self.assertEqual(report["pending_row_count"], 2)
+
+    def test_batch_finalize_reviewed_proof_fails_closed_when_pending(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            validation_path = result.proof_review_slate_path.with_suffix(".validation.json")
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "batch",
+                        "finalize-reviewed-proof",
+                        str(result.proof_report_path),
+                        "--json",
+                    ]
+                )
+
+            report = json.loads(stdout.getvalue())
+            validation_exists = validation_path.exists()
+
+        self.assertEqual(exit_code, 3)
+        self.assertFalse(report["passed"])
+        self.assertFalse(report["finalized"])
+        self.assertFalse(report["validation_ready"])
+        self.assertFalse(report["finish_passed"])
+        self.assertFalse(report["strict_proof_complete"])
+        self.assertTrue(validation_exists)
+        self.assertIn("proof slate is not ready to finalize", report["blockers"])
+
+    def test_batch_finalize_reviewed_proof_runs_finish_memory_and_strict_proof(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            approved_slate = root / "approved-review-slate.tsv"
+            approved_slate.write_text(
+                result.proof_review_slate_path.read_text().replace("\tpending\tDaniel\t", "\tapproved\tDaniel Reviewed\t")
+            )
+
+            with (
+                patch("pavo.batch.validate_cluster_review_slate", return_value=_FakeSlateValidationReady()),
+                patch("pavo.batch.finish_cluster_review_from_slate", return_value=_FakeFinishResult()),
+                patch("pavo.batch.prove_batch", return_value=_FakeStrictProofResult()),
+            ):
+                stdout = io.StringIO()
+                with redirect_stdout(stdout):
+                    exit_code = main(
+                        [
+                            "batch",
+                            "finalize-reviewed-proof",
+                            str(result.proof_report_path),
+                            "--slate",
+                            str(approved_slate),
+                            "--out-dir",
+                            str(root),
+                            "--json",
+                        ]
+                    )
+
+            report = json.loads(stdout.getvalue())
+            memory_path = Path(report["speaker_memory_candidates_path"])
+            memory = json.loads(memory_path.read_text())
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(report["passed"])
+        self.assertTrue(report["finalized"])
+        self.assertTrue(report["validation_ready"])
+        self.assertTrue(report["finish_passed"])
+        self.assertTrue(report["strict_proof_complete"])
+        self.assertEqual(report["speaker_memory_candidate_count"], 2)
+        self.assertEqual(report["speaker_memory_speaker_count"], 1)
+        self.assertEqual(memory["candidates"][0]["speaker"], "Daniel Reviewed")
 
     def test_batch_handoff_cli_prints_existing_proof_operator_handoff(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -863,6 +938,45 @@ class _FakeClusterGate:
 
     def as_markdown(self) -> str:
         return "# Refreshed Gate\n"
+
+
+class _FakeSlateValidationReady:
+    ready_to_finalize = True
+    blockers: list[str] = []
+
+    def as_report(self) -> dict[str, object]:
+        return {
+            "passed": True,
+            "ready_to_finalize": True,
+            "applied_count": 2,
+            "approved_count": 2,
+            "rejected_count": 0,
+            "pending_count": 0,
+            "blockers": [],
+        }
+
+
+class _FakeFinishResult:
+    passed = True
+    blockers: list[str] = []
+
+    def as_report(self) -> dict[str, object]:
+        return {
+            "passed": True,
+            "approved_count": 2,
+            "pending_count": 0,
+            "blockers": [],
+        }
+
+
+class _FakeStrictProofResult:
+    def as_report(self) -> dict[str, object]:
+        return {
+            "passed": True,
+            "complete": True,
+            "state": "complete",
+            "proof_report_path": "pavo-batch-proof.json",
+        }
 
 
 if __name__ == "__main__":
