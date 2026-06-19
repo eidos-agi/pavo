@@ -104,6 +104,106 @@ class BriefTests(unittest.TestCase):
             "pass",
         )
 
+    def test_low_confidence_speaker_agreement_reduces_review_pressure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "call.mp3").write_bytes(b"source audio")
+            (root / "call.transcript.json").write_text('{"segments":[]}\n')
+            work = root / "_work"
+            work.mkdir()
+            (work / "diarization-segments.json").write_text('[{"recording_id":"call","speaker":"S1"}]\n')
+            (work / "speaker-attribution.json").write_text(
+                json.dumps(
+                    {
+                        "segments": [
+                            {
+                                "recording_id": "call",
+                                "start": 1.0,
+                                "end": 3.0,
+                                "speaker": "Daniel",
+                                "confidence": "low",
+                                "text": "This should be routeable.",
+                            }
+                        ]
+                    }
+                )
+            )
+            (work / "named-speaker-evidence.json").write_text(
+                json.dumps(
+                    {
+                        "segments": [
+                            {
+                                "recording_id": "call",
+                                "start": 1.0,
+                                "end": 3.0,
+                                "speaker": "Daniel",
+                                "confidence": "low",
+                                "reason": "short continuation from previous active speaker",
+                                "text": "This should be routeable.",
+                            }
+                        ]
+                    }
+                )
+            )
+
+            brief = build_meeting_brief(root)
+
+            self.assertEqual(brief["review"]["total_count"], 0)
+            self.assertEqual(brief["speaker_confidence"], {"medium": 1})
+            self.assertEqual(brief["speaker_ensemble"]["routeable_named_segment_count"], 1)
+            self.assertEqual(brief["speaker_ensemble"]["source_counts"], {"speaker_evidence_agreement": 1})
+
+    def test_temporal_speaker_continuity_reduces_review_pressure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "call.mp3").write_bytes(b"source audio")
+            (root / "call.transcript.json").write_text('{"segments":[]}\n')
+            work = root / "_work"
+            work.mkdir()
+            (work / "diarization-segments.json").write_text('[{"recording_id":"call","speaker":"S1"}]\n')
+            (work / "speaker-attribution.json").write_text(
+                json.dumps(
+                    {
+                        "segments": [
+                            {
+                                "recording_id": "call",
+                                "start": 1.0,
+                                "end": 3.0,
+                                "speaker": "Daniel",
+                                "confidence": "medium",
+                                "text": "Trusted setup.",
+                            },
+                            {
+                                "recording_id": "call",
+                                "start": 3.4,
+                                "end": 4.0,
+                                "speaker": "Daniel",
+                                "confidence": "low",
+                                "text": "Short continuation.",
+                            },
+                            {
+                                "recording_id": "call",
+                                "start": 20.0,
+                                "end": 21.0,
+                                "speaker": "Daniel",
+                                "confidence": "low",
+                                "text": "Isolated low confidence.",
+                            },
+                        ]
+                    }
+                )
+            )
+
+            brief = build_meeting_brief(root)
+
+            self.assertEqual(brief["review"]["total_count"], 1)
+            self.assertEqual(brief["speaker_confidence"], {"medium": 2, "low": 1})
+            self.assertEqual(brief["speaker_ensemble"]["routeable_named_segment_count"], 2)
+            self.assertEqual(
+                brief["speaker_ensemble"]["source_counts"],
+                {"speaker_attribution": 2, "speaker_temporal_continuity": 1},
+            )
+
     def test_reviewed_hints_overlay_reduces_review_pressure(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

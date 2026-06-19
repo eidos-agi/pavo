@@ -91,6 +91,7 @@ def build_meeting_brief(root: Path, *, review_limit: int = 200, packet_limit: in
     attribution_segments = _load_speaker_attribution_segments(root)
     named_evidence_segments = _load_named_evidence_segments(root)
     ensemble_segments = _ensemble_speaker_segments(attribution_segments, named_evidence_segments)
+    ensemble_segments = _apply_temporal_speaker_continuity(ensemble_segments)
     diarization_segments = _load_diarization_segments(root)
     review_items, review_summary = _build_review_items(root, ensemble_segments, limit=review_limit)
     review_clusters = _build_review_clusters(ensemble_segments)
@@ -668,6 +669,73 @@ def _ensemble_speaker_segments(primary: list[dict[str, Any]], named: list[dict[s
     return output
 
 
+def _apply_temporal_speaker_continuity(
+    segments: list[dict[str, Any]],
+    *,
+    max_gap_seconds: float = 5.0,
+) -> list[dict[str, Any]]:
+    by_recording: dict[str, list[tuple[int, dict[str, Any]]]] = {}
+    for index, segment in enumerate(segments):
+        recording_id = str(segment.get("recording_id") or segment.get("source_id") or "")
+        by_recording.setdefault(recording_id, []).append((index, segment))
+
+    upgraded: dict[int, dict[str, Any]] = {}
+    for recording_segments in by_recording.values():
+        ordered = sorted(
+            recording_segments,
+            key=lambda item: (
+                _rounded_time(item[1].get("start")) or 0.0,
+                _rounded_time(item[1].get("end")) or 0.0,
+            ),
+        )
+        for offset, (index, segment) in enumerate(ordered):
+            speaker = str(segment.get("speaker") or "")
+            confidence = str(segment.get("confidence") or "unknown")
+            if confidence != "low" or _is_unknown_speaker(speaker):
+                continue
+            neighbor = _trusted_continuity_neighbor(ordered, offset, speaker, max_gap_seconds=max_gap_seconds)
+            if neighbor is None:
+                continue
+            enriched = dict(segment)
+            enriched["confidence"] = "medium"
+            enriched["reason"] = f"temporal continuity with {speaker}: {neighbor.get('reason') or neighbor.get('ensemble_source') or 'trusted neighboring span'}"
+            enriched["ensemble_source"] = "speaker_temporal_continuity"
+            upgraded[index] = enriched
+
+    if not upgraded:
+        return segments
+    return [upgraded.get(index, segment) for index, segment in enumerate(segments)]
+
+
+def _trusted_continuity_neighbor(
+    ordered: list[tuple[int, dict[str, Any]]],
+    offset: int,
+    speaker: str,
+    *,
+    max_gap_seconds: float,
+) -> dict[str, Any] | None:
+    segment = ordered[offset][1]
+    start = _rounded_time(segment.get("start"))
+    end = _rounded_time(segment.get("end"))
+    if start is None or end is None:
+        return None
+    for neighbor_offset in (offset - 1, offset + 1):
+        if neighbor_offset < 0 or neighbor_offset >= len(ordered):
+            continue
+        neighbor = ordered[neighbor_offset][1]
+        if str(neighbor.get("speaker") or "") != speaker:
+            continue
+        if str(neighbor.get("confidence") or "unknown") not in {"medium", "high", "manual_confirmed"}:
+            continue
+        neighbor_start = _rounded_time(neighbor.get("start"))
+        neighbor_end = _rounded_time(neighbor.get("end"))
+        if neighbor_start is None or neighbor_end is None:
+            continue
+        if min(abs(start - neighbor_end), abs(neighbor_start - end)) <= max_gap_seconds:
+            return neighbor
+    return None
+
+
 def _choose_segment(primary: dict[str, Any], named: dict[str, Any] | None) -> dict[str, Any]:
     enriched = dict(primary)
     enriched["raw_speaker"] = primary.get("speaker")
@@ -677,7 +745,20 @@ def _choose_segment(primary: dict[str, Any], named: dict[str, Any] | None) -> di
         return enriched
     named_speaker = str(named.get("speaker") or "")
     named_confidence = str(named.get("confidence") or "unknown")
+    raw_speaker = str(primary.get("speaker") or "")
     raw_confidence = str(primary.get("confidence") or "unknown")
+    if (
+        named_speaker
+        and named_speaker == raw_speaker
+        and not _is_unknown_speaker(named_speaker)
+        and named_confidence == "low"
+        and raw_confidence == "low"
+    ):
+        enriched["speaker"] = named_speaker
+        enriched["confidence"] = "medium"
+        enriched["reason"] = f"independent speaker evidence agreement: {named.get('reason') or 'same named speaker'}"
+        enriched["ensemble_source"] = "speaker_evidence_agreement"
+        return enriched
     if _confidence_rank(named_confidence) > _confidence_rank(raw_confidence) or (
         _is_unknown_speaker(primary.get("speaker")) and not _is_unknown_speaker(named_speaker)
     ):
