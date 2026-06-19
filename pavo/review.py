@@ -14,6 +14,15 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+from .brief import (
+    _apply_temporal_speaker_continuity,
+    _ensemble_speaker_segments,
+    _is_unknown_speaker,
+    _load_named_evidence_segments,
+    _load_speaker_attribution_segments,
+    _rounded_time,
+)
+
 
 @dataclass(frozen=True)
 class AnchorReviewSheetResult:
@@ -148,6 +157,15 @@ class AnchorReviewBundleResult:
     review_page_path: Path
     copied_clip_count: int
     missing_clip_count: int
+
+
+@dataclass(frozen=True)
+class AnchorReviewAssistantResult:
+    review_sheet_path: Path
+    json_path: Path
+    markdown_path: Path
+    candidate_count: int
+    recommendation_counts: dict[str, int]
 
 
 @dataclass(frozen=True)
@@ -448,6 +466,115 @@ def materialize_anchor_review_decisions(
     )
 
 
+def create_anchor_review_assistant(
+    review_sheet_path: Path | str,
+    batch_root: Path | str,
+    *,
+    out_path: Path | str | None = None,
+) -> AnchorReviewAssistantResult:
+    sheet_path = Path(review_sheet_path)
+    root = Path(batch_root)
+    sheet = json.loads(sheet_path.read_text())
+    ensemble = _apply_temporal_speaker_continuity(
+        _ensemble_speaker_segments(
+            _load_speaker_attribution_segments(root),
+            _load_named_evidence_segments(root),
+        )
+    )
+    by_recording: dict[str, list[dict[str, Any]]] = {}
+    by_key: dict[tuple[str, float | None, float | None], dict[str, Any]] = {}
+    for segment in ensemble:
+        recording_id = str(segment.get("recording_id") or segment.get("source_id") or "")
+        by_recording.setdefault(recording_id, []).append(segment)
+        by_key[_review_segment_key(segment)] = segment
+    for segments in by_recording.values():
+        segments.sort(key=lambda item: (_rounded_time(item.get("start")) or 0.0, _rounded_time(item.get("end")) or 0.0))
+
+    assisted_rows = []
+    recommendations = []
+    counts: dict[str, int] = {}
+    for row in sheet.get("rows") or []:
+        assistant = _review_assistant_row(row, by_key=by_key, by_recording=by_recording)
+        action = str(assistant["recommendation"])
+        counts[action] = counts.get(action, 0) + 1
+        assisted = dict(row)
+        assisted["assistant_review"] = assistant
+        assisted_rows.append(assisted)
+        recommendations.append(
+            {
+                "index": row.get("index"),
+                "case": row.get("case"),
+                "recording_id": row.get("recording_id"),
+                "start": row.get("start"),
+                "end": row.get("end"),
+                "target_speaker_label": row.get("target_speaker_label"),
+                "text": row.get("text"),
+                **assistant,
+            }
+        )
+
+    report_path = Path(out_path) if out_path else sheet_path.with_name(f"{sheet_path.stem}-assistant.json")
+    markdown_path = report_path.with_suffix(".md")
+    assisted_sheet_path = report_path.with_name(f"{sheet_path.stem}-assisted.json")
+    report = {
+        "passed": bool(recommendations),
+        "review_sheet": str(sheet_path),
+        "batch_root": str(root),
+        "candidate_count": len(recommendations),
+        "recommendation_counts": counts,
+        "recommendations": recommendations,
+        "assisted_sheet": str(assisted_sheet_path),
+        "safety_boundary": "Assistant recommendations are review accelerators only. They do not approve rows or create routeable speaker truth.",
+    }
+    assisted_sheet = {
+        **sheet,
+        "assistant_report": str(report_path),
+        "rows": assisted_rows,
+    }
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    markdown_path.write_text(render_anchor_review_assistant_markdown(report), encoding="utf-8")
+    assisted_sheet_path.write_text(json.dumps(assisted_sheet, indent=2, sort_keys=True) + "\n")
+    return AnchorReviewAssistantResult(
+        review_sheet_path=sheet_path,
+        json_path=report_path,
+        markdown_path=markdown_path,
+        candidate_count=len(recommendations),
+        recommendation_counts=counts,
+    )
+
+
+def render_anchor_review_assistant_markdown(report: dict[str, Any]) -> str:
+    lines = [
+        "# Pavo Review Assistant",
+        "",
+        f"- Review sheet: `{report.get('review_sheet')}`",
+        f"- Batch root: `{report.get('batch_root')}`",
+        f"- Candidate clips: {report.get('candidate_count')}",
+        f"- Recommendation counts: `{json.dumps(report.get('recommendation_counts') or {}, sort_keys=True)}`",
+        "",
+        "Safety boundary: assistant recommendations speed up review; they do not approve rows or create speaker truth.",
+        "",
+        "## Recommendations",
+        "",
+    ]
+    for item in report.get("recommendations") or []:
+        lines.extend(
+            [
+                f"### Row {item.get('index')} - {item.get('case')}",
+                "",
+                f"- Recommendation: `{item.get('recommendation')}`",
+                f"- Confidence: `{item.get('assistant_confidence')}`",
+                f"- Suggested speaker: `{item.get('suggested_speaker') or ''}`",
+                f"- Why: {item.get('why')}",
+                f"- Context: {item.get('context_summary')}",
+                f"- Text: {item.get('text') or ''}",
+                "",
+            ]
+        )
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def create_anchor_review_page(
     review_sheet_path: Path | str,
     *,
@@ -507,6 +634,25 @@ def create_anchor_review_page(
       padding: 16px;
       border: 1px solid #bfd7c5;
       background: #ffffff;
+    }}
+    .assistant-review {{
+      margin: 12px 0;
+      padding: 12px;
+      border-left: 4px solid #3f8f64;
+      background: #edf8ef;
+    }}
+    .assistant-review span {{
+      display: inline-block;
+      margin-left: 8px;
+      color: #315044;
+      font-weight: 700;
+    }}
+    .assistant-review p {{
+      margin: 6px 0 0;
+    }}
+    .assistant-review .context {{
+      color: #496458;
+      font-size: 13px;
     }}
     .actions {{
       display: flex;
@@ -1934,6 +2080,125 @@ def _safe_float(value: Any) -> float | None:
         return None
 
 
+def _review_assistant_row(
+    row: dict[str, Any],
+    *,
+    by_key: dict[tuple[str, float | None, float | None], dict[str, Any]],
+    by_recording: dict[str, list[dict[str, Any]]],
+) -> dict[str, Any]:
+    segment = by_key.get(_review_segment_key(row))
+    recording_id = str(row.get("recording_id") or "")
+    neighbors = _review_context_neighbors(by_recording.get(recording_id, []), row)
+    target = str(row.get("target_speaker_label") or row.get("target_speaker_name") or "")
+    suggested = None
+    recommendation = "listen_required"
+    assistant_confidence = "low"
+    why = "No deterministic speaker decision is strong enough to pre-fill this row."
+
+    if segment and not _is_unknown_review_speaker(segment.get("speaker")) and str(segment.get("confidence")) in {"medium", "high", "manual_confirmed"}:
+        suggested = str(segment.get("speaker"))
+        recommendation = "likely_approve_existing_label" if suggested == target else "consider_relabel_to_context_speaker"
+        assistant_confidence = "medium" if str(segment.get("confidence")) == "medium" else "high"
+        why = f"Current ensemble already has {suggested} at {segment.get('confidence')} confidence via {segment.get('ensemble_source') or 'speaker evidence'}."
+    elif not _is_unknown_review_speaker(target):
+        trusted_same = [
+            item
+            for item in neighbors
+            if item.get("speaker") == target and item.get("confidence") in {"medium", "high", "manual_confirmed"}
+        ]
+        if trusted_same:
+            suggested = target
+            recommendation = "likely_approve_if_voice_matches"
+            assistant_confidence = "medium"
+            why = f"Nearby trusted context is also {target}; use the clip to confirm the short/weak span."
+    else:
+        trusted = [item for item in neighbors if not _is_unknown_review_speaker(item.get("speaker")) and item.get("confidence") in {"medium", "high", "manual_confirmed"}]
+        speakers = [str(item.get("speaker")) for item in trusted]
+        if speakers and len(set(speakers)) == 1:
+            suggested = speakers[0]
+            recommendation = "consider_assign_to_context_speaker"
+            assistant_confidence = "medium"
+            why = f"All nearby trusted context points to {suggested}; listen before assigning because this row is currently unknown."
+
+    return {
+        "recommendation": recommendation,
+        "assistant_confidence": assistant_confidence,
+        "suggested_speaker": suggested,
+        "why": why,
+        "context_summary": _review_context_summary(neighbors),
+        "matched_segment": _assistant_segment_summary(segment) if segment else None,
+        "neighbor_segments": [_assistant_segment_summary(item) for item in neighbors],
+    }
+
+
+def _review_segment_key(segment: dict[str, Any]) -> tuple[str, float | None, float | None]:
+    return (
+        str(segment.get("recording_id") or segment.get("source_id") or ""),
+        _rounded_time(segment.get("start")),
+        _rounded_time(segment.get("end")),
+    )
+
+
+def _review_context_neighbors(segments: list[dict[str, Any]], row: dict[str, Any], *, window_seconds: float = 12.0) -> list[dict[str, Any]]:
+    start = _rounded_time(row.get("start"))
+    end = _rounded_time(row.get("end"))
+    if start is None or end is None:
+        return []
+    context = []
+    for segment in segments:
+        if _review_segment_key(segment) == _review_segment_key(row):
+            continue
+        segment_start = _rounded_time(segment.get("start"))
+        segment_end = _rounded_time(segment.get("end"))
+        if segment_start is None or segment_end is None:
+            continue
+        gap = min(abs(start - segment_end), abs(segment_start - end))
+        if gap <= window_seconds:
+            context.append({**segment, "_pavo_context_gap": round(gap, 2)})
+    return sorted(context, key=lambda item: float(item.get("_pavo_context_gap") or 0.0))[:6]
+
+
+def _review_context_summary(neighbors: list[dict[str, Any]]) -> str:
+    if not neighbors:
+        return "No nearby trusted context was found."
+    parts = []
+    for item in neighbors[:4]:
+        parts.append(
+            f"{item.get('speaker') or 'unknown'}:{item.get('confidence') or 'unknown'}"
+            f"@{item.get('start')}-{item.get('end')}"
+        )
+    return "; ".join(parts)
+
+
+def _assistant_segment_summary(segment: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not segment:
+        return None
+    return {
+        "recording_id": segment.get("recording_id") or segment.get("source_id"),
+        "start": segment.get("start"),
+        "end": segment.get("end"),
+        "speaker": segment.get("speaker"),
+        "confidence": segment.get("confidence"),
+        "ensemble_source": segment.get("ensemble_source"),
+        "reason": segment.get("reason"),
+        "gap_seconds": segment.get("_pavo_context_gap"),
+        "text": segment.get("text"),
+    }
+
+
+def _assistant_review_block(row: dict[str, Any]) -> str:
+    assistant = row.get("assistant_review") if isinstance(row.get("assistant_review"), dict) else None
+    if not assistant:
+        return ""
+    return f"""  <section class="assistant-review">
+    <strong>Pavo assistant:</strong>
+    <span>{escape(str(assistant.get('recommendation') or 'listen_required'))}</span>
+    <span>confidence {escape(str(assistant.get('assistant_confidence') or 'low'))}</span>
+    <p>{escape(str(assistant.get('why') or ''))}</p>
+    <p class="context">{escape(str(assistant.get('context_summary') or ''))}</p>
+  </section>"""
+
+
 def _now_iso() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
@@ -1992,6 +2257,7 @@ def _anchor_review_card(row: dict[str, Any], *, labels: dict[str, Any]) -> str:
     reject_label = labels["buttons"]["rejected"]
     pending_label = labels["buttons"]["pending"]
     spoken_review = _spoken_review_controls(row)
+    assistant_review = _assistant_review_block(row)
     expected = row.get("expected_behavior")
     correction_rows = (
         f"""    <dt>Expected behavior</dt><dd>{escape(str(expected))}</dd>"""
@@ -2009,6 +2275,7 @@ def _anchor_review_card(row: dict[str, Any], *, labels: dict[str, Any]) -> str:
     <button type="button" data-decision="rejected" class="secondary" data-reject="{index}">{escape(str(reject_label))}</button>
     <button type="button" data-decision="pending" class="secondary" data-pending="{index}">{escape(str(pending_label))}</button>
   </div>
+  {assistant_review}
   {spoken_review}
   <textarea data-note="{index}" placeholder="Reviewer note">{note}</textarea>
   <dl>
@@ -2032,6 +2299,7 @@ def _human_review_card(row: dict[str, Any], *, labels: dict[str, Any]) -> str:
     reject_label = labels["buttons"]["rejected"]
     pending_label = labels["buttons"]["pending"]
     spoken_review = _spoken_review_controls(row)
+    assistant_review = _assistant_review_block(row)
     title = row.get("review_heading") or f"Clip {row.get('index')}"
     prompt = row.get("review_prompt") or row.get("expected_behavior") or row.get("text") or "Listen to this clip and decide whether it matches the expected behavior."
     subtitle = row.get("review_subtitle") or row.get("case") or ""
@@ -2062,6 +2330,7 @@ def _human_review_card(row: dict[str, Any], *, labels: dict[str, Any]) -> str:
     <button type="button" data-decision="rejected" class="secondary" data-reject="{index}">{escape(str(reject_label))}</button>
     <button type="button" data-decision="pending" class="secondary" data-pending="{index}">{escape(str(pending_label))}</button>
   </div>
+  {assistant_review}
   {spoken_review}
   <textarea data-note="{index}" placeholder="Optional note">{note}</textarea>
   <details>

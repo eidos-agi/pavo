@@ -24,6 +24,7 @@ from .plaud import PlaudCli, PlaudCliError
 from .review import (
     build_anchor_review_rerun_command,
     build_anchor_review_serve_command,
+    create_anchor_review_assistant,
     create_anchor_review_bundle,
     create_anchor_review_page,
     create_anchor_review_sheet,
@@ -198,6 +199,10 @@ def build_parser() -> argparse.ArgumentParser:
     review_anchors_decisions = review_anchors_sub.add_parser("decisions", help="Export reviewed row decisions for cluster routing/enrollment")
     review_anchors_decisions.add_argument("review_sheet", type=Path)
     review_anchors_decisions.add_argument("--out", type=Path, help="Decision report JSON path")
+    review_anchors_assistant = review_anchors_sub.add_parser("assistant", help="Create deterministic assistant recommendations for a review sheet")
+    review_anchors_assistant.add_argument("review_sheet", type=Path)
+    review_anchors_assistant.add_argument("batch_root", type=Path)
+    review_anchors_assistant.add_argument("--out", type=Path, help="Assistant report JSON path")
     review_anchors_materialize = review_anchors_sub.add_parser("materialize-decisions", help="Turn a decision report into reviewed speaker hint/enrollment artifacts")
     review_anchors_materialize.add_argument("decision_report", type=Path)
     review_anchors_materialize.add_argument("--out-dir", type=Path, help="Output artifact directory")
@@ -678,6 +683,13 @@ def main(argv: list[str] | None = None) -> int:
                     print("blockers: " + "; ".join(result.blockers))
                 print(f"report: {result.report_path}")
                 return 0 if result.passed else 2
+            if args.review_anchors_command == "assistant":
+                result = create_anchor_review_assistant(args.review_sheet, args.batch_root, out_path=args.out)
+                print(f"assistant_json: {result.json_path}")
+                print(f"assistant_markdown: {result.markdown_path}")
+                print(f"candidate_count: {result.candidate_count}")
+                print(f"recommendation_counts: {__import__('json').dumps(result.recommendation_counts, sort_keys=True)}")
+                return 0 if result.candidate_count else 2
             if args.review_anchors_command == "materialize-decisions":
                 result = materialize_anchor_review_decisions(args.decision_report, out_dir=args.out_dir)
                 print(f"passed: {str(result.passed).lower()}")

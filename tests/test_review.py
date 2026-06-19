@@ -6,6 +6,7 @@ from pathlib import Path
 from pavo.review import (
     build_anchor_review_rerun_command,
     build_anchor_review_serve_command,
+    create_anchor_review_assistant,
     create_anchor_review_bundle,
     create_anchor_review_page,
     compile_anchor_review_corrections,
@@ -290,6 +291,75 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(report["decisions"][0]["recommended_action"], "use_as_reviewed_speaker_hint_or_enrollment_candidate")
         self.assertEqual(report["decisions"][1]["recommended_action"], "do_not_use_for_speaker_truth")
         self.assertEqual(len(report["clusters"]), 2)
+
+    def test_create_anchor_review_assistant_writes_recommendations_and_assisted_sheet(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            work = root / "_work"
+            work.mkdir()
+            (work / "speaker-attribution.json").write_text(
+                json.dumps(
+                    {
+                        "segments": [
+                            {
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 2.0,
+                                "speaker": "Daniel",
+                                "confidence": "medium",
+                                "text": "Trusted context.",
+                            },
+                            {
+                                "recording_id": "rec-1",
+                                "start": 2.2,
+                                "end": 3.0,
+                                "speaker": "Daniel",
+                                "confidence": "low",
+                                "text": "Short weak segment.",
+                            },
+                        ]
+                    }
+                )
+            )
+            sheet = root / "review-sheet.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "review_title": "Pavo Review Clusters",
+                        "display_mode": "human_review",
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "pending",
+                                "approved": False,
+                                "case": "Daniel / low_confidence_named_speaker",
+                                "target_speaker_label": "Daniel",
+                                "start": 2.2,
+                                "end": 3.0,
+                                "duration": 0.8,
+                                "text": "Short weak segment.",
+                                "confidence": "low",
+                                "method": "speaker_attribution",
+                                "clip_path": "clips/daniel.mp3",
+                                "recording_id": "rec-1",
+                            }
+                        ],
+                    }
+                )
+            )
+
+            result = create_anchor_review_assistant(sheet, root)
+            report = json.loads(result.json_path.read_text())
+            assisted_sheet = json.loads(result.json_path.with_name("review-sheet-assisted.json").read_text())
+            page = create_anchor_review_page(result.json_path.with_name("review-sheet-assisted.json"))
+            verification = verify_anchor_review_page(result.json_path.with_name("review-sheet-assisted.json"), page.review_page_path)
+
+            self.assertEqual(result.candidate_count, 1)
+            self.assertEqual(result.recommendation_counts, {"likely_approve_existing_label": 1})
+            self.assertEqual(report["recommendations"][0]["suggested_speaker"], "Daniel")
+            self.assertIn("assistant_review", assisted_sheet["rows"][0])
+            self.assertTrue(verification.passed)
+            self.assertIn("Pavo assistant", page.review_page_path.read_text())
 
     def test_materialize_anchor_review_decisions_writes_hints_and_enrollment(self):
         with tempfile.TemporaryDirectory() as tmp:
