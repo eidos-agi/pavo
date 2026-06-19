@@ -37,6 +37,8 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("pavo batch review-sprint", readme)
         self.assertIn("pavo batch verify-review-sprint", readme)
         self.assertIn("pavo batch review-now", readme)
+        self.assertIn("decision_shape", readme)
+        self.assertIn("evidence_hints", readme)
         self.assertIn("pavo batch finalize-reviewed-proof", readme)
         self.assertIn("stale-validation detection", readme)
         self.assertIn("it exits `0` only when all", readme)
@@ -710,8 +712,20 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(sprint_json["review_sprint"]["focus_order"][0]["cluster_id"], "S1")
         self.assertEqual(len(sprint_json["review_sprint"]["focus_order"][0]["clip_paths"]), 2)
         self.assertEqual(sprint_json["review_sprint"]["focus_order"][0]["transcript_samples"][0]["excerpt"], "hello from the sample")
+        self.assertEqual(
+            sprint_json["review_sprint"]["focus_order"][0]["decision_shape"],
+            "confirm_or_reject_proposed_identity",
+        )
+        self.assertEqual(sprint_json["review_sprint"]["focus_order"][0]["decision_risk"], "high")
+        self.assertIn("suggested_review_action", sprint_json["review_sprint"]["focus_order"][0])
+        self.assertTrue(sprint_json["review_sprint"]["focus_order"][0]["evidence_hints"])
         self.assertIn("Pavo Batch Review Sprint", sprint_markdown)
         self.assertIn("Can cluster S1 be confirmed as Daniel?", sprint_markdown)
+        self.assertIn("Decision shape: `confirm_or_reject_proposed_identity`", sprint_markdown)
+        self.assertIn("Decision risk: `high`", sprint_markdown)
+        self.assertIn("Suggested action:", sprint_markdown)
+        self.assertIn("Evidence hints", sprint_markdown)
+        self.assertIn("approval requires every clip to match", sprint_markdown)
         self.assertIn("Listen checklist", sprint_markdown)
         self.assertIn("- [ ] Clip 1:", sprint_markdown)
         self.assertIn("Row 1: hello from the sample", sprint_markdown)
@@ -742,6 +756,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(report["pending_decision_count"], 1)
         self.assertEqual(report["pending_clip_count"], 2)
         self.assertIn("clip_exists", "\n".join(check["name"] for check in report["checks"]))
+        self.assertIn("has_evidence_hints", "\n".join(check["name"] for check in report["checks"]))
         self.assertIn("markdown_has_decision_rubric", "\n".join(check["name"] for check in report["checks"]))
         self.assertFalse(report["blockers"])
 

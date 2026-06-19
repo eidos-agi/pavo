@@ -2734,6 +2734,10 @@ def _batch_review_sprint_item(item: dict[str, Any], index: int) -> dict[str, Any
         "estimated_seconds": estimated_seconds,
         "estimated_minutes": round(estimated_seconds / 60, 1),
         "why_first": _batch_review_sprint_reason(item),
+        "decision_shape": _batch_speaker_decision_shape(item),
+        "decision_risk": _batch_speaker_decision_risk(item, clip_count=clip_count),
+        "suggested_review_action": _batch_speaker_suggested_review_action(item, clip_count=clip_count),
+        "evidence_hints": _batch_speaker_evidence_hints(item, clip_count=clip_count),
     }
 
 
@@ -2749,6 +2753,69 @@ def _batch_review_sprint_reason(item: dict[str, Any]) -> str:
     if score:
         parts.append(f"score {score}")
     return "; ".join(parts) or "pending speaker decision"
+
+
+def _batch_speaker_decision_shape(item: dict[str, Any]) -> str:
+    question = str(item.get("question") or "").lower()
+    if " or " in question:
+        return "choose_between_named_speakers"
+    if "what speaker identity" in question:
+        return "open_identity_choice"
+    if "can cluster" in question and "confirmed" in question:
+        return "confirm_or_reject_proposed_identity"
+    return "speaker_identity_review"
+
+
+def _batch_speaker_decision_risk(item: dict[str, Any], *, clip_count: int) -> str:
+    tier = str(item.get("priority_tier") or "").lower()
+    acoustic = str(item.get("acoustic_verdict") or "").lower()
+    shape = _batch_speaker_decision_shape(item)
+    if "urgent" in tier or "drift" in acoustic or shape in {"choose_between_named_speakers", "open_identity_choice"}:
+        return "high"
+    if "careful" in tier or "mixed" in acoustic or clip_count > 1:
+        return "medium"
+    return "low"
+
+
+def _batch_speaker_suggested_review_action(item: dict[str, Any], *, clip_count: int) -> str:
+    risk = _batch_speaker_decision_risk(item, clip_count=clip_count)
+    shape = _batch_speaker_decision_shape(item)
+    if shape == "choose_between_named_speakers":
+        return "A/B listen: compare every clip against each named candidate before deciding."
+    if shape == "open_identity_choice":
+        return "Identity search: do not anchor on the proposed label; decide the safest speaker constraint."
+    if risk == "high":
+        return "Slow listen: play all clips, look for channel drift, overlap, and context contradictions."
+    if risk == "medium":
+        return "Confirm all clips: approve only if every clip supports the same speaker."
+    return "Quick confirm: still listen to every clip, but this is not currently a high-risk decision."
+
+
+def _batch_speaker_evidence_hints(item: dict[str, Any], *, clip_count: int) -> list[str]:
+    hints: list[str] = []
+    shape = _batch_speaker_decision_shape(item)
+    acoustic = str(item.get("acoustic_verdict") or "").replace("_", " ").lower()
+    tier = str(item.get("priority_tier") or "").replace("_", " ").lower()
+    score = str(item.get("priority_score") or "").strip()
+    if shape == "choose_between_named_speakers":
+        hints.append("The question names competing speakers, so this is not a simple confirmation.")
+    elif shape == "open_identity_choice":
+        hints.append("The question is open-ended; treat the proposed speaker as a hypothesis, not the answer.")
+    elif shape == "confirm_or_reject_proposed_identity":
+        hints.append("This is a confirmation question; try to disprove the proposed speaker with each clip.")
+    if "drift" in acoustic:
+        hints.append("Acoustic drift was detected; compare voice shape and recording channel across clips.")
+    elif "mixed" in acoustic:
+        hints.append("Mixed acoustic shape was detected; require the clips to agree before approving.")
+    if "urgent" in tier:
+        hints.append("The priority tier is urgent; resolve this before lower-impact speaker questions.")
+    elif "careful" in tier:
+        hints.append("The priority tier calls for careful listening, not bulk approval.")
+    if clip_count > 1:
+        hints.append(f"There are {clip_count} supporting clips; approval requires every clip to match.")
+    if score:
+        hints.append(f"Priority score `{score}` explains the current focus ordering.")
+    return list(dict.fromkeys(hints))
 
 
 def write_batch_review_sprint(
@@ -2816,6 +2883,16 @@ def verify_batch_review_sprint(
         _check("pending_decision_count_matches_focus", pending_decision_count == len(focus_order), f"{pending_decision_count}/{len(focus_order)}"),
         _check("pending_clip_count_matches_paths", pending_clip_count == len(clip_paths), f"{pending_clip_count}/{len(clip_paths)}"),
         _check("has_transcript_samples", transcript_count >= pending_decision_count or pending_decision_count == 0, f"{transcript_count}/{pending_decision_count}"),
+        _check(
+            "has_evidence_hints",
+            pending_decision_count == 0
+            or (
+                all(item.get("evidence_hints") for item in focus_order if isinstance(item, dict))
+                and "Evidence hints" in markdown
+                and "Suggested action" in markdown
+            ),
+            "speaker decision evidence hints",
+        ),
         _check("markdown_has_listen_checklist", pending_decision_count == 0 or "Listen checklist" in markdown, "Listen checklist"),
         _check("markdown_has_clip_checkboxes", "- [ ] Clip 1:" in markdown or pending_clip_count == 0, "clip checkboxes"),
         _check(
@@ -2929,6 +3006,18 @@ def _render_batch_review_sprint_markdown(payload: dict[str, Any]) -> str:
                     f"- Clips: `{item.get('clip_count')}`",
                     f"- Estimate: `{item.get('estimated_minutes')}` minutes",
                     f"- Why now: {item.get('why_first')}",
+                    f"- Decision shape: `{item.get('decision_shape')}`",
+                    f"- Decision risk: `{item.get('decision_risk')}`",
+                    f"- Suggested action: {item.get('suggested_review_action')}",
+                    "",
+                    "Evidence hints:",
+                    "",
+                ]
+            )
+            for hint in item.get("evidence_hints") or []:
+                lines.append(f"- {hint}")
+            lines.extend(
+                [
                     "",
                     "Listen checklist:",
                     "",

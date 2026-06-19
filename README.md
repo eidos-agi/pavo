@@ -254,6 +254,11 @@ percent, missing reasons, and export-ready status as the reviewer works. The
 board includes one-click reasoned shortcuts such as `Approve clean`,
 `Reject wrong speaker`, and `Pending uncertain`, so reviewers can make a
 defensible decision without separately hunting for the matching reason code.
+The review sprint also explains each pending speaker decision with a
+deterministic `decision_shape`, `decision_risk`, `suggested_review_action`, and
+`evidence_hints` list. These hints are guidance only: they help the reviewer
+listen in the right order and know what to check, but they never approve
+speaker identity without human review.
 
 Use `pavo batch finalize-reviewed-proof` when the proof slate has been reviewed.
 It validates the proof slate, materializes the cluster decisions, writes speaker
