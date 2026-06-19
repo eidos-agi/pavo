@@ -213,6 +213,7 @@ class BatchProofResult:
             "blockers": self.doctor.blockers,
             "next_command": self.doctor.next_command,
             "review_packet": self.review_packet,
+            "operator_handoff": _operator_handoff(self),
             "doctor": self.doctor.as_report(),
             "verification": self.verification.as_report(),
             "safety_boundary": "Batch proof verifies machine plumbing and artifact integrity. It does not mark speaker identity complete until human review gates pass.",
@@ -252,6 +253,16 @@ class BatchProofResult:
             f"- Finish from slate: `{self.review_packet.get('finish_command')}`",
             f"- Validate proof slate: `{validate_proof_slate_command}`",
             f"- Finish from proof slate: `{finish_proof_slate_command}`",
+            "",
+            "## Operator Handoff",
+            "",
+            "1. Open the review page or proof TSV listed above.",
+            f"2. Fill `{self.proof_review_slate_path}` by changing `decision` to `approved` or `rejected`, correcting `speaker` when needed, and leaving a short `note` for ambiguous rows.",
+            f"3. Validate without mutation: `{validate_proof_slate_command}`",
+            f"4. Finish only after validation passes: `{finish_proof_slate_command}`",
+            f"5. Re-run strict proof: `pavo batch prove {shlex.quote(str(self.batch_root))} --strict-complete`",
+            "",
+            "Expected state before human review: validation fails closed with pending rows. Expected final state after human review: strict proof exits zero with `complete: true`.",
             "",
             "## Speaker Review Queue",
             "",
@@ -507,6 +518,33 @@ def prove_batch(
     proof_report_path.write_text(json.dumps(result.as_report(), indent=2, sort_keys=True) + "\n")
     proof_markdown_path.write_text(result.as_markdown())
     return result
+
+
+def _operator_handoff(result: BatchProofResult) -> dict[str, Any]:
+    proof_slate = result.review_packet.get("proof_review_slate_tsv") or str(result.proof_review_slate_path)
+    validate_command = result.review_packet.get("validate_proof_slate_command")
+    finish_command = result.review_packet.get("finish_proof_slate_command")
+    strict_proof_command = f"pavo batch prove {shlex.quote(str(result.batch_root))} --strict-complete"
+    return {
+        "state": result.state,
+        "complete": result.complete,
+        "review_page": result.review_packet.get("review_page"),
+        "proof_review_slate_tsv": proof_slate,
+        "proof_slate_item_count": result.review_packet.get("proof_slate_item_count"),
+        "validate_command": validate_command,
+        "finish_command": finish_command,
+        "strict_proof_command": strict_proof_command,
+        "steps": [
+            "Open the review page or proof TSV.",
+            "Approve or reject every proof TSV row, correct speaker labels when needed, and leave notes for ambiguity.",
+            "Run validate_command; it must pass before finishing.",
+            "Run finish_command to materialize reviewed speaker decisions.",
+            "Run strict_proof_command and require complete true.",
+        ],
+        "expected_pending_state": "validation fails closed while any review row remains pending",
+        "expected_complete_state": "strict proof exits zero with complete true",
+        "safety_boundary": "Do not mark speaker identity complete from machine inference alone.",
+    }
 
 
 def _review_packet_summary(batch_root: Path, cluster_gate: dict[str, Any] | None) -> dict[str, Any]:
