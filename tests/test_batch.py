@@ -27,6 +27,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --strict-ready", readme)
         self.assertIn("pavo batch apply-decision-slate", readme)
         self.assertIn("pavo batch decision-board", readme)
+        self.assertIn("pavo batch review-pack", readme)
         self.assertIn("pavo batch finalize-reviewed-proof", readme)
         self.assertIn("stale-validation detection", readme)
         self.assertIn("it exits `0` only when all", readme)
@@ -435,6 +436,47 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("auditEvents", html)
         self.assertIn("Autosaved locally", html)
         self.assertIn("pavo batch finalize-reviewed-proof", html)
+
+    def test_batch_review_pack_cli_copies_review_artifacts_without_audio(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            out_dir = root / "handoff-pack"
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "batch",
+                        "review-pack",
+                        str(result.proof_report_path),
+                        "--out-dir",
+                        str(out_dir),
+                        "--json",
+                    ]
+                )
+
+            report = json.loads(stdout.getvalue())
+            manifest = json.loads((out_dir / "manifest.json").read_text())
+            readme = (out_dir / "README.md").read_text()
+            artifact_names = set(report["artifacts"])
+            zip_exists = Path(report["zip_path"]).exists()
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(report["zip_path"].endswith("handoff-pack.zip"))
+        self.assertTrue(zip_exists)
+        self.assertFalse(report["raw_audio_copied"])
+        self.assertFalse(manifest["raw_audio_copied"])
+        self.assertIn("proof_json", artifact_names)
+        self.assertIn("proof_decision_board_html", artifact_names)
+        self.assertIn("proof_review_checklist_markdown", artifact_names)
+        self.assertIn("review_pack_manifest", artifact_names)
+        self.assertIn("review_pack_readme", artifact_names)
+        self.assertNotIn("audio", "\n".join(artifact_names))
+        self.assertIn("Raw audio copied: `false`", readme)
+        self.assertIn("pavo batch prove", readme)
+        self.assertRegex(report["artifact_manifest_sha256"], r"^[0-9a-f]{64}$")
 
     def test_batch_finalize_reviewed_proof_fails_closed_when_pending(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -21,6 +21,7 @@ from .batch import (
     prove_batch,
     verify_batch_manifest,
     write_batch_decision_board,
+    write_batch_review_pack,
 )
 from .brief import (
     build_brief_improvement_report,
@@ -152,6 +153,15 @@ def build_parser() -> argparse.ArgumentParser:
     batch_finalize_reviewed_proof.add_argument("--baseline-brief", type=Path, help="Optional baseline pavo-meeting-brief.json for improvement scoring")
     batch_finalize_reviewed_proof.add_argument("--out-dir", type=Path, help="Output directory; defaults to the batch root")
     batch_finalize_reviewed_proof.add_argument("--json", action="store_true", help="Print machine-readable finalization report")
+    batch_review_pack = batch_sub.add_parser(
+        "review-pack",
+        help="Create a portable proof-review pack with board, slates, checklist, hashes, and next commands",
+    )
+    batch_review_pack.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_review_pack.add_argument("--out-dir", type=Path, help="Output directory; defaults beside the proof report")
+    batch_review_pack.add_argument("--no-zip", action="store_true", help="Skip creating the .zip archive")
+    batch_review_pack.add_argument("--zip-path", type=Path, help="Optional zip output path")
+    batch_review_pack.add_argument("--json", action="store_true", help="Print machine-readable review-pack report")
 
     brief = subparsers.add_parser("brief", help="Create a composed readiness and action brief for a meeting batch")
     brief.add_argument("root", type=Path)
@@ -698,6 +708,29 @@ def main(argv: list[str] | None = None) -> int:
                 if result.blockers:
                     print("blockers: " + "; ".join(result.blockers))
             return 0 if result.passed else 3
+        if args.batch_command == "review-pack":
+            try:
+                result = write_batch_review_pack(
+                    args.proof_report,
+                    out_dir=args.out_dir,
+                    zip_output=not args.no_zip,
+                    zip_path=args.zip_path,
+                )
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+            else:
+                print(f"out_dir: {result.out_dir}")
+                print(f"manifest_path: {result.manifest_path}")
+                print(f"readme_path: {result.readme_path}")
+                print(f"zip_path: {result.zip_path}")
+                print(f"copied_artifact_count: {result.copied_artifact_count}")
+                print(f"missing_artifact_count: {result.missing_artifact_count}")
+                print(f"artifact_manifest_sha256: {result.artifact_manifest_sha256}")
+                print(f"raw_audio_copied: {str(result.raw_audio_copied).lower()}")
+            return 0
 
     if args.command == "brief":
         if not args.root.exists():

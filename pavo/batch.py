@@ -4,7 +4,10 @@ import csv
 import hashlib
 import json
 import shlex
+import shutil
+import zipfile
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from html import escape
 from pathlib import Path
 from typing import Any
@@ -463,6 +466,39 @@ class BatchDecisionBoardResult:
             "pending_decision_count": self.pending_decision_count,
             "supporting_row_count": self.supporting_row_count,
             "safety_boundary": "Decision board helps a human fill the review slate. It does not approve speaker identity or write reviewed decisions by itself.",
+        }
+
+
+@dataclass(frozen=True)
+class BatchReviewPackResult:
+    proof_report_path: Path
+    batch_root: Path
+    out_dir: Path
+    manifest_path: Path
+    readme_path: Path
+    zip_path: Path | None
+    copied_artifact_count: int
+    missing_artifact_count: int
+    artifact_manifest_sha256: str
+    raw_audio_copied: bool
+    artifacts: dict[str, dict[str, Any]]
+    missing_artifacts: list[dict[str, Any]]
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "proof_report_path": str(self.proof_report_path),
+            "batch_root": str(self.batch_root),
+            "out_dir": str(self.out_dir),
+            "manifest_path": str(self.manifest_path),
+            "readme_path": str(self.readme_path),
+            "zip_path": str(self.zip_path) if self.zip_path else None,
+            "copied_artifact_count": self.copied_artifact_count,
+            "missing_artifact_count": self.missing_artifact_count,
+            "artifact_manifest_sha256": self.artifact_manifest_sha256,
+            "raw_audio_copied": self.raw_audio_copied,
+            "artifacts": self.artifacts,
+            "missing_artifacts": self.missing_artifacts,
+            "safety_boundary": "Review packs copy proof and review artifacts only. They do not copy raw audio, create voiceprints, or approve speaker identity.",
         }
 
 
@@ -1771,6 +1807,208 @@ def write_batch_decision_board(
         pending_decision_count=pending_count,
         supporting_row_count=len(proof_rows),
     )
+
+
+def write_batch_review_pack(
+    proof_report_path: Path | str,
+    *,
+    out_dir: Path | str | None = None,
+    zip_output: bool = True,
+    zip_path: Path | str | None = None,
+) -> BatchReviewPackResult:
+    proof_path = Path(proof_report_path)
+    proof_report = json.loads(proof_path.read_text())
+    batch_root_value = str(proof_report.get("batch_root") or "").strip()
+    if not batch_root_value:
+        raise ValueError(f"proof report does not name a batch root: {proof_path}")
+    batch_root = Path(batch_root_value)
+    target_dir = Path(out_dir) if out_dir else proof_path.with_name("pavo-batch-review-pack")
+    artifact_dir = target_dir / "artifacts"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+
+    handoff = proof_report.get("operator_handoff") if isinstance(proof_report.get("operator_handoff"), dict) else {}
+    review_packet = proof_report.get("review_packet") if isinstance(proof_report.get("review_packet"), dict) else {}
+    artifacts_to_copy = _batch_review_pack_artifacts(proof_path, proof_report, handoff, review_packet)
+    copied: dict[str, dict[str, Any]] = {}
+    missing: list[dict[str, Any]] = []
+    for name, source in artifacts_to_copy.items():
+        if not source or not source.exists() or not source.is_file():
+            missing.append({"name": name, "path": str(source) if source else None})
+            continue
+        destination = artifact_dir / _review_pack_artifact_filename(name, source)
+        shutil.copy2(source, destination)
+        copied[name] = {
+            "source": _file_fingerprint(source),
+            "packed": _file_fingerprint(destination),
+            "packed_relative_path": str(destination.relative_to(target_dir)),
+        }
+
+    validation = enrich_operator_handoff_with_validation(handoff).get("validation") if handoff else {}
+    manifest_path = target_dir / "manifest.json"
+    readme_path = target_dir / "README.md"
+    zip_target = Path(zip_path) if zip_path else target_dir.with_suffix(".zip")
+    manifest = {
+        "generated_at": datetime.now(UTC).isoformat(),
+        "proof_report_path": str(proof_path),
+        "batch_root": str(batch_root),
+        "out_dir": str(target_dir),
+        "raw_audio_copied": False,
+        "copied_artifact_count": len(copied),
+        "missing_artifact_count": len(missing),
+        "artifacts": copied,
+        "missing_artifacts": missing,
+        "operator_handoff": handoff,
+        "validation": validation,
+        "zip_path": str(zip_target) if zip_output else None,
+        "safety_boundary": "This pack intentionally excludes raw audio, signed URLs, credentials, voiceprints, and identity approvals.",
+    }
+    manifest["artifact_manifest_sha256"] = _handoff_artifact_manifest_sha256(
+        {
+            name: {
+                "path": payload.get("packed_relative_path"),
+                "exists": True,
+                "bytes": (payload.get("packed") or {}).get("bytes"),
+                "sha256": (payload.get("packed") or {}).get("sha256"),
+            }
+            for name, payload in copied.items()
+        }
+    )
+    readme_path.write_text(_render_batch_review_pack_readme(manifest), encoding="utf-8")
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    copied["review_pack_readme"] = {
+        "source": None,
+        "packed": _file_fingerprint(readme_path),
+        "packed_relative_path": str(readme_path.relative_to(target_dir)),
+    }
+    copied["review_pack_manifest"] = {
+        "source": None,
+        "packed": _file_fingerprint(manifest_path),
+        "packed_relative_path": str(manifest_path.relative_to(target_dir)),
+    }
+    manifest["artifacts"] = copied
+    manifest["copied_artifact_count"] = len(copied)
+    manifest["artifact_manifest_sha256"] = _handoff_artifact_manifest_sha256(
+        {
+            name: {
+                "path": payload.get("packed_relative_path"),
+                "exists": True,
+                "bytes": (payload.get("packed") or {}).get("bytes"),
+                "sha256": (payload.get("packed") or {}).get("sha256"),
+            }
+            for name, payload in copied.items()
+        }
+    )
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    if zip_output:
+        zip_target.parent.mkdir(parents=True, exist_ok=True)
+        if zip_target.exists():
+            zip_target.unlink()
+        with zipfile.ZipFile(zip_target, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            for path in sorted(target_dir.rglob("*")):
+                if path.is_file():
+                    archive.write(path, path.relative_to(target_dir.parent))
+    else:
+        zip_target = None
+
+    return BatchReviewPackResult(
+        proof_report_path=proof_path,
+        batch_root=batch_root,
+        out_dir=target_dir,
+        manifest_path=manifest_path,
+        readme_path=readme_path,
+        zip_path=zip_target,
+        copied_artifact_count=len(copied),
+        missing_artifact_count=len(missing),
+        artifact_manifest_sha256=str(manifest["artifact_manifest_sha256"]),
+        raw_audio_copied=False,
+        artifacts=copied,
+        missing_artifacts=missing,
+    )
+
+
+def _batch_review_pack_artifacts(
+    proof_path: Path,
+    proof_report: dict[str, Any],
+    handoff: dict[str, Any],
+    review_packet: dict[str, Any],
+) -> dict[str, Path | None]:
+    proof_slate = Path(str(handoff.get("proof_review_slate_tsv"))) if handoff.get("proof_review_slate_tsv") else None
+    validation_report = proof_slate.with_suffix(".validation.json") if proof_slate else None
+    candidates = proof_path.with_name("pavo-speaker-memory-candidates.json")
+    return {
+        "proof_json": proof_path,
+        "proof_markdown": _path_from_report(proof_report.get("proof_markdown_path")),
+        "doctor_json": _path_from_report(proof_report.get("doctor_report_path")),
+        "doctor_markdown": _path_from_report(proof_report.get("doctor_markdown_path")),
+        "manifest_verification_markdown": _path_from_report(proof_report.get("verification_markdown_path")),
+        "proof_review_slate_tsv": proof_slate,
+        "proof_decision_slate_tsv": _path_from_report(handoff.get("proof_decision_slate_tsv")),
+        "proof_decision_board_html": _path_from_report(handoff.get("proof_decision_board_html")),
+        "proof_review_checklist_markdown": _path_from_report(handoff.get("proof_review_checklist_markdown")),
+        "proof_review_validation_json": validation_report,
+        "cluster_review_page_html": _path_from_report(review_packet.get("review_page")),
+        "cluster_decision_brief_html": _path_from_report(review_packet.get("decision_brief_html")),
+        "cluster_review_slate_tsv": _path_from_report(review_packet.get("slate_tsv")),
+        "speaker_memory_candidates_json": candidates,
+    }
+
+
+def _path_from_report(value: Any) -> Path | None:
+    text = str(value or "").strip()
+    return Path(text) if text else None
+
+
+def _review_pack_artifact_filename(name: str, source: Path) -> str:
+    suffix = "".join(source.suffixes) or ".artifact"
+    return f"{name}{suffix}"
+
+
+def _render_batch_review_pack_readme(manifest: dict[str, Any]) -> str:
+    handoff = manifest.get("operator_handoff") if isinstance(manifest.get("operator_handoff"), dict) else {}
+    validation = manifest.get("validation") if isinstance(manifest.get("validation"), dict) else {}
+    lines = [
+        "# Pavo Batch Review Pack",
+        "",
+        f"- Batch root: `{manifest.get('batch_root')}`",
+        f"- Proof report: `{manifest.get('proof_report_path')}`",
+        f"- Generated: `{manifest.get('generated_at')}`",
+        f"- Copied artifacts: {manifest.get('copied_artifact_count')}",
+        f"- Missing optional artifacts: {manifest.get('missing_artifact_count')}",
+        f"- Artifact manifest SHA-256: `{manifest.get('artifact_manifest_sha256')}`",
+        f"- Raw audio copied: `{str(bool(manifest.get('raw_audio_copied'))).lower()}`",
+        "",
+        "## What To Open",
+        "",
+        "- Start with the artifact manifest entry named `proof_decision_board_html` for the human speaker decisions.",
+        "- Use the entry named `proof_review_checklist_markdown` as the command checklist.",
+        "- Inspect `proof_json` and `proof_review_validation_json` when a gate fails.",
+        "",
+        "## Current Gate",
+        "",
+        f"- Handoff state: `{handoff.get('state')}`",
+        f"- Complete: `{str(bool(handoff.get('complete'))).lower()}`",
+        f"- Validation status: `{validation.get('status')}`",
+        f"- Pending decisions: `{validation.get('pending_decision_count')}`",
+        f"- Next action: {validation.get('next_action')}",
+        "",
+        "## Commands",
+        "",
+        f"```bash\n{handoff.get('validate_command')}\n{handoff.get('finish_command')}\n{handoff.get('strict_proof_command')}\n```",
+        "",
+        "## Safety Boundary",
+        "",
+        "This pack excludes raw audio, signed URLs, credentials, voiceprints, and identity approvals. It is a review handoff, not a substitute for human speaker confirmation.",
+        "",
+        "## Missing Optional Artifacts",
+        "",
+    ]
+    missing = manifest.get("missing_artifacts") if isinstance(manifest.get("missing_artifacts"), list) else []
+    if missing:
+        lines.extend(f"- `{item.get('name')}`: `{item.get('path')}`" for item in missing)
+    else:
+        lines.append("- None")
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def _proof_review_slate_path_from_report(proof_path: Path) -> Path:
