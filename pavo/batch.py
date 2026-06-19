@@ -2264,6 +2264,11 @@ def verify_batch_decision_board(
             "Review reason" in html and "approved_clean_match" in html and "updateReviewReason" in html,
             "structured reason controls",
         ),
+        _check(
+            "has_review_reason_export_gate",
+            "validateAuditReady" in html and "Missing review reason" in html,
+            "client-side reason gate before audit export",
+        ),
         _check("has_autosave", "localStorage" in html and "Autosaved locally" in html, "localStorage autosave"),
         _check("has_audit_events", "auditEvents" in html and "auditPayload" in html, "audit event export"),
         _check("has_finalize_board_audit_command", "pavo batch finalize-board-audit" in html, "finalize-board-audit command"),
@@ -3316,7 +3321,21 @@ pavo batch finalize-reviewed-proof {escape(str(proof_report_path))}</div>
         safetyBoundary: "This audit records human review-board edits. It is not a voiceprint and does not prove identity by itself."
       }};
     }}
+    function validateAuditReady() {{
+      const missing = rows.filter(row => ["approved", "rejected"].includes(row.decision) && !row.review_reason);
+      if (!missing.length) return true;
+      const first = missing[0];
+      const index = rows.findIndex(row => row.decision_group === first.decision_group);
+      focusCard(index >= 0 ? index : 0);
+      const message = `Missing review reason for ${{first.decision_group}}. Choose a reason before downloading audit JSON.`;
+      document.getElementById("autosave-status").textContent = message;
+      alert(message);
+      recordAudit({{ type: "export_blocked", group: first.decision_group, reason: "missing_review_reason" }});
+      saveState();
+      return false;
+    }}
     function downloadAudit() {{
+      if (!validateAuditReady()) return;
       const blob = new Blob([JSON.stringify(auditPayload(), null, 2) + "\\n"], {{ type: "application/json" }});
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");

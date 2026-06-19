@@ -246,7 +246,9 @@ clip matches the named speaker, reject wrong-speaker/overlap/noisy conflicts,
 and keep uncertain cases pending for another listener. The board also captures a
 structured `review_reason`; Pavo rejects approved/rejected board-audit imports
 when that reason is missing, so final identity decisions have a defensible
-human rationale.
+human rationale. The browser board also blocks audit JSON download for final
+decisions that are missing a reason, surfacing the issue before the operator
+leaves the review page.
 
 Use `pavo batch finalize-reviewed-proof` when the proof slate has been reviewed.
 It validates the proof slate, materializes the cluster decisions, writes speaker
