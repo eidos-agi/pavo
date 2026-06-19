@@ -174,8 +174,10 @@ class BatchDoctorTests(unittest.TestCase):
             proof_report = json.loads(result.proof_report_path.read_text())
             proof_markdown = result.proof_markdown_path.read_text()
             proof_review_slate = result.proof_review_slate_path.read_text()
+            proof_review_checklist = result.proof_review_checklist_path.read_text()
             proof_markdown_exists = result.proof_markdown_path.exists()
             proof_review_slate_exists = result.proof_review_slate_path.exists()
+            proof_review_checklist_exists = result.proof_review_checklist_path.exists()
             doctor_report_exists = result.doctor_report_path.exists()
             doctor_markdown_exists = result.doctor_markdown_path.exists()
             verification_markdown_exists = result.verification_markdown_path.exists()
@@ -197,7 +199,18 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("--strict-complete", proof_report["operator_handoff"]["strict_proof_command"])
         self.assertIn("Do not mark speaker identity complete", proof_report["operator_handoff"]["safety_boundary"])
         self.assertTrue(proof_report["proof_review_slate_path"].endswith("pavo-batch-proof.review-slate.tsv"))
+        self.assertTrue(proof_report["proof_review_checklist_path"].endswith("pavo-batch-proof.review-checklist.md"))
         self.assertTrue(proof_report["review_packet"]["proof_review_slate_tsv"].endswith("pavo-batch-proof.review-slate.tsv"))
+        self.assertTrue(
+            proof_report["review_packet"]["proof_review_checklist_markdown"].endswith(
+                "pavo-batch-proof.review-checklist.md"
+            )
+        )
+        self.assertTrue(
+            proof_report["operator_handoff"]["proof_review_checklist_markdown"].endswith(
+                "pavo-batch-proof.review-checklist.md"
+            )
+        )
         self.assertEqual(proof_report["review_packet"]["proof_slate_item_count"], 2)
         self.assertIn("pavo-batch-proof.review-slate.tsv", proof_report["review_packet"]["validate_proof_slate_command"])
         self.assertIn("pavo-batch-proof.review-slate.validation.json", proof_report["review_packet"]["validate_proof_slate_command"])
@@ -206,6 +219,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(proof_report["review_packet"]["total_unlockable_segments"], 10)
         self.assertIn("pavo-cluster-review-decision-brief.html", proof_report["review_packet"]["decision_brief_html"])
         self.assertIn("Proof review slate TSV:", proof_markdown)
+        self.assertIn("Proof review checklist:", proof_markdown)
         self.assertIn("Validate proof slate:", proof_markdown)
         self.assertIn("Finish from proof slate:", proof_markdown)
         self.assertIn("## Operator Handoff", proof_markdown)
@@ -235,8 +249,17 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("hello from the sample", proof_review_slate)
         self.assertIn("2\tS1\tpending\tDaniel", proof_review_slate)
         self.assertIn("second supporting sample", proof_review_slate)
+        self.assertIn("# Pavo Proof Review Checklist", proof_review_checklist)
+        self.assertIn("Pending speaker decisions: 1", proof_review_checklist)
+        self.assertIn("Supporting proof rows: 2", proof_review_checklist)
+        self.assertIn("## 1. Cluster `S1` - Daniel", proof_review_checklist)
+        self.assertIn("- Rows: 1, 2", proof_review_checklist)
+        self.assertIn("- [ ] Listen to every supporting clip.", proof_review_checklist)
+        self.assertIn("Transcript: hello from the sample", proof_review_checklist)
+        self.assertIn("validate-slate <review-sheet>", proof_review_checklist)
         self.assertTrue(proof_markdown_exists)
         self.assertTrue(proof_review_slate_exists)
+        self.assertTrue(proof_review_checklist_exists)
 
     def test_batch_handoff_cli_prints_existing_proof_operator_handoff(self):
         with tempfile.TemporaryDirectory() as tmp:

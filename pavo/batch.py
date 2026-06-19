@@ -189,6 +189,7 @@ class BatchProofResult:
     proof_report_path: Path
     proof_markdown_path: Path
     proof_review_slate_path: Path
+    proof_review_checklist_path: Path
     doctor_report_path: Path
     doctor_markdown_path: Path
     verification_markdown_path: Path
@@ -203,6 +204,7 @@ class BatchProofResult:
             "proof_report_path": str(self.proof_report_path),
             "proof_markdown_path": str(self.proof_markdown_path),
             "proof_review_slate_path": str(self.proof_review_slate_path),
+            "proof_review_checklist_path": str(self.proof_review_checklist_path),
             "doctor_report_path": str(self.doctor_report_path),
             "doctor_markdown_path": str(self.doctor_markdown_path),
             "verification_markdown_path": str(self.verification_markdown_path),
@@ -244,6 +246,7 @@ class BatchProofResult:
             f"- Proof JSON: `{self.proof_report_path}`",
             f"- Proof Markdown: `{self.proof_markdown_path}`",
             f"- Proof review slate TSV: `{self.proof_review_slate_path}`",
+            f"- Proof review checklist: `{self.proof_review_checklist_path}`",
             f"- Doctor JSON: `{self.doctor_report_path}`",
             f"- Doctor Markdown: `{self.doctor_markdown_path}`",
             f"- Manifest verification Markdown: `{self.verification_markdown_path}`",
@@ -470,6 +473,7 @@ def prove_batch(
     proof_report_path = target_dir / "pavo-batch-proof.json"
     proof_markdown_path = target_dir / "pavo-batch-proof.md"
     proof_review_slate_path = target_dir / "pavo-batch-proof.review-slate.tsv"
+    proof_review_checklist_path = target_dir / "pavo-batch-proof.review-checklist.md"
 
     doctor = doctor_batch(root, refresh_cluster_gate=refresh_cluster_gate)
     doctor_report_path.write_text(json.dumps(doctor.as_report(), indent=2, sort_keys=True) + "\n")
@@ -495,11 +499,19 @@ def prove_batch(
         )
         + "\n"
     )
+    proof_review_checklist_path.write_text(
+        _render_proof_review_checklist(
+            batch_root=root,
+            proof_slate_items=review_packet.get("proof_slate_items") or review_packet.get("top_items") or [],
+            proof_review_slate_path=proof_review_slate_path,
+        )
+    )
     _add_proof_slate_commands(
         review_packet,
         batch_root=root,
         proof_review_slate_path=proof_review_slate_path,
     )
+    review_packet["proof_review_checklist_markdown"] = str(proof_review_checklist_path)
 
     result = BatchProofResult(
         batch_root=root,
@@ -511,6 +523,7 @@ def prove_batch(
         proof_report_path=proof_report_path,
         proof_markdown_path=proof_markdown_path,
         proof_review_slate_path=proof_review_slate_path,
+        proof_review_checklist_path=proof_review_checklist_path,
         doctor_report_path=doctor_report_path,
         doctor_markdown_path=doctor_markdown_path,
         verification_markdown_path=verification_markdown_path,
@@ -531,6 +544,8 @@ def _operator_handoff(result: BatchProofResult) -> dict[str, Any]:
         "complete": result.complete,
         "review_page": result.review_packet.get("review_page"),
         "proof_review_slate_tsv": proof_slate,
+        "proof_review_checklist_markdown": result.review_packet.get("proof_review_checklist_markdown")
+        or str(result.proof_review_checklist_path),
         "proof_slate_item_count": result.review_packet.get("proof_slate_item_count"),
         "validate_command": validate_command,
         "finish_command": finish_command,
@@ -755,6 +770,7 @@ def format_operator_handoff(handoff: dict[str, Any]) -> str:
         f"complete: {str(bool(handoff.get('complete'))).lower()}",
         f"review_page: {handoff.get('review_page')}",
         f"proof_review_slate_tsv: {handoff.get('proof_review_slate_tsv')}",
+        f"proof_review_checklist_markdown: {handoff.get('proof_review_checklist_markdown')}",
         f"proof_slate_item_count: {handoff.get('proof_slate_item_count')}",
         f"validate_command: {handoff.get('validate_command')}",
         f"finish_command: {handoff.get('finish_command')}",
@@ -979,6 +995,86 @@ def _proof_review_slate_items(review_sheet: Any, top_items: list[dict[str, Any]]
             }
         )
     return proof_items
+
+
+def _render_proof_review_checklist(
+    *,
+    batch_root: Path,
+    proof_slate_items: list[dict[str, Any]],
+    proof_review_slate_path: Path,
+) -> str:
+    grouped = _handoff_pending_review_questions(
+        [
+            {
+                "row_index": str(item.get("row_index") or ""),
+                "cluster_id": str(item.get("cluster_id") or ""),
+                "speaker": str(item.get("target_speaker") or ""),
+                "question": str(item.get("question") or ""),
+                "clip_path": str(item.get("clip_path") or ""),
+                "priority_tier": item.get("priority_tier"),
+                "priority_score": item.get("priority_score"),
+                "acoustic_verdict": item.get("acoustic_verdict"),
+                "transcript": item.get("transcript_excerpt"),
+            }
+            for item in proof_slate_items
+        ]
+    )
+    lines = [
+        "# Pavo Proof Review Checklist",
+        "",
+        f"- Batch root: `{batch_root}`",
+        f"- Proof TSV to edit: `{proof_review_slate_path}`",
+        f"- Pending speaker decisions: {len(grouped)}",
+        f"- Supporting proof rows: {len(proof_slate_items)}",
+        "",
+        "Work top to bottom. Listen before approving identity; reject or correct the speaker when the clip contradicts the proposal.",
+        "",
+    ]
+    if not grouped:
+        lines.append("- No pending review questions were generated.")
+    for index, item in enumerate(grouped, start=1):
+        row_indices = ", ".join(str(value) for value in item.get("row_indices") or [])
+        lines.extend(
+            [
+                f"## {index}. Cluster `{item.get('cluster_id')}` - {item.get('speaker')}",
+                "",
+                f"- Question: {item.get('question')}",
+                f"- Rows: {row_indices}",
+                f"- Clips: {item.get('clip_count')}",
+                f"- Priority: `{item.get('priority_tier')}` / {item.get('priority_score')}",
+                f"- Acoustic verdict: `{item.get('acoustic_verdict')}`",
+                "",
+                "- [ ] Listen to every supporting clip.",
+                "- [ ] Decide `approved` / `rejected` for each row in the TSV.",
+                "- [ ] Correct the `speaker` value if needed.",
+                "- [ ] Add a short note for any rejection, correction, overlap, or uncertainty.",
+                "",
+                "Evidence:",
+            ]
+        )
+        clip_paths = item.get("clip_paths") or []
+        samples = item.get("transcript_samples") or []
+        for sample_index, sample in enumerate(samples, start=1):
+            clip_path = clip_paths[sample_index - 1] if sample_index - 1 < len(clip_paths) else ""
+            lines.append(f"- Row {sample.get('row_index')}: `{clip_path}`")
+            lines.append(f"  - Transcript: {sample.get('excerpt')}")
+        lines.append("")
+    validation_report = proof_review_slate_path.with_suffix(".validation.json")
+    lines.extend(
+        [
+            "## Finish Commands",
+            "",
+            "After editing the TSV, validate before mutation:",
+            "",
+            "```bash",
+            f"pavo review clusters validate-slate <review-sheet> {shlex.quote(str(proof_review_slate_path))} --report {shlex.quote(str(validation_report))}",
+            "```",
+            "",
+            "Then use the exact `finish_command` in `pavo-batch-proof.json` or `pavo batch handoff --check-validation`.",
+            "",
+        ]
+    )
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def _review_packet_slate_tsv_lines(items: list[dict[str, Any]]) -> list[str]:

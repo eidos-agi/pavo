@@ -123,17 +123,22 @@ or changed.
 
 Use `pavo batch prove` as the simple operator front door. It refreshes the
 batch doctor, writes the doctor reports, verifies the manifest immediately, and
-writes `pavo-batch-proof.json` plus `pavo-batch-proof.md`. By default it exits
-zero when machine proof passes. With `--strict-complete`, it exits nonzero until
-the human speaker review gate is complete.
+writes `pavo-batch-proof.json`, `pavo-batch-proof.md`,
+`pavo-batch-proof.review-slate.tsv`, and
+`pavo-batch-proof.review-checklist.md`. The checklist groups proof rows into
+the smallest pending speaker decisions, with clips and transcript samples, so
+the reviewer can work top-to-bottom without reverse-engineering the TSV. By
+default it exits zero when machine proof passes. With `--strict-complete`, it
+exits nonzero until the human speaker review gate is complete.
 
 Use `pavo batch handoff` when you already have a proof packet and need to know
 what to do next without re-running the batch. It reads `pavo-batch-proof.json`
-and prints the review page, proof TSV, validate command, finish command, strict
-proof command, expected pending/complete states, and safety boundary. Add
-`--check-validation` to include the current proof-slate validation report,
-artifact existence checks, stale-validation detection, and approved/rejected/
-pending counts. Add `--strict-ready` in automation: it exits `0` only when all
+and prints the review page, proof TSV, proof checklist, validate command,
+finish command, strict proof command, expected pending/complete states, and
+safety boundary. Add `--check-validation` to include the current proof-slate
+validation report, artifact existence checks, stale-validation detection,
+approved/rejected/pending counts, grouped pending speaker decisions, and
+transcript samples. Add `--strict-ready` in automation: it exits `0` only when all
 handoff artifacts exist, validation is fresh, and validation says the slate is
 ready to finish; it exits `3` when the handoff exists but is still pending,
 stale, or otherwise not ready.
