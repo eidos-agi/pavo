@@ -23,6 +23,7 @@ from pavo.review import (
     export_cluster_review_slate,
     export_anchor_review_decisions,
     finalize_cluster_review,
+    finish_cluster_review_from_slate,
     gate_anchor_review,
     import_anchor_review_sheet,
     import_cluster_review_slate,
@@ -1299,6 +1300,41 @@ class ReviewTests(unittest.TestCase):
         self.assertIsNone(result.brief_json_path)
         self.assertIn("cluster questions still need review before terminal consensus", "; ".join(result.blockers))
 
+    def test_finish_cluster_review_from_slate_stops_when_review_incomplete(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sheet = root / "cluster-review-sheet.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "pending",
+                                "approved": False,
+                                "target_speaker_label": "Daniel",
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 2.0,
+                                "cluster_question": {"cluster_id": "S1", "dominant_speaker": "Daniel"},
+                            }
+                        ]
+                    }
+                )
+            )
+            slate = root / "slate.tsv"
+            slate.write_text(
+                "row_index\tcluster_id\tdecision\tspeaker\tnote\n"
+                "1\tS1\tpending\tDaniel\tstill listening\n"
+            )
+
+            result = finish_cluster_review_from_slate(root, sheet, slate)
+
+        self.assertFalse(result.passed)
+        self.assertIsNone(result.finalize_result)
+        self.assertEqual(result.pending_count, 1)
+        self.assertIn("decision gate did not pass", "; ".join(result.blockers))
+
     def test_cluster_question_decisions_allow_rejection_early_stop(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1817,6 +1853,91 @@ class ReviewTests(unittest.TestCase):
         self.assertTrue(overlay_exists)
         self.assertTrue(brief_exists)
         self.assertTrue(improvement_exists)
+
+    def test_finish_cluster_review_from_slate_imports_and_finalizes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            recording = root / "rec-1"
+            recording.mkdir()
+            _write_test_wav(recording / "rec-1.wav")
+            (root / "rec-1.transcript.json").write_text('{"segments":[]}\n')
+            work = root / "_work"
+            work.mkdir()
+            (work / "diarization-segments.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "recording_id": "rec-1",
+                            "start": 1.0,
+                            "end": 5.0,
+                            "speaker": "S1",
+                            "candidate_name": "Daniel",
+                            "text": "This should become Daniel.",
+                        }
+                    ]
+                )
+            )
+            (work / "speaker-attribution.json").write_text(
+                json.dumps(
+                    {
+                        "segments": [
+                            {
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 5.0,
+                                "speaker": "Unknown office speaker",
+                                "confidence": "low",
+                                "text": "This should become Daniel.",
+                            }
+                        ]
+                    }
+                )
+            )
+            baseline_path = root / "baseline-brief.json"
+            baseline_path.write_text(json.dumps(build_meeting_brief(root)))
+            sheet = root / "cluster-review-sheet.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "pending",
+                                "approved": False,
+                                "target_speaker_label": "Daniel",
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 5.0,
+                                "duration": 4.0,
+                                "text": "This should become Daniel.",
+                                "clip_path": "clips/one.mp3",
+                                "cluster_question": {
+                                    "cluster_id": "S1",
+                                    "dominant_speaker": "Daniel",
+                                    "question": "Can S1 be Daniel?",
+                                },
+                            }
+                        ]
+                    }
+                )
+            )
+            slate = root / "filled-slate.tsv"
+            slate.write_text(
+                "row_index\tcluster_id\tdecision\tspeaker\tnote\n"
+                "1\tS1\tapproved\tDaniel\tclear Daniel\n"
+            )
+
+            result = finish_cluster_review_from_slate(root, sheet, slate, baseline_brief_path=baseline_path)
+            imported = json.loads(sheet.read_text())
+            constraints_exists = bool(result.finalize_result and result.finalize_result.constraints_path.exists())
+
+        self.assertTrue(result.passed)
+        self.assertIsNotNone(result.finalize_result)
+        self.assertEqual(result.applied_count, 1)
+        self.assertEqual(result.approved_count, 1)
+        self.assertEqual(result.pending_count, 0)
+        self.assertTrue(constraints_exists)
+        self.assertEqual(imported["rows"][0]["status"], "approved")
 
     def test_materialize_cluster_question_decisions_writes_constraints_and_hints(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -39,6 +39,7 @@ from .review import (
     export_cluster_question_decisions,
     export_cluster_review_slate,
     export_anchor_review_decisions,
+    finish_cluster_review_from_slate,
     finalize_cluster_review,
     gate_anchor_review,
     import_anchor_review_sheet,
@@ -192,6 +193,13 @@ def build_parser() -> argparse.ArgumentParser:
     review_clusters_import_slate.add_argument("review_sheet", type=Path)
     review_clusters_import_slate.add_argument("slate_tsv", type=Path)
     review_clusters_import_slate.add_argument("--out", type=Path, help="Imported review sheet path; defaults to replacing review_sheet")
+    review_clusters_finish_slate = review_clusters_sub.add_parser("finish-from-slate", help="Import a filled slate and finalize the cluster review when gates pass")
+    review_clusters_finish_slate.add_argument("batch_root", type=Path)
+    review_clusters_finish_slate.add_argument("review_sheet", type=Path)
+    review_clusters_finish_slate.add_argument("slate_tsv", type=Path)
+    review_clusters_finish_slate.add_argument("--imported-sheet", type=Path, help="Imported review sheet path; defaults to replacing review_sheet")
+    review_clusters_finish_slate.add_argument("--baseline-brief", type=Path, help="Baseline pavo-meeting-brief.json before applying reviewed feedback")
+    review_clusters_finish_slate.add_argument("--out-dir", type=Path, help="Output directory for materialized cluster artifacts and improvement report")
     review_clusters_advance = review_clusters_sub.add_parser("advance", help="Run the next safe cluster-review machine step")
     review_clusters_advance.add_argument("batch_root", type=Path)
     review_clusters_advance.add_argument("--review-sheet", type=Path, help="Override cluster question review sheet")
@@ -697,6 +705,34 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"rejected_count: {result.rejected_count}")
                 print(f"pending_count: {result.pending_count}")
                 return 0 if result.applied_count else 2
+            if args.review_clusters_command == "finish-from-slate":
+                result = finish_cluster_review_from_slate(
+                    args.batch_root,
+                    args.review_sheet,
+                    args.slate_tsv,
+                    imported_sheet_path=args.imported_sheet,
+                    baseline_brief_path=args.baseline_brief,
+                    out_dir=args.out_dir,
+                )
+                print(f"passed: {str(result.passed).lower()}")
+                print(f"review_sheet: {result.review_sheet_path}")
+                print(f"slate: {result.slate_path}")
+                print(f"imported_sheet: {result.imported_sheet_path}")
+                print(f"decision_report: {result.decision_report_path}")
+                print(f"applied_count: {result.applied_count}")
+                print(f"approved_count: {result.approved_count}")
+                print(f"rejected_count: {result.rejected_count}")
+                print(f"pending_count: {result.pending_count}")
+                if result.finalize_result:
+                    print(f"constraints: {result.finalize_result.constraints_path}")
+                    print(f"reviewed_hints: {result.finalize_result.reviewed_hints_path}")
+                    print(f"brief_json: {result.finalize_result.brief_json_path}")
+                    print(f"improvement_json: {result.finalize_result.improvement_json_path}")
+                    print(f"review_pressure_reduction: {result.finalize_result.review_pressure_reduction}")
+                    print(f"routeable_named_span_gain: {result.finalize_result.routeable_named_span_gain}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+                return 0 if result.passed else 2
             if args.review_clusters_command == "advance":
                 result = advance_cluster_review(args.batch_root, review_sheet_path=args.review_sheet)
                 if args.report:

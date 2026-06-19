@@ -335,6 +335,22 @@ class ClusterReviewSlateImportResult:
 
 
 @dataclass(frozen=True)
+class ClusterReviewFinishFromSlateResult:
+    batch_root: Path
+    review_sheet_path: Path
+    slate_path: Path
+    passed: bool
+    imported_sheet_path: Path
+    decision_report_path: Path
+    finalize_result: ClusterReviewFinalizeResult | None
+    applied_count: int
+    approved_count: int
+    rejected_count: int
+    pending_count: int
+    blockers: list[str]
+
+
+@dataclass(frozen=True)
 class ClusterReviewFinalizeResult:
     review_sheet_path: Path
     batch_root: Path
@@ -2177,6 +2193,47 @@ def import_cluster_review_slate(
         approved_count=len(approved),
         rejected_count=len(rejected),
         pending_count=len(pending),
+    )
+
+
+def finish_cluster_review_from_slate(
+    batch_root: Path | str,
+    review_sheet_path: Path | str,
+    slate_tsv_path: Path | str,
+    *,
+    imported_sheet_path: Path | str | None = None,
+    baseline_brief_path: Path | str | None = None,
+    out_dir: Path | str | None = None,
+) -> ClusterReviewFinishFromSlateResult:
+    root = Path(batch_root)
+    imported = import_cluster_review_slate(review_sheet_path, slate_tsv_path, out_path=imported_sheet_path)
+    decisions = export_cluster_question_decisions(imported.imported_sheet_path)
+    blockers = list(decisions.blockers)
+    finalize_result = None
+    if decisions.passed:
+        finalize_result = finalize_cluster_review(
+            imported.imported_sheet_path,
+            root,
+            baseline_brief_path=baseline_brief_path,
+            out_dir=out_dir,
+        )
+        blockers.extend(finalize_result.blockers)
+    else:
+        blockers.append("decision gate did not pass; fill every required cluster decision before finalizing")
+    blockers = list(dict.fromkeys(blockers))
+    return ClusterReviewFinishFromSlateResult(
+        batch_root=root,
+        review_sheet_path=Path(review_sheet_path),
+        slate_path=Path(slate_tsv_path),
+        passed=bool(finalize_result and finalize_result.passed and not blockers),
+        imported_sheet_path=imported.imported_sheet_path,
+        decision_report_path=decisions.report_path,
+        finalize_result=finalize_result,
+        applied_count=imported.applied_count,
+        approved_count=decisions.approved_count,
+        rejected_count=decisions.rejected_count,
+        pending_count=decisions.pending_count,
+        blockers=blockers,
     )
 
 
