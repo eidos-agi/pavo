@@ -576,9 +576,11 @@ def enrich_operator_handoff_with_validation(handoff: dict[str, Any]) -> dict[str
     enriched = dict(handoff)
     review_page = str(enriched.get("review_page") or "").strip()
     slate = str(enriched.get("proof_review_slate_tsv") or "").strip()
+    checklist = str(enriched.get("proof_review_checklist_markdown") or "").strip()
     artifact_checks = {
         "review_page": _handoff_artifact_check(review_page),
         "proof_review_slate_tsv": _handoff_artifact_check(slate),
+        "proof_review_checklist_markdown": _handoff_artifact_check(checklist),
     }
     validation_path = Path(slate).with_suffix(".validation.json") if slate else None
     artifact_checks["validation_report"] = _handoff_artifact_check(str(validation_path) if validation_path else "")

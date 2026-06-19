@@ -332,12 +332,14 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("- row 2 cluster S1 speaker Daniel: Can cluster S1 be confirmed as Daniel?", checked_stdout.getvalue())
         self.assertIn("pending_count: 2", strict_stdout.getvalue())
         self.assertIn("artifact_checks:", checked_stdout.getvalue())
+        self.assertIn("proof_review_checklist_markdown: exists=true", checked_stdout.getvalue())
         self.assertIn("proof_review_slate_tsv: exists=true", checked_stdout.getvalue())
         self.assertIn("review_page: exists=true", checked_stdout.getvalue())
         self.assertIn("validation_report: exists=true", checked_stdout.getvalue())
         self.assertEqual(json_report["state"], "machine_ready_human_review_pending")
         self.assertEqual(json_report["proof_slate_item_count"], 2)
         self.assertTrue(json_report["artifact_checks"]["proof_review_slate_tsv"]["exists"])
+        self.assertTrue(json_report["artifact_checks"]["proof_review_checklist_markdown"]["exists"])
         self.assertTrue(json_report["artifact_checks"]["review_page"]["exists"])
         self.assertTrue(json_report["artifact_checks"]["validation_report"]["exists"])
         self.assertEqual(json_report["validation"]["status"], "pending_review")
@@ -403,6 +405,35 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(report["validation"]["progress_percent"], 100.0)
         self.assertEqual(report["validation"]["next_action"], "run finish_command, then strict_proof_command")
         self.assertTrue(operator_handoff_ready_to_finish(report))
+
+    def test_batch_handoff_strict_ready_fails_when_checklist_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            result.proof_review_slate_path.with_suffix(".validation.json").write_text(
+                json.dumps(
+                    {
+                        "passed": True,
+                        "ready_to_finalize": True,
+                        "applied_count": 2,
+                        "approved_count": 2,
+                        "rejected_count": 0,
+                        "pending_count": 0,
+                        "blockers": [],
+                    }
+                )
+            )
+            result.proof_review_checklist_path.unlink()
+
+            json_stdout = io.StringIO()
+            with redirect_stdout(json_stdout):
+                exit_code = main(["batch", "handoff", str(result.proof_report_path), "--strict-ready", "--json"])
+            report = json.loads(json_stdout.getvalue())
+
+        self.assertEqual(exit_code, 3)
+        self.assertFalse(report["artifact_checks"]["proof_review_checklist_markdown"]["exists"])
+        self.assertFalse(operator_handoff_ready_to_finish(report))
 
     def test_batch_handoff_validation_marks_stale_when_slate_is_newer(self):
         with tempfile.TemporaryDirectory() as tmp:
