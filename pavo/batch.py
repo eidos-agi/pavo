@@ -371,6 +371,33 @@ class BatchDecisionSlateApplyResult:
 VALID_REVIEW_DECISIONS = {"pending", "approved", "rejected"}
 
 
+@dataclass(frozen=True)
+class BatchSpeakerMemoryCandidateResult:
+    proof_report_path: Path
+    proof_review_slate_path: Path
+    out_path: Path
+    candidate_count: int
+    speaker_count: int
+    approved_row_count: int
+    rejected_row_count: int
+    pending_row_count: int
+    candidates: list[dict[str, Any]]
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "proof_report_path": str(self.proof_report_path),
+            "proof_review_slate_path": str(self.proof_review_slate_path),
+            "out_path": str(self.out_path),
+            "candidate_count": self.candidate_count,
+            "speaker_count": self.speaker_count,
+            "approved_row_count": self.approved_row_count,
+            "rejected_row_count": self.rejected_row_count,
+            "pending_row_count": self.pending_row_count,
+            "candidates": self.candidates,
+            "safety_boundary": "Speaker memory candidates are reviewed samples for later enrollment or verification. They are not voiceprints and do not prove identity by themselves.",
+        }
+
+
 def doctor_batch(batch_root: Path | str, *, refresh_cluster_gate: bool = True) -> BatchDoctorResult:
     root = Path(batch_root)
     recordings = _source_recordings(root)
@@ -1477,6 +1504,89 @@ def apply_batch_decision_slate(
     )
 
 
+def build_batch_speaker_memory_candidates(
+    proof_report_path: Path | str,
+    *,
+    proof_review_slate_path: Path | str | None = None,
+    out_path: Path | str,
+) -> BatchSpeakerMemoryCandidateResult:
+    proof_path = Path(proof_report_path)
+    resolved_slate = Path(proof_review_slate_path) if proof_review_slate_path else _proof_review_slate_path_from_report(proof_path)
+    review_rows, _fieldnames = _read_tsv(resolved_slate)
+    approved_rows = [row for row in review_rows if str(row.get("decision") or "").strip().lower() == "approved"]
+    rejected_rows = [row for row in review_rows if str(row.get("decision") or "").strip().lower() == "rejected"]
+    pending_rows = [
+        row
+        for row in review_rows
+        if str(row.get("decision") or "").strip().lower() not in {"approved", "rejected"}
+    ]
+    by_speaker: dict[str, dict[str, Any]] = {}
+    for row in approved_rows:
+        speaker = str(row.get("speaker") or "").strip()
+        if not speaker or _unknown_speaker_label(speaker):
+            continue
+        entry = by_speaker.setdefault(
+            speaker,
+            {
+                "speaker": speaker,
+                "speaker_slug": _speaker_slug(speaker),
+                "sample_count": 0,
+                "clusters": [],
+                "samples": [],
+            },
+        )
+        cluster_id = str(row.get("cluster_id") or "").strip()
+        if cluster_id and cluster_id not in entry["clusters"]:
+            entry["clusters"].append(cluster_id)
+        entry["sample_count"] += 1
+        entry["samples"].append(
+            {
+                "row_index": row.get("row_index"),
+                "cluster_id": row.get("cluster_id"),
+                "decision_group": row.get("decision_group"),
+                "clip_path": row.get("clip_path"),
+                "transcript": row.get("transcript"),
+                "question": row.get("question"),
+                "note": row.get("note"),
+                "acoustic_verdict": row.get("acoustic_verdict"),
+                "priority_tier": row.get("priority_tier"),
+                "priority_score": row.get("priority_score"),
+                "source_proof_review_slate_tsv": str(resolved_slate),
+            }
+        )
+    candidates = sorted(by_speaker.values(), key=lambda item: (-int(item["sample_count"]), item["speaker"]))
+    target = Path(out_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    result = BatchSpeakerMemoryCandidateResult(
+        proof_report_path=proof_path,
+        proof_review_slate_path=resolved_slate,
+        out_path=target,
+        candidate_count=sum(int(item["sample_count"]) for item in candidates),
+        speaker_count=len(candidates),
+        approved_row_count=len(approved_rows),
+        rejected_row_count=len(rejected_rows),
+        pending_row_count=len(pending_rows),
+        candidates=candidates,
+    )
+    target.write_text(json.dumps(result.as_report(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return result
+
+
+def _proof_review_slate_path_from_report(proof_path: Path) -> Path:
+    proof_report = json.loads(proof_path.read_text())
+    review_slate_value = (
+        proof_report.get("proof_review_slate_path")
+        or (proof_report.get("review_packet") or {}).get("proof_review_slate_tsv")
+        or (proof_report.get("operator_handoff") or {}).get("proof_review_slate_tsv")
+    )
+    if not review_slate_value:
+        raise ValueError(f"proof report does not name a proof review slate: {proof_path}")
+    review_slate_path = Path(str(review_slate_value))
+    if not review_slate_path.exists():
+        raise FileNotFoundError(f"proof review slate not found: {review_slate_path}")
+    return review_slate_path
+
+
 def _read_decision_slate_tsv(path: Path) -> dict[str, dict[str, str]]:
     rows, _fieldnames = _read_tsv(path)
     decisions: dict[str, dict[str, str]] = {}
@@ -1513,6 +1623,16 @@ def _write_tsv(path: Path, rows: list[dict[str, str]], fieldnames: list[str]) ->
         writer.writeheader()
         for row in rows:
             writer.writerow({field: row.get(field, "") for field in fieldnames})
+
+
+def _speaker_slug(value: str) -> str:
+    slug = "".join(character.lower() if character.isalnum() else "-" for character in value)
+    return "-".join(part for part in slug.split("-") if part) or "speaker"
+
+
+def _unknown_speaker_label(value: str) -> bool:
+    lowered = value.strip().lower()
+    return not lowered or lowered in {"unknown", "unknown speaker", "speaker", "unidentified"} or lowered.startswith("speaker_")
 
 
 def _tsv_safe(value: str) -> str:

@@ -318,6 +318,74 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("1\tS1\tapproved\tDaniel Reviewed", applied_text)
         self.assertIn("2\tS1\tapproved\tDaniel Reviewed", applied_text)
 
+    def test_batch_speaker_memory_candidates_cli_exports_only_approved_rows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            approved_slate = root / "approved-review-slate.tsv"
+            approved_slate.write_text(
+                result.proof_review_slate_path.read_text().replace("\tpending\tDaniel\t", "\tapproved\tDaniel Reviewed\t")
+            )
+            out_path = root / "speaker-memory-candidates.json"
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "batch",
+                        "speaker-memory-candidates",
+                        str(result.proof_report_path),
+                        "--slate",
+                        str(approved_slate),
+                        "--out",
+                        str(out_path),
+                        "--json",
+                    ]
+                )
+
+            report = json.loads(stdout.getvalue())
+            written = json.loads(out_path.read_text())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(report["speaker_count"], 1)
+        self.assertEqual(report["candidate_count"], 2)
+        self.assertEqual(report["approved_row_count"], 2)
+        self.assertEqual(report["pending_row_count"], 0)
+        self.assertEqual(written["candidates"][0]["speaker"], "Daniel Reviewed")
+        self.assertEqual(written["candidates"][0]["speaker_slug"], "daniel-reviewed")
+        self.assertEqual(written["candidates"][0]["sample_count"], 2)
+        self.assertEqual(written["candidates"][0]["samples"][0]["decision_group"], "D01")
+        self.assertIn("not voiceprints", written["safety_boundary"])
+
+    def test_batch_speaker_memory_candidates_cli_keeps_pending_slate_empty(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            out_path = root / "speaker-memory-candidates.json"
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "batch",
+                        "speaker-memory-candidates",
+                        str(result.proof_report_path),
+                        "--out",
+                        str(out_path),
+                        "--json",
+                    ]
+                )
+
+            report = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(report["speaker_count"], 0)
+        self.assertEqual(report["candidate_count"], 0)
+        self.assertEqual(report["approved_row_count"], 0)
+        self.assertEqual(report["pending_row_count"], 2)
+
     def test_batch_handoff_cli_prints_existing_proof_operator_handoff(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

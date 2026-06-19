@@ -11,6 +11,7 @@ from pathlib import Path
 from .audio import run_audio_doctor
 from .batch import (
     apply_batch_decision_slate,
+    build_batch_speaker_memory_candidates,
     doctor_batch,
     enrich_operator_handoff_with_validation,
     format_operator_handoff,
@@ -125,6 +126,14 @@ def build_parser() -> argparse.ArgumentParser:
     batch_apply_decision_slate.add_argument("decision_slate", type=Path, help="Path to pavo-batch-proof.decision-slate.tsv")
     batch_apply_decision_slate.add_argument("--out", type=Path, required=True, help="Output proof review slate TSV")
     batch_apply_decision_slate.add_argument("--json", action="store_true", help="Print machine-readable apply report")
+    batch_speaker_memory = batch_sub.add_parser(
+        "speaker-memory-candidates",
+        help="Build reviewed speaker memory candidates from an approved proof review slate",
+    )
+    batch_speaker_memory.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_speaker_memory.add_argument("--slate", type=Path, help="Reviewed proof review slate TSV; defaults to the slate named in the proof report")
+    batch_speaker_memory.add_argument("--out", type=Path, required=True, help="Output speaker memory candidates JSON")
+    batch_speaker_memory.add_argument("--json", action="store_true", help="Print machine-readable candidate report")
 
     brief = subparsers.add_parser("brief", help="Create a composed readiness and action brief for a meeting batch")
     brief.add_argument("root", type=Path)
@@ -612,6 +621,26 @@ def main(argv: list[str] | None = None) -> int:
                 if result.missing_decision_groups:
                     print("missing_decision_groups: " + ", ".join(result.missing_decision_groups))
             return 0 if not result.missing_decision_groups else 2
+        if args.batch_command == "speaker-memory-candidates":
+            try:
+                result = build_batch_speaker_memory_candidates(
+                    args.proof_report,
+                    proof_review_slate_path=args.slate,
+                    out_path=args.out,
+                )
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+            else:
+                print(f"out: {result.out_path}")
+                print(f"speaker_count: {result.speaker_count}")
+                print(f"candidate_count: {result.candidate_count}")
+                print(f"approved_row_count: {result.approved_row_count}")
+                print(f"rejected_row_count: {result.rejected_row_count}")
+                print(f"pending_row_count: {result.pending_row_count}")
+            return 0
 
     if args.command == "brief":
         if not args.root.exists():
