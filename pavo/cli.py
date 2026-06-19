@@ -28,9 +28,11 @@ from .batch import (
     verify_batch_manifest,
     verify_batch_review_pack,
     verify_batch_review_sprint,
+    verify_batch_speaker_answer_sheet,
     write_batch_decision_board,
     write_batch_review_pack,
     write_batch_review_sprint,
+    write_batch_speaker_answer_sheet,
 )
 from .brief import (
     build_brief_improvement_report,
@@ -210,6 +212,21 @@ def build_parser() -> argparse.ArgumentParser:
     batch_verify_review_sprint.add_argument("--sprint-json", type=Path, help="Override pavo-batch-review-sprint.json path")
     batch_verify_review_sprint.add_argument("--sprint-markdown", type=Path, help="Override pavo-batch-review-sprint.md path")
     batch_verify_review_sprint.add_argument("--json", action="store_true", help="Print machine-readable verification report")
+    batch_speaker_answer_sheet = batch_sub.add_parser(
+        "speaker-answer-sheet",
+        help="Write a compact Markdown and TSV answer sheet for pending speaker decisions",
+    )
+    batch_speaker_answer_sheet.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_speaker_answer_sheet.add_argument("--out-dir", type=Path, help="Output directory; defaults beside the proof report")
+    batch_speaker_answer_sheet.add_argument("--json", action="store_true", help="Print machine-readable answer-sheet report")
+    batch_verify_speaker_answer_sheet = batch_sub.add_parser(
+        "verify-speaker-answer-sheet",
+        help="Verify the speaker answer sheet is present, ordered, and review-context rich",
+    )
+    batch_verify_speaker_answer_sheet.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_verify_speaker_answer_sheet.add_argument("--markdown", type=Path, help="Override pavo-batch-speaker-answer-sheet.md path")
+    batch_verify_speaker_answer_sheet.add_argument("--tsv", type=Path, help="Override pavo-batch-speaker-answer-sheet.tsv path")
+    batch_verify_speaker_answer_sheet.add_argument("--json", action="store_true", help="Print machine-readable verification report")
     batch_review_now = batch_sub.add_parser(
         "review-now",
         help="Regenerate and verify the review sprint, then print launch instructions for human speaker review",
@@ -846,12 +863,50 @@ def main(argv: list[str] | None = None) -> int:
                 if result.blockers:
                     print("blockers: " + "; ".join(result.blockers))
             return 0 if result.passed else 3
+        if args.batch_command == "speaker-answer-sheet":
+            try:
+                result = write_batch_speaker_answer_sheet(args.proof_report, out_dir=args.out_dir)
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+            else:
+                print(f"markdown_path: {result.markdown_path}")
+                print(f"tsv_path: {result.tsv_path}")
+                print(f"pending_decision_count: {result.pending_decision_count}")
+                print(f"pending_clip_count: {result.pending_clip_count}")
+                print(f"estimated_minutes: {result.estimated_minutes}")
+            return 0
+        if args.batch_command == "verify-speaker-answer-sheet":
+            try:
+                result = verify_batch_speaker_answer_sheet(
+                    args.proof_report,
+                    markdown_path=args.markdown,
+                    tsv_path=args.tsv,
+                )
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+            else:
+                print(f"passed: {str(result.passed).lower()}")
+                print(f"markdown_path: {result.markdown_path}")
+                print(f"tsv_path: {result.tsv_path}")
+                print(f"pending_decision_count: {result.pending_decision_count}")
+                print(f"pending_clip_count: {result.pending_clip_count}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+            return 0 if result.passed else 3
         if args.batch_command == "review-now":
             try:
                 board_result = write_batch_decision_board(args.proof_report)
                 sprint_result = write_batch_review_sprint(args.proof_report)
+                answer_sheet_result = write_batch_speaker_answer_sheet(args.proof_report)
                 pack_result = write_batch_review_pack(args.proof_report, out_dir=args.pack_dir)
                 sprint_verification = verify_batch_review_sprint(args.proof_report)
+                answer_sheet_verification = verify_batch_speaker_answer_sheet(args.proof_report)
                 readiness = summarize_batch_readiness(args.proof_report, pack_dir=args.pack_dir)
             except (OSError, json.JSONDecodeError, ValueError) as exc:
                 print(str(exc), file=sys.stderr)
@@ -879,12 +934,14 @@ def main(argv: list[str] | None = None) -> int:
                 "review_completion": readiness.review_completion,
                 "decision_board_written": board_result.as_report(),
                 "review_sprint_written": sprint_result.as_report(),
+                "speaker_answer_sheet_written": answer_sheet_result.as_report(),
                 "review_pack_written": pack_result.as_report(),
                 "review_sprint_verification": sprint_verification.as_report(),
+                "speaker_answer_sheet_verification": answer_sheet_verification.as_report(),
                 "review_paths": review_paths,
                 "opened": opened,
                 "next_action": readiness.next_action,
-                "blockers": readiness.blockers + sprint_verification.blockers,
+                "blockers": readiness.blockers + sprint_verification.blockers + answer_sheet_verification.blockers,
             }
             if args.json:
                 print(json.dumps(report, indent=2, sort_keys=True))
@@ -896,6 +953,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"pending_clips: {readiness.review_sprint.get('pending_clip_count')}")
                 print(f"estimated_review_minutes: {readiness.review_sprint.get('estimated_minutes')}")
                 print(f"priority_queue_top: {_format_batch_priority_queue_top(priority_queue_top)}")
+                print(f"speaker_answer_sheet: {answer_sheet_result.markdown_path}")
                 print(f"review_progress_percent: {readiness.review_completion.get('progress_percent')}")
                 print(f"review_export_ready: {str(bool(readiness.review_completion.get('export_ready'))).lower()}")
                 print(f"missing_reason_decision_count: {readiness.review_completion.get('missing_reason_decision_count')}")
@@ -908,7 +966,13 @@ def main(argv: list[str] | None = None) -> int:
                     print("blockers: " + "; ".join(report["blockers"]))
             if readiness.complete:
                 return 0
-            if readiness.machine_ready and readiness.board_ready and readiness.review_pack_ready and sprint_verification.passed:
+            if (
+                readiness.machine_ready
+                and readiness.board_ready
+                and readiness.review_pack_ready
+                and sprint_verification.passed
+                and answer_sheet_verification.passed
+            ):
                 return 3
             return 2
         if args.batch_command == "decision-board":

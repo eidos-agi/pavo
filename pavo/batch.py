@@ -640,6 +640,56 @@ class BatchReviewSprintVerifyResult:
 
 
 @dataclass(frozen=True)
+class BatchSpeakerAnswerSheetResult:
+    proof_report_path: Path
+    out_dir: Path
+    markdown_path: Path
+    tsv_path: Path
+    pending_decision_count: int
+    pending_clip_count: int
+    estimated_minutes: float
+    payload: dict[str, Any]
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "proof_report_path": str(self.proof_report_path),
+            "out_dir": str(self.out_dir),
+            "markdown_path": str(self.markdown_path),
+            "tsv_path": str(self.tsv_path),
+            "pending_decision_count": self.pending_decision_count,
+            "pending_clip_count": self.pending_clip_count,
+            "estimated_minutes": self.estimated_minutes,
+            "payload": self.payload,
+            "safety_boundary": "Speaker answer sheets guide human listening decisions. They do not approve identity, create voiceprints, or copy raw audio.",
+        }
+
+
+@dataclass(frozen=True)
+class BatchSpeakerAnswerSheetVerifyResult:
+    proof_report_path: Path
+    markdown_path: Path
+    tsv_path: Path
+    passed: bool
+    pending_decision_count: int
+    pending_clip_count: int
+    checks: list[dict[str, Any]]
+    blockers: list[str]
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "proof_report_path": str(self.proof_report_path),
+            "markdown_path": str(self.markdown_path),
+            "tsv_path": str(self.tsv_path),
+            "passed": self.passed,
+            "pending_decision_count": self.pending_decision_count,
+            "pending_clip_count": self.pending_clip_count,
+            "checks": self.checks,
+            "blockers": self.blockers,
+            "safety_boundary": "Answer-sheet verification proves the human decision sheet is present, ordered, and clip-linked. It does not approve speaker identity.",
+        }
+
+
+@dataclass(frozen=True)
 class BatchReadinessResult:
     proof_report_path: Path
     state: str
@@ -2423,6 +2473,7 @@ def write_batch_review_pack(
     review_packet = proof_report.get("review_packet") if isinstance(proof_report.get("review_packet"), dict) else {}
     write_batch_decision_board(proof_path)
     write_batch_review_sprint(proof_path, out_dir=proof_path.parent)
+    write_batch_speaker_answer_sheet(proof_path, out_dir=proof_path.parent)
     artifacts_to_copy = _batch_review_pack_artifacts(proof_path, proof_report, handoff, review_packet)
     copied: dict[str, dict[str, Any]] = {}
     missing: list[dict[str, Any]] = []
@@ -2666,7 +2717,7 @@ def summarize_batch_readiness(
     validation_ready = bool(validation.get("status") == "ready_to_finish" and validation.get("decision_ready"))
     pending_decision_count = _optional_int(validation.get("pending_decision_count"))
     pending_row_count = _optional_int(validation.get("pending_count"))
-    review_sprint = _batch_review_sprint_from_validation(validation)
+    review_sprint = _batch_sprint_with_decision_groups(_batch_review_sprint_from_validation(validation), handoff)
     review_completion = _decision_slate_review_completion(str(handoff.get("proof_decision_slate_tsv") or ""))
     board_ready = bool(board_report and board_report.get("passed"))
     review_pack_ready = bool(pack_report and pack_report.get("passed"))
@@ -2748,6 +2799,7 @@ def _batch_review_sprint_item(item: dict[str, Any], index: int) -> dict[str, Any
     ]
     return {
         "order": index,
+        "decision_group": item.get("decision_group"),
         "cluster_id": item.get("cluster_id"),
         "speaker": item.get("speaker"),
         "question": item.get("question"),
@@ -2858,6 +2910,7 @@ def _batch_review_priority_queue(items: list[dict[str, Any]]) -> dict[str, Any]:
         {
             "queue_order": index,
             "original_order": item.get("order"),
+            "decision_group": item.get("decision_group"),
             "cluster_id": item.get("cluster_id"),
             "speaker": item.get("speaker"),
             "decision_risk": item.get("decision_risk"),
@@ -2907,7 +2960,7 @@ def write_batch_review_sprint(
     proof_report = json.loads(proof_path.read_text())
     handoff = enrich_operator_handoff_with_validation(load_operator_handoff(proof_path))
     validation = handoff.get("validation") if isinstance(handoff.get("validation"), dict) else {}
-    sprint = _batch_review_sprint_from_validation(validation)
+    sprint = _batch_sprint_with_decision_groups(_batch_review_sprint_from_validation(validation), handoff)
     target_dir = Path(out_dir) if out_dir else proof_path.parent
     target_dir.mkdir(parents=True, exist_ok=True)
     json_path = target_dir / "pavo-batch-review-sprint.json"
@@ -3016,6 +3069,113 @@ def verify_batch_review_sprint(
     )
 
 
+def write_batch_speaker_answer_sheet(
+    proof_report_path: Path | str,
+    *,
+    out_dir: Path | str | None = None,
+) -> BatchSpeakerAnswerSheetResult:
+    proof_path = Path(proof_report_path)
+    proof_report = json.loads(proof_path.read_text())
+    handoff = enrich_operator_handoff_with_validation(load_operator_handoff(proof_path))
+    validation = handoff.get("validation") if isinstance(handoff.get("validation"), dict) else {}
+    sprint = _batch_sprint_with_decision_groups(_batch_review_sprint_from_validation(validation), handoff)
+    target_dir = Path(out_dir) if out_dir else proof_path.parent
+    target_dir.mkdir(parents=True, exist_ok=True)
+    markdown_path = target_dir / "pavo-batch-speaker-answer-sheet.md"
+    tsv_path = target_dir / "pavo-batch-speaker-answer-sheet.tsv"
+    payload = _batch_speaker_answer_sheet_payload(proof_path, proof_report, handoff, validation, sprint)
+    markdown_path.write_text(_render_batch_speaker_answer_sheet_markdown(payload), encoding="utf-8")
+    _write_batch_speaker_answer_sheet_tsv(tsv_path, payload)
+    return BatchSpeakerAnswerSheetResult(
+        proof_report_path=proof_path,
+        out_dir=target_dir,
+        markdown_path=markdown_path,
+        tsv_path=tsv_path,
+        pending_decision_count=int(sprint.get("pending_decision_count") or 0),
+        pending_clip_count=int(sprint.get("pending_clip_count") or 0),
+        estimated_minutes=float(sprint.get("estimated_minutes") or 0),
+        payload=payload,
+    )
+
+
+def verify_batch_speaker_answer_sheet(
+    proof_report_path: Path | str,
+    *,
+    markdown_path: Path | str | None = None,
+    tsv_path: Path | str | None = None,
+) -> BatchSpeakerAnswerSheetVerifyResult:
+    proof_path = Path(proof_report_path)
+    resolved_markdown = Path(markdown_path) if markdown_path else proof_path.with_name("pavo-batch-speaker-answer-sheet.md")
+    resolved_tsv = Path(tsv_path) if tsv_path else proof_path.with_name("pavo-batch-speaker-answer-sheet.tsv")
+    markdown = resolved_markdown.read_text(encoding="utf-8") if resolved_markdown.exists() else ""
+    rows: list[dict[str, str]] = []
+    fieldnames: list[str] = []
+    if resolved_tsv.exists():
+        rows, fieldnames = _read_tsv(resolved_tsv)
+    handoff = enrich_operator_handoff_with_validation(load_operator_handoff(proof_path))
+    validation = handoff.get("validation") if isinstance(handoff.get("validation"), dict) else {}
+    sprint = _batch_review_sprint_from_validation(validation)
+    pending_decision_count = int(sprint.get("pending_decision_count") or 0)
+    pending_clip_count = int(sprint.get("pending_clip_count") or 0)
+    required_fields = {
+        "queue_order",
+        "decision_group",
+        "cluster_id",
+        "speaker",
+        "decision_risk",
+        "decision_shape",
+        "question",
+        "suggested_review_action",
+        "clip_count",
+        "decision",
+        "review_reason",
+        "notes",
+    }
+    checks = [
+        _check("answer_sheet_markdown_exists", resolved_markdown.exists() and resolved_markdown.is_file(), str(resolved_markdown)),
+        _check("answer_sheet_tsv_exists", resolved_tsv.exists() and resolved_tsv.is_file(), str(resolved_tsv)),
+        _check("tsv_has_required_fields", required_fields.issubset(set(fieldnames)), ",".join(fieldnames)),
+        _check("pending_decision_count_matches_rows", pending_decision_count == len(rows), f"{pending_decision_count}/{len(rows)}"),
+        _check("markdown_has_answer_sheet_title", "Pavo Speaker Answer Sheet" in markdown, "title"),
+        _check("markdown_has_priority_order", "Priority Listen Order" in markdown, "priority listen order"),
+        _check("markdown_has_fill_rules", "Allowed decision values" in markdown and "Allowed review reasons" in markdown, "fill rules"),
+        _check("markdown_has_finish_command", "pavo batch finalize-board-audit" in markdown, "finalize command"),
+        _check("markdown_has_safety_boundary", "human owns the final identity decision" in markdown, "identity boundary"),
+    ]
+    for row in rows:
+        clip_count = _optional_int(row.get("clip_count")) or 0
+        checks.append(
+            _check(
+                f"row_has_review_context:{row.get('decision_group')}",
+                bool(
+                    row.get("decision_group")
+                    and row.get("decision_risk")
+                    and row.get("decision_shape")
+                    and row.get("suggested_review_action")
+                ),
+                str(row.get("decision_group") or ""),
+            )
+        )
+        checks.append(
+            _check(
+                f"row_clip_count_present:{row.get('decision_group')}",
+                clip_count > 0 or pending_clip_count == 0,
+                str(row.get("clip_count") or ""),
+            )
+        )
+    blockers = [f"{check['name']}: {check['detail']}" for check in checks if not check.get("passed")]
+    return BatchSpeakerAnswerSheetVerifyResult(
+        proof_report_path=proof_path,
+        markdown_path=resolved_markdown,
+        tsv_path=resolved_tsv,
+        passed=not blockers,
+        pending_decision_count=pending_decision_count,
+        pending_clip_count=pending_clip_count,
+        checks=checks,
+        blockers=blockers,
+    )
+
+
 def _batch_review_sprint_payload(
     proof_path: Path,
     proof_report: dict[str, Any],
@@ -3056,6 +3216,265 @@ def _batch_review_sprint_payload(
         },
         "safety_boundary": "Listen to every supporting clip before approving or rejecting speaker identity. Pavo can guide and verify the workflow, but the human owns the final identity decision.",
     }
+
+
+def _batch_speaker_answer_sheet_payload(
+    proof_path: Path,
+    proof_report: dict[str, Any],
+    handoff: dict[str, Any],
+    validation: dict[str, Any],
+    sprint: dict[str, Any],
+) -> dict[str, Any]:
+    priority_queue = sprint.get("priority_queue") if isinstance(sprint.get("priority_queue"), dict) else {}
+    queue_items = priority_queue.get("items") if isinstance(priority_queue.get("items"), list) else []
+    focus_by_cluster = {
+        str(item.get("cluster_id") or ""): item
+        for item in sprint.get("focus_order", [])
+        if isinstance(item, dict)
+    }
+    decision_group_by_cluster = _batch_decision_group_by_cluster(handoff)
+    rows: list[dict[str, Any]] = []
+    for queue_item in queue_items:
+        if not isinstance(queue_item, dict):
+            continue
+        focus_item = focus_by_cluster.get(str(queue_item.get("cluster_id") or ""), {})
+        row = dict(queue_item)
+        if not row.get("decision_group"):
+            row["decision_group"] = decision_group_by_cluster.get(str(row.get("cluster_id") or ""))
+        row["clip_paths"] = focus_item.get("clip_paths") or []
+        row["transcript_samples"] = focus_item.get("transcript_samples") or []
+        row["evidence_hints"] = focus_item.get("evidence_hints") or []
+        row["estimated_minutes"] = focus_item.get("estimated_minutes")
+        row["acoustic_verdict"] = focus_item.get("acoustic_verdict")
+        row["decision"] = "pending"
+        row["review_reason"] = ""
+        row["notes"] = ""
+        rows.append(row)
+    return {
+        "generated_at": datetime.now(UTC).isoformat(),
+        "proof_report_path": str(proof_path),
+        "batch_root": proof_report.get("batch_root"),
+        "state": handoff.get("state"),
+        "complete": bool(handoff.get("complete")),
+        "decision_board": handoff.get("proof_decision_board_html"),
+        "proof_review_slate_tsv": handoff.get("proof_review_slate_tsv"),
+        "pending_decision_count": sprint.get("pending_decision_count"),
+        "pending_clip_count": sprint.get("pending_clip_count"),
+        "estimated_minutes": sprint.get("estimated_minutes"),
+        "priority_strategy": priority_queue.get("strategy") or "risk_then_priority_score",
+        "rows": rows,
+        "allowed_decisions": ["approved", "rejected", "pending"],
+        "allowed_review_reasons": dict(BATCH_SPEAKER_REVIEW_REASONS),
+        "commands": {
+            "readiness": f"pavo batch readiness {shlex.quote(str(proof_path))}",
+            "decision_board": f"pavo batch decision-board {shlex.quote(str(proof_path))}",
+            "finalize_board_audit": (
+                f"pavo batch finalize-board-audit {shlex.quote(str(proof_path))} "
+                "pavo-batch-proof.decision-board.audit.json"
+            ),
+            "validate": handoff.get("validate_command"),
+            "finish": handoff.get("finish_command"),
+            "strict_proof": handoff.get("strict_proof_command"),
+        },
+        "safety_boundary": "Listen to every supporting clip before approving or rejecting speaker identity. Pavo can guide and verify the workflow, but the human owns the final identity decision.",
+        "source_note": "This answer sheet is a compact review aid derived from the current Pavo proof validation and review sprint. Use the decision board for audio playback and audit JSON export.",
+    }
+
+
+def _batch_decision_group_by_cluster(handoff: dict[str, Any]) -> dict[str, str]:
+    path_value = str(handoff.get("proof_decision_slate_tsv") or "").strip()
+    if not path_value:
+        return {}
+    path = Path(path_value)
+    if not path.exists():
+        return {}
+    rows, _fieldnames = _read_tsv(path)
+    mapping: dict[str, str] = {}
+    for row in rows:
+        cluster_id = str(row.get("cluster_id") or "").strip()
+        decision_group = str(row.get("decision_group") or "").strip()
+        if cluster_id and decision_group:
+            mapping.setdefault(cluster_id, decision_group)
+    return mapping
+
+
+def _batch_sprint_with_decision_groups(sprint: dict[str, Any], handoff: dict[str, Any]) -> dict[str, Any]:
+    mapping = _batch_decision_group_by_cluster(handoff)
+    if not mapping:
+        return sprint
+    enriched = dict(sprint)
+    focus_order: list[dict[str, Any]] = []
+    for item in sprint.get("focus_order") or []:
+        if not isinstance(item, dict):
+            continue
+        row = dict(item)
+        if not row.get("decision_group"):
+            row["decision_group"] = mapping.get(str(row.get("cluster_id") or ""))
+        focus_order.append(row)
+    enriched["focus_order"] = focus_order
+    priority_queue = sprint.get("priority_queue") if isinstance(sprint.get("priority_queue"), dict) else {}
+    queue_items: list[dict[str, Any]] = []
+    for item in priority_queue.get("items") or []:
+        if not isinstance(item, dict):
+            continue
+        row = dict(item)
+        if not row.get("decision_group"):
+            row["decision_group"] = mapping.get(str(row.get("cluster_id") or ""))
+        queue_items.append(row)
+    if priority_queue:
+        updated_queue = dict(priority_queue)
+        updated_queue["items"] = queue_items
+        enriched["priority_queue"] = updated_queue
+    return enriched
+
+
+def _render_batch_speaker_answer_sheet_markdown(payload: dict[str, Any]) -> str:
+    rows = payload.get("rows") if isinstance(payload.get("rows"), list) else []
+    commands = payload.get("commands") if isinstance(payload.get("commands"), dict) else {}
+    lines = [
+        "# Pavo Speaker Answer Sheet",
+        "",
+        f"- State: `{payload.get('state')}`",
+        f"- Pending decisions: `{payload.get('pending_decision_count')}`",
+        f"- Pending clips: `{payload.get('pending_clip_count')}`",
+        f"- Estimated review time: `{payload.get('estimated_minutes')}` minutes",
+        f"- Priority strategy: `{str(payload.get('priority_strategy') or '').replace('_', ' ')}`",
+        f"- Decision board: `{payload.get('decision_board')}`",
+        "",
+        "## How To Use",
+        "",
+        "1. Open the decision board so the clips are playable.",
+        "2. Work down the priority order below.",
+        "3. For each row, listen to every clip before writing `approved`, `rejected`, or `pending`.",
+        "4. Use the browser board to download `pavo-batch-proof.decision-board.audit.json`, then run the finalize command.",
+        "",
+        "Allowed decision values: `approved`, `rejected`, `pending`.",
+        "Allowed review reasons:",
+        "",
+    ]
+    for value, label in BATCH_SPEAKER_REVIEW_REASONS.items():
+        lines.append(f"- `{value}`: {label}")
+    lines.extend(
+        [
+            "",
+            "## Priority Listen Order",
+            "",
+        ]
+    )
+    if rows:
+        for row in rows:
+            lines.extend(
+                [
+                    f"### {row.get('queue_order')}. {row.get('cluster_id')} -> {row.get('speaker')}",
+                    "",
+                    f"- Decision group: `{row.get('decision_group')}`",
+                    f"- Risk: `{row.get('decision_risk')}`",
+                    f"- Shape: `{row.get('decision_shape')}`",
+                    f"- Question: {row.get('question')}",
+                    f"- Suggested action: {row.get('suggested_review_action')}",
+                    f"- Clips: `{row.get('clip_count')}`",
+                    f"- Acoustic verdict: `{row.get('acoustic_verdict')}`",
+                    f"- Why queued: {row.get('why_queued')}",
+                    "",
+                    "Evidence hints:",
+                    "",
+                ]
+            )
+            for hint in row.get("evidence_hints") or []:
+                lines.append(f"- {hint}")
+            lines.extend(["", "Clip checklist:", ""])
+            clip_paths = row.get("clip_paths") if isinstance(row.get("clip_paths"), list) else []
+            samples = row.get("transcript_samples") if isinstance(row.get("transcript_samples"), list) else []
+            for index, clip_path in enumerate(clip_paths, start=1):
+                lines.append(f"- [ ] Clip {index}: `{clip_path}`")
+                sample = samples[index - 1] if index - 1 < len(samples) else None
+                if isinstance(sample, dict) and sample.get("excerpt"):
+                    lines.append(f"      Row {sample.get('row_index')}: {sample.get('excerpt')}")
+            lines.extend(
+                [
+                    "",
+                    "Answer:",
+                    "",
+                    "- Decision: `pending`",
+                    "- Review reason:",
+                    "- Notes:",
+                    "",
+                ]
+            )
+    else:
+        lines.append("- No pending speaker decisions.")
+        lines.append("")
+    lines.extend(
+        [
+            "## Commands",
+            "",
+            "```bash",
+            str(commands.get("readiness") or ""),
+            str(commands.get("decision_board") or ""),
+            str(commands.get("finalize_board_audit") or ""),
+            str(commands.get("validate") or ""),
+            str(commands.get("finish") or ""),
+            str(commands.get("strict_proof") or ""),
+            "```",
+            "",
+            "## Safety Boundary",
+            "",
+            str(payload.get("safety_boundary") or ""),
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _write_batch_speaker_answer_sheet_tsv(path: Path, payload: dict[str, Any]) -> None:
+    fieldnames = [
+        "queue_order",
+        "decision_group",
+        "cluster_id",
+        "speaker",
+        "decision_risk",
+        "decision_shape",
+        "question",
+        "suggested_review_action",
+        "clip_count",
+        "priority_score",
+        "acoustic_verdict",
+        "clip_paths",
+        "transcript_samples",
+        "decision",
+        "review_reason",
+        "notes",
+    ]
+    rows = payload.get("rows") if isinstance(payload.get("rows"), list) else []
+    safe_rows: list[dict[str, str]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        safe_rows.append(
+            {
+                "queue_order": str(row.get("queue_order") or ""),
+                "decision_group": str(row.get("decision_group") or ""),
+                "cluster_id": str(row.get("cluster_id") or ""),
+                "speaker": str(row.get("speaker") or ""),
+                "decision_risk": str(row.get("decision_risk") or ""),
+                "decision_shape": str(row.get("decision_shape") or ""),
+                "question": str(row.get("question") or ""),
+                "suggested_review_action": str(row.get("suggested_review_action") or ""),
+                "clip_count": str(row.get("clip_count") or ""),
+                "priority_score": str(row.get("priority_score") or ""),
+                "acoustic_verdict": str(row.get("acoustic_verdict") or ""),
+                "clip_paths": " | ".join(str(value) for value in row.get("clip_paths") or []),
+                "transcript_samples": " | ".join(
+                    str(sample.get("excerpt") or "")
+                    for sample in row.get("transcript_samples") or []
+                    if isinstance(sample, dict)
+                ),
+                "decision": str(row.get("decision") or "pending"),
+                "review_reason": str(row.get("review_reason") or ""),
+                "notes": str(row.get("notes") or ""),
+            }
+        )
+    _write_tsv(path, safe_rows, fieldnames)
 
 
 def _render_batch_review_sprint_markdown(payload: dict[str, Any]) -> str:
@@ -3201,6 +3620,8 @@ def _batch_review_pack_artifacts(
         "proof_decision_board_html": _path_from_report(handoff.get("proof_decision_board_html")),
         "proof_review_sprint_json": proof_path.with_name("pavo-batch-review-sprint.json"),
         "proof_review_sprint_markdown": proof_path.with_name("pavo-batch-review-sprint.md"),
+        "speaker_answer_sheet_markdown": proof_path.with_name("pavo-batch-speaker-answer-sheet.md"),
+        "speaker_answer_sheet_tsv": proof_path.with_name("pavo-batch-speaker-answer-sheet.tsv"),
         "proof_review_checklist_markdown": _path_from_report(handoff.get("proof_review_checklist_markdown")),
         "proof_review_validation_json": validation_report,
         "cluster_review_page_html": _path_from_report(review_packet.get("review_page")),

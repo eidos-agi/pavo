@@ -115,6 +115,8 @@ pavo batch status /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch readiness /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch review-sprint /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch verify-review-sprint /path/to/meeting-batch/pavo-batch-proof.json
+pavo batch speaker-answer-sheet /path/to/meeting-batch/pavo-batch-proof.json
+pavo batch verify-speaker-answer-sheet /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch review-now /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch finalize-reviewed-proof /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --check-validation
@@ -236,11 +238,24 @@ the focus-order and clip counts agree, transcript samples are present, clip
 paths exist, checklist boxes are rendered, finish commands are included, and the
 identity safety boundary is present. Review-pack verification runs this gate too.
 
+Use `pavo batch speaker-answer-sheet` to write
+`pavo-batch-speaker-answer-sheet.md` and
+`pavo-batch-speaker-answer-sheet.tsv`, a compact listen-and-decide sheet for the
+pending grouped speaker decisions. It is sorted by the same risk-then-priority
+queue as the sprint, but it removes everything except the decision question,
+suggested action, evidence hints, clip checklist, allowed decision values, and
+allowed review reasons. Use `pavo batch verify-speaker-answer-sheet` to prove
+that this sheet exists, has the expected pending decision count, includes
+review context for every row, and carries the finish command plus identity
+safety boundary. Review packs generate and include these answer-sheet files
+automatically.
+
 Use `pavo batch review-now` as the fastest safe human-review launch path. It
-regenerates the sprint, verifies the sprint, checks readiness, prints the review
-sprint, decision board, expected audit JSON path, exact `finalize-board-audit`
-command, review progress percent, export readiness, missing reason count, and
-next action. Add `--open-board` or `--open-sprint` when the
+regenerates the sprint, speaker answer sheet, and decision board, verifies the
+sprint and answer sheet, checks readiness, prints the review sprint, speaker
+answer sheet, decision board, expected audit JSON path, exact
+`finalize-board-audit` command, review progress percent, export readiness,
+missing reason count, and next action. Add `--open-board` or `--open-sprint` when the
 operator wants Pavo to open the local review surfaces directly. The sprint and
 board both carry the same decision rubric: approve only when every supporting
 clip matches the named speaker, reject wrong-speaker/overlap/noisy conflicts,
