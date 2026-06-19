@@ -320,10 +320,11 @@ the rehearsal checks. Use
 front door.
 
 Use `pavo batch review-now` as the fastest safe human-review launch path. It
-regenerates the sprint, speaker answer sheet, speaker suggestions, and decision
-board, verifies the sprint, answer sheet, suggestions, and cockpit, checks
-readiness, prints the review sprint, speaker answer sheet, speaker suggestions,
-decision board, expected audit JSON path, exact
+regenerates the sprint, speaker answer sheet, speaker suggestions, review
+bundle, and decision board, verifies the sprint, answer sheet, suggestions,
+bundle, completion proof, and cockpit, checks readiness, prints the review
+sprint, speaker answer sheet, review bundle, speaker suggestions, decision
+board, expected audit JSON path, exact
 `finalize-board-audit` command, review progress percent, export readiness,
 missing reason count, and next action. Add `--open-board` or `--open-sprint` when the
 operator wants Pavo to open the local review surfaces directly. The sprint and
