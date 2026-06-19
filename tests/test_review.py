@@ -10,6 +10,7 @@ from pavo.review import (
     create_anchor_review_bundle,
     create_anchor_review_page,
     create_cluster_identity_audit,
+    create_cluster_question_bundle,
     create_cluster_question_plan,
     compile_anchor_review_corrections,
     create_anchor_review_sheet,
@@ -558,6 +559,52 @@ class ReviewTests(unittest.TestCase):
             self.assertEqual(report["questions"][0]["cluster_id"], "S1")
             self.assertEqual(report["questions"][0]["samples"][0]["recording_id"], "rec-1")
             self.assertIn("Pavo Cluster Question Plan", result.markdown_path.read_text())
+
+    def test_create_cluster_question_bundle_writes_review_page(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            recording = root / "rec-1"
+            recording.mkdir()
+            audio = recording / "rec-1.wav"
+            audio.write_bytes(b"RIFF")
+            plan = root / "pavo-cluster-question-plan.json"
+            plan.write_text(
+                json.dumps(
+                    {
+                        "batch_root": str(root),
+                        "questions": [
+                            {
+                                "cluster_id": "S1",
+                                "status": "low_coverage_targeted_review",
+                                "question": "Can cluster S1 be confirmed as Daniel?",
+                                "candidate_name": "Daniel",
+                                "dominant_speaker": "Daniel",
+                                "expected_impact": "2 segments / 8 seconds",
+                                "suggested_decision": "Approve representative Daniel samples if the voice matches.",
+                                "stop_condition": "Two representative samples confirm the same speaker.",
+                                "samples": [
+                                    {
+                                        "recording_id": "rec-1",
+                                        "start": 0.0,
+                                        "end": 1.0,
+                                        "text": "sample",
+                                        "named_confidence": "medium",
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                )
+            )
+
+            result = create_cluster_question_bundle(plan)
+            sheet = json.loads(result.review_sheet_path.read_text())
+            verification = verify_anchor_review_page(result.review_sheet_path, result.review_page_path)
+
+            self.assertEqual(result.candidate_count, 1)
+            self.assertTrue(result.review_page_path.exists())
+            self.assertEqual(sheet["rows"][0]["case"], "S1 / low_coverage_targeted_review")
+            self.assertTrue(verification.passed)
 
     def test_materialize_anchor_review_decisions_writes_hints_and_enrollment(self):
         with tempfile.TemporaryDirectory() as tmp:

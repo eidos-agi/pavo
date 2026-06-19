@@ -29,6 +29,7 @@ from .review import (
     create_anchor_review_page,
     create_anchor_review_sheet,
     create_cluster_identity_audit,
+    create_cluster_question_bundle,
     create_cluster_question_plan,
     compile_anchor_review_corrections,
     export_anchor_review_decisions,
@@ -169,6 +170,11 @@ def build_parser() -> argparse.ArgumentParser:
     review_clusters_questions.add_argument("--audit", type=Path, help="Existing pavo-cluster-identity-audit.json")
     review_clusters_questions.add_argument("--out", type=Path, help="Cluster question plan JSON path")
     review_clusters_questions.add_argument("--samples-per-cluster", type=int, default=2)
+    review_clusters_bundle = review_clusters_sub.add_parser("bundle", help="Create an audio review bundle from a cluster question plan")
+    review_clusters_bundle.add_argument("question_plan", type=Path)
+    review_clusters_bundle.add_argument("--batch-root", type=Path, help="Batch root for resolving source audio; defaults to question plan batch_root")
+    review_clusters_bundle.add_argument("--out-dir", type=Path, help="Bundle output directory")
+    review_clusters_bundle.add_argument("--clip-padding", type=float, default=0.25)
     review_anchors_init = review_anchors_sub.add_parser("init", help="Create a pending review sheet from a clip packet")
     review_anchors_init.add_argument("clip_packet", type=Path)
     review_anchors_init.add_argument("--out", type=Path, help="Review sheet JSON path")
@@ -565,6 +571,20 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"cluster_count: {result.cluster_count}")
                 print(f"question_count: {result.question_count}")
                 return 0 if result.question_count else 2
+            if args.review_clusters_command == "bundle":
+                result = create_cluster_question_bundle(
+                    args.question_plan,
+                    batch_root=args.batch_root,
+                    out_dir=args.out_dir,
+                    clip_padding=args.clip_padding,
+                )
+                print(f"bundle_dir: {result.bundle_dir}")
+                print(f"review_sheet: {result.review_sheet_path}")
+                print(f"review_page: {result.review_page_path}")
+                print(f"candidate_count: {result.candidate_count}")
+                print(f"copied_clip_count: {result.copied_clip_count}")
+                print(f"missing_clip_count: {result.missing_clip_count}")
+                return 0 if result.candidate_count and result.missing_clip_count == 0 else 2
         if args.review_command == "anchors":
             if args.review_anchors_command == "init":
                 result = create_anchor_review_sheet(args.clip_packet, out_path=args.out)

@@ -4,6 +4,7 @@ from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
 import re
+import subprocess
 import shlex
 import shutil
 import time
@@ -185,6 +186,17 @@ class ClusterQuestionPlanResult:
     markdown_path: Path
     question_count: int
     cluster_count: int
+
+
+@dataclass(frozen=True)
+class ClusterQuestionBundleResult:
+    question_plan_path: Path
+    review_sheet_path: Path
+    review_page_path: Path
+    bundle_dir: Path
+    candidate_count: int
+    copied_clip_count: int
+    missing_clip_count: int
 
 
 @dataclass(frozen=True)
@@ -773,6 +785,92 @@ def render_cluster_question_plan_markdown(report: dict[str, Any]) -> str:
             )
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
+
+
+def create_cluster_question_bundle(
+    question_plan_path: Path | str,
+    *,
+    batch_root: Path | str | None = None,
+    out_dir: Path | str | None = None,
+    clip_padding: float = 0.25,
+) -> ClusterQuestionBundleResult:
+    plan_path = Path(question_plan_path)
+    plan = json.loads(plan_path.read_text())
+    root = Path(batch_root) if batch_root else Path(str(plan.get("batch_root") or plan_path.parent))
+    target_dir = Path(out_dir) if out_dir else plan_path.with_name("pavo-cluster-question-bundle")
+    clips_dir = target_dir / "clips"
+    clips_dir.mkdir(parents=True, exist_ok=True)
+    ffmpeg = shutil.which("ffmpeg")
+
+    rows = []
+    copied = 0
+    missing = 0
+    for question_index, question in enumerate(plan.get("questions") or [], start=1):
+        for sample_index, sample in enumerate(question.get("samples") or [], start=1):
+            source_audio = _review_sample_audio_path(root, sample.get("recording_id"))
+            clip_path = clips_dir / f"cluster-{question_index:02d}-sample-{sample_index:02d}.mp3"
+            start, end = _question_sample_window(sample, padding=clip_padding)
+            present = False
+            actual_clip_path = clip_path
+            if source_audio and ffmpeg and start is not None and end is not None:
+                extracted = _extract_review_audio_clip(ffmpeg, source_audio, clip_path, start=start, end=end)
+                if extracted:
+                    actual_clip_path = extracted
+                    present = True
+            if present:
+                copied += 1
+            else:
+                missing += 1
+            rows.append(_cluster_question_review_row(question, sample, len(rows) + 1, actual_clip_path))
+
+    sheet_path = target_dir / "pavo-cluster-question-review-sheet.json"
+    page_path = target_dir / "index.html"
+    sheet = {
+        "passed": False,
+        "human_reviewed": False,
+        "review_title": "Pavo Cluster Question Review",
+        "display_mode": "human_review",
+        "review_packet": str(plan_path),
+        "clip_packet": str(plan_path),
+        "candidate_count": len(rows),
+        "pending_count": len(rows),
+        "approved_count": 0,
+        "rejected_count": 0,
+        "target_speaker_label": "PAVO_CLUSTER_QUESTION",
+        "target_speaker_name": "Pavo cluster question",
+        "requires_import_instruction": False,
+        "requires_rerun_instruction": False,
+        "page_instructions": [
+            "Listen to each representative sample.",
+            "Approve only when the suggested cluster decision is supported by the audio.",
+            "Reject when the sample contradicts the suggested decision or exposes a split cluster.",
+            "Leave pending when the sample is too weak, overlapping, or noisy.",
+        ],
+        "review_labels": {
+            "buttons": {
+                "approved": "Supports decision",
+                "rejected": "Contradicts decision",
+                "pending": "Still uncertain",
+            },
+            "status": {
+                "approved": "supports decision",
+                "rejected": "contradicts decision",
+                "pending": "uncertain",
+            },
+        },
+        "rows": rows,
+    }
+    sheet_path.write_text(json.dumps(sheet, indent=2, sort_keys=True) + "\n")
+    page = create_anchor_review_page(sheet_path, out_path=page_path)
+    return ClusterQuestionBundleResult(
+        question_plan_path=plan_path,
+        review_sheet_path=sheet_path,
+        review_page_path=page.review_page_path,
+        bundle_dir=target_dir,
+        candidate_count=len(rows),
+        copied_clip_count=copied,
+        missing_clip_count=missing,
+    )
 
 
 def create_anchor_review_page(
@@ -2584,6 +2682,111 @@ def _question_sample_score(row: dict[str, Any], named: dict[str, Any] | None) ->
     if named and not _is_unknown_review_speaker(named.get("speaker")):
         score += 2.0
     return score
+
+
+def _cluster_question_review_row(question: dict[str, Any], sample: dict[str, Any], index: int, clip_path: Path) -> dict[str, Any]:
+    prompt = (
+        f"{question.get('question')} "
+        f"Suggested decision: {question.get('suggested_decision')} "
+        f"Stop condition: {question.get('stop_condition')}"
+    )
+    return {
+        "index": index,
+        "status": "pending",
+        "approved": False,
+        "target_speaker_label": question.get("dominant_speaker") or question.get("candidate_name") or question.get("cluster_id"),
+        "target_speaker_name": question.get("dominant_speaker") or question.get("candidate_name") or question.get("cluster_id"),
+        "start": sample.get("start"),
+        "end": sample.get("end"),
+        "duration": round(max(0.0, (_safe_float(sample.get("end")) or 0.0) - (_safe_float(sample.get("start")) or 0.0)), 2),
+        "text": sample.get("text"),
+        "confidence": sample.get("named_confidence") or "review_required",
+        "method": "cluster_question_plan",
+        "clip_path": str(clip_path),
+        "recording_id": sample.get("recording_id"),
+        "case": f"{question.get('cluster_id')} / {question.get('status')}",
+        "expected_behavior": question.get("stop_condition"),
+        "review_heading": question.get("question"),
+        "review_prompt": prompt,
+        "review_subtitle": question.get("expected_impact"),
+        "cluster_question": question,
+        "cluster_sample": sample,
+    }
+
+
+def _review_sample_audio_path(root: Path, recording_id: Any) -> Path | None:
+    if not recording_id:
+        return None
+    candidates = sorted(root.rglob(f"{recording_id}.*"))
+    for path in candidates:
+        if path.suffix.lower() in {".aac", ".m4a", ".mp3", ".wav"} and path.is_file():
+            return path
+    return None
+
+
+def _question_sample_window(sample: dict[str, Any], *, padding: float) -> tuple[float | None, float | None]:
+    start = _safe_float(sample.get("start"))
+    end = _safe_float(sample.get("end"))
+    if start is None or end is None:
+        return None, None
+    return max(0.0, start - padding), max(start, end + padding)
+
+
+def _extract_review_audio_clip(ffmpeg: str, source_audio: Path, clip_path: Path, *, start: float, end: float) -> Path | None:
+    duration = max(0.1, end - start)
+    clip_path.parent.mkdir(parents=True, exist_ok=True)
+    mp3_command = [
+        ffmpeg,
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-ss",
+        f"{start:.3f}",
+        "-t",
+        f"{duration:.3f}",
+        "-i",
+        str(source_audio),
+        "-vn",
+        "-acodec",
+        "libmp3lame",
+        str(clip_path),
+    ]
+    try:
+        subprocess.run(mp3_command, check=True, stderr=subprocess.DEVNULL)
+    except (OSError, subprocess.CalledProcessError):
+        wav_path = clip_path.with_suffix(".wav")
+        wav_command = [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-ss",
+            f"{start:.3f}",
+            "-t",
+            f"{duration:.3f}",
+            "-i",
+            str(source_audio),
+            "-vn",
+            "-ac",
+            "1",
+            "-ar",
+            "16000",
+            "-acodec",
+            "pcm_s16le",
+            str(wav_path),
+        ]
+        try:
+            subprocess.run(wav_command, check=True, stderr=subprocess.DEVNULL)
+        except (OSError, subprocess.CalledProcessError):
+            return None
+        if wav_path.exists() and wav_path.stat().st_size > 0:
+            if clip_path.exists() and clip_path.stat().st_size == 0:
+                clip_path.unlink()
+            return wav_path
+        return None
+    return clip_path if clip_path.exists() and clip_path.stat().st_size > 0 else None
 
 
 def _review_context_summary(neighbors: list[dict[str, Any]]) -> str:
