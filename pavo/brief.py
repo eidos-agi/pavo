@@ -67,6 +67,13 @@ class BriefImprovementOutputs:
     markdown_path: Path
 
 
+@dataclass(frozen=True)
+class ReviewedHintsOverlayOutputs:
+    overlay_path: Path
+    segment_count: int
+    speaker_count: int
+
+
 def build_meeting_brief(root: Path, *, review_limit: int = 200, packet_limit: int = 25) -> dict[str, Any]:
     root = root.expanduser().resolve()
     audio_files = _find_files(root, AUDIO_SUFFIXES)
@@ -362,6 +369,35 @@ def write_brief_improvement_report(report: dict[str, Any], out_dir: Path) -> Bri
     return BriefImprovementOutputs(json_path=json_path, markdown_path=markdown_path)
 
 
+def write_reviewed_hints_named_evidence(
+    hints_path: Path,
+    batch_root: Path,
+    *,
+    out_path: Path | None = None,
+) -> ReviewedHintsOverlayOutputs:
+    payload = json.loads(hints_path.expanduser().read_text(encoding="utf-8"))
+    segments = _reviewed_hint_segments(payload)
+    target = out_path or batch_root.expanduser() / "_work" / "reviewed-hints.named-speaker-evidence.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    speakers = sorted({str(segment.get("speaker")) for segment in segments if segment.get("speaker")})
+    overlay = {
+        "source_hints": str(hints_path),
+        "generated_at": _utc_now(),
+        "passed": bool(segments),
+        "segment_count": len(segments),
+        "speaker_count": len(speakers),
+        "speakers": speakers,
+        "segments": segments,
+        "privacy": "Human-reviewed hints are routing evidence; do not publish raw audio or voiceprints outside Pavo.",
+    }
+    target.write_text(json.dumps(overlay, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return ReviewedHintsOverlayOutputs(
+        overlay_path=target,
+        segment_count=len(segments),
+        speaker_count=len(speakers),
+    )
+
+
 def render_meeting_brief_markdown(brief: dict[str, Any]) -> str:
     counts = brief["counts"]
     lines = [
@@ -577,7 +613,7 @@ def _load_speaker_attribution_segments(root: Path) -> list[dict[str, Any]]:
 
 def _load_named_evidence_segments(root: Path) -> list[dict[str, Any]]:
     segments: list[dict[str, Any]] = []
-    for path in _find_named(root, lambda p: p.name == "named-speaker-evidence.json"):
+    for path in _find_named(root, lambda p: p.name == "named-speaker-evidence.json" or p.name.endswith(".named-speaker-evidence.json")):
         payload = _read_json(path)
         candidate = payload.get("segments") if isinstance(payload, dict) else None
         if isinstance(candidate, list):
@@ -586,6 +622,34 @@ def _load_named_evidence_segments(root: Path) -> list[dict[str, Any]]:
                     enriched = dict(item)
                     enriched["_pavo_source"] = str(path)
                     segments.append(enriched)
+    return segments
+
+
+def _reviewed_hint_segments(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    segments = []
+    for hint in payload.get("hints") or []:
+        speaker = str(hint.get("speaker") or "").strip()
+        if not speaker:
+            continue
+        start = hint.get("start")
+        end = hint.get("end")
+        if start is None or end is None:
+            continue
+        segments.append(
+            {
+                "recording_id": hint.get("recording_id"),
+                "source_id": hint.get("recording_id"),
+                "start": start,
+                "end": end,
+                "speaker": speaker,
+                "confidence": "manual_confirmed",
+                "reason": "human_reviewed_speaker_hint",
+                "text": hint.get("text"),
+                "reviewer_note": hint.get("reviewer_note"),
+                "clip_path": hint.get("clip_path"),
+                "ensemble_source": "reviewed_speaker_hint",
+            }
+        )
     return segments
 
 

@@ -13,6 +13,7 @@ from .brief import (
     build_review_cluster_plan,
     write_brief_improvement_report,
     write_meeting_brief,
+    write_reviewed_hints_named_evidence,
     write_review_cluster_clip_packet,
     write_review_cluster_plan,
 )
@@ -72,6 +73,11 @@ def build_parser() -> argparse.ArgumentParser:
     brief_improvement.add_argument("--out-dir", type=Path, help="Output directory; defaults to the current brief directory")
     brief_improvement.add_argument("--label", help="Human label for the comparison")
     brief_improvement.add_argument("--json", action="store_true", help="Print the full improvement report as JSON")
+
+    brief_apply_hints = subparsers.add_parser("brief-apply-hints", help="Convert reviewed speaker hints into named-speaker evidence for a batch")
+    brief_apply_hints.add_argument("batch_root", type=Path)
+    brief_apply_hints.add_argument("speaker_hints", type=Path)
+    brief_apply_hints.add_argument("--out", type=Path, help="Overlay output path; defaults to batch _work")
 
     audio = subparsers.add_parser("audio", help="Audio intelligence checks")
     audio_sub = audio.add_subparsers(dest="audio_command", required=True)
@@ -367,6 +373,19 @@ def main(argv: list[str] | None = None) -> int:
             print(f"improvement_json: {outputs.json_path}")
             print(f"improvement_markdown: {outputs.markdown_path}")
         return 0 if report["passed"] else 2
+
+    if args.command == "brief-apply-hints":
+        if not args.batch_root.exists():
+            print(f"batch root not found: {args.batch_root}", file=sys.stderr)
+            return 2
+        if not args.speaker_hints.exists():
+            print(f"speaker hints not found: {args.speaker_hints}", file=sys.stderr)
+            return 2
+        result = write_reviewed_hints_named_evidence(args.speaker_hints, args.batch_root, out_path=args.out)
+        print(f"overlay: {result.overlay_path}")
+        print(f"segment_count: {result.segment_count}")
+        print(f"speaker_count: {result.speaker_count}")
+        return 0 if result.segment_count else 2
 
     if args.command == "audio":
         if args.audio_command == "doctor":

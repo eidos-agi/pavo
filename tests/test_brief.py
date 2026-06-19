@@ -9,6 +9,7 @@ from pavo.brief import (
     build_review_cluster_plan,
     write_brief_improvement_report,
     write_meeting_brief,
+    write_reviewed_hints_named_evidence,
     write_review_cluster_clip_packet,
     write_review_cluster_plan,
 )
@@ -102,6 +103,85 @@ class BriefTests(unittest.TestCase):
             {gate["name"]: gate["status"] for gate in brief["verification"]["gates"]}["recording_parity"],
             "pass",
         )
+
+    def test_reviewed_hints_overlay_reduces_review_pressure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "call.mp3").write_bytes(b"source audio")
+            (root / "call.transcript.json").write_text('{"segments":[]}\n')
+            work = root / "_work"
+            work.mkdir()
+            (work / "diarization-segments.json").write_text('[{"recording_id":"call","speaker":"S1"}]\n')
+            (work / "speaker-attribution.json").write_text(
+                json.dumps(
+                    {
+                        "segments": [
+                            {
+                                "recording_id": "call",
+                                "start": 1.0,
+                                "end": 3.0,
+                                "speaker": "Unknown office speaker",
+                                "confidence": "low",
+                                "text": "We should route this.",
+                            }
+                        ]
+                    }
+                )
+            )
+            baseline = build_meeting_brief(root)
+            hints = root / "pavo-reviewed-speaker-hints.json"
+            hints.write_text(
+                json.dumps(
+                    {
+                        "hints": [
+                            {
+                                "speaker": "Daniel",
+                                "recording_id": "call",
+                                "start": 1.0,
+                                "end": 3.0,
+                                "text": "We should route this.",
+                                "reviewer_note": "clear Daniel",
+                                "clip_path": "clips/candidate-01.mp3",
+                            }
+                        ]
+                    }
+                )
+            )
+
+            result = write_reviewed_hints_named_evidence(hints, root)
+            current = build_meeting_brief(root)
+            report = build_brief_improvement_report(baseline, current, label="reviewed hint overlay")
+
+            self.assertEqual(result.segment_count, 1)
+            self.assertTrue(result.overlay_path.exists())
+            self.assertEqual(baseline["review"]["total_count"], 1)
+            self.assertEqual(current["review"]["total_count"], 0)
+            self.assertEqual(current["speaker_ensemble"]["routeable_named_segment_count"], 1)
+            self.assertTrue(report["passed"])
+            self.assertEqual(report["deltas"]["review_pressure_reduction"], 1)
+            self.assertEqual(report["deltas"]["routeable_named_span_gain"], 1)
+
+    def test_cli_brief_apply_hints_writes_overlay(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            hints = root / "hints.json"
+            hints.write_text(
+                json.dumps(
+                    {
+                        "hints": [
+                            {
+                                "speaker": "Daniel",
+                                "recording_id": "call",
+                                "start": 1.0,
+                                "end": 2.0,
+                            }
+                        ]
+                    }
+                )
+            )
+
+            self.assertEqual(main(["brief-apply-hints", str(root), str(hints)]), 0)
+            self.assertTrue((root / "_work" / "reviewed-hints.named-speaker-evidence.json").exists())
 
     def test_brief_dedupes_generated_and_repeated_task_lines(self):
         with tempfile.TemporaryDirectory() as tmp:

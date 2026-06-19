@@ -82,6 +82,7 @@ After a batch is processed, use one command to get the operational truth:
 pavo brief /path/to/meeting-batch
 pavo brief /path/to/meeting-batch --review-plan
 pavo brief /path/to/meeting-batch --review-plan-clips
+pavo brief-apply-hints /path/to/meeting-batch /path/to/pavo-reviewed-speaker-hints.json
 pavo brief-improvement baseline/pavo-meeting-brief.json current/pavo-meeting-brief.json
 ```
 
@@ -109,6 +110,12 @@ reduction, routeable named-span gain, readiness score, and recording parity. It
 fails closed when the before/after metrics are unchanged. Generated review clips
 and Pavo artifacts are excluded from source recording counts so Pavo does not
 poison its own future briefs.
+
+`pavo brief-apply-hints` converts approved reviewed speaker hints into a
+`reviewed-hints.named-speaker-evidence.json` overlay under the batch `_work/`
+directory. The next `pavo brief` ensembles that overlay with raw attribution,
+which lets reviewed speaker decisions reduce review pressure without rewriting
+source evidence.
 
 The problems Pavo is built around:
 
