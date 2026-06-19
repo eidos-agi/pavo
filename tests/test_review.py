@@ -9,6 +9,7 @@ from pavo.review import (
     create_anchor_review_assistant,
     create_anchor_review_bundle,
     create_anchor_review_page,
+    create_cluster_identity_audit,
     compile_anchor_review_corrections,
     create_anchor_review_sheet,
     export_anchor_review_decisions,
@@ -447,6 +448,59 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(row["suggested_speaker"], "Alex")
         self.assertEqual(row["cluster_context"]["candidate_name"], "Daniel")
         self.assertIn("Cluster candidate is Daniel", row["why"])
+
+    def test_create_cluster_identity_audit_classifies_safe_and_conflict_clusters(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            work = root / "_work"
+            work.mkdir()
+            (work / "voice-clusters.json").write_text(
+                json.dumps(
+                    {
+                        "S1": {"candidate_name": "Daniel", "candidate_confidence": "high", "segment_count": 4},
+                        "S2": {"candidate_name": "Daniel", "candidate_confidence": "high", "segment_count": 4},
+                    }
+                )
+            )
+            diarization = []
+            named = []
+            for index in range(4):
+                start = float(index)
+                diarization.append({"recording_id": "rec-1", "start": start, "end": start + 0.5, "speaker": "S1"})
+                named.append(
+                    {
+                        "recording_id": "rec-1",
+                        "start": start,
+                        "end": start + 0.5,
+                        "speaker": "Daniel",
+                        "confidence": "medium",
+                        "text": f"Daniel {index}",
+                    }
+                )
+            for index in range(4, 8):
+                start = float(index)
+                diarization.append({"recording_id": "rec-1", "start": start, "end": start + 0.5, "speaker": "S2"})
+                named.append(
+                    {
+                        "recording_id": "rec-1",
+                        "start": start,
+                        "end": start + 0.5,
+                        "speaker": "Alex",
+                        "confidence": "medium",
+                        "text": f"Alex {index}",
+                    }
+                )
+            (work / "diarization-segments.json").write_text(json.dumps(diarization))
+            (work / "named-speaker-evidence.json").write_text(json.dumps({"segments": named}))
+
+            result = create_cluster_identity_audit(root)
+            report = json.loads(result.json_path.read_text())
+
+            by_id = {cluster["cluster_id"]: cluster for cluster in report["clusters"]}
+            self.assertEqual(result.status_counts, {"candidate_conflict": 1, "safe_to_propagate": 1})
+            self.assertEqual(by_id["S1"]["status"], "safe_to_propagate")
+            self.assertEqual(by_id["S2"]["status"], "candidate_conflict")
+            self.assertIn("Pavo Cluster Identity Audit", result.markdown_path.read_text())
 
     def test_materialize_anchor_review_decisions_writes_hints_and_enrollment(self):
         with tempfile.TemporaryDirectory() as tmp:

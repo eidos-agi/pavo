@@ -170,6 +170,15 @@ class AnchorReviewAssistantResult:
 
 
 @dataclass(frozen=True)
+class ClusterIdentityAuditResult:
+    batch_root: Path
+    json_path: Path
+    markdown_path: Path
+    cluster_count: int
+    status_counts: dict[str, int]
+
+
+@dataclass(frozen=True)
 class AnchorReviewGateResult:
     review_sheet_path: Path
     passed: bool
@@ -576,6 +585,90 @@ def render_anchor_review_assistant_markdown(report: dict[str, Any]) -> str:
                 f"- Why: {item.get('why')}",
                 f"- Context: {item.get('context_summary')}",
                 f"- Text: {item.get('text') or ''}",
+                "",
+            ]
+        )
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def create_cluster_identity_audit(
+    batch_root: Path | str,
+    *,
+    out_path: Path | str | None = None,
+    min_strong_coverage: float = 0.25,
+    min_dominant_share: float = 0.85,
+) -> ClusterIdentityAuditResult:
+    root = Path(batch_root)
+    clusters = _load_voice_clusters(root)
+    named_by_key = {_review_segment_key(segment): segment for segment in _load_named_evidence_segments(root)}
+    cluster_rows: dict[str, list[dict[str, Any]]] = {}
+    for segment in _load_diarization_segments(root):
+        cluster_rows.setdefault(str(segment.get("speaker") or "unknown"), []).append(segment)
+
+    audits = []
+    status_counts: dict[str, int] = {}
+    for cluster_id, rows in sorted(cluster_rows.items()):
+        audit = _cluster_identity_audit_row(
+            cluster_id,
+            rows,
+            clusters.get(cluster_id) if isinstance(clusters.get(cluster_id), dict) else {},
+            named_by_key,
+            min_strong_coverage=min_strong_coverage,
+            min_dominant_share=min_dominant_share,
+        )
+        audits.append(audit)
+        status = str(audit["status"])
+        status_counts[status] = status_counts.get(status, 0) + 1
+
+    report_path = Path(out_path) if out_path else root / "pavo-cluster-identity-audit.json"
+    markdown_path = report_path.with_suffix(".md")
+    report = {
+        "passed": bool(audits),
+        "batch_root": str(root),
+        "cluster_count": len(audits),
+        "status_counts": status_counts,
+        "thresholds": {
+            "min_strong_coverage": min_strong_coverage,
+            "min_dominant_share": min_dominant_share,
+        },
+        "clusters": audits,
+        "safety_boundary": "Cluster identity can only be propagated when strong named evidence is sufficiently covered, dominant, and non-conflicting.",
+    }
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    markdown_path.write_text(render_cluster_identity_audit_markdown(report), encoding="utf-8")
+    return ClusterIdentityAuditResult(
+        batch_root=root,
+        json_path=report_path,
+        markdown_path=markdown_path,
+        cluster_count=len(audits),
+        status_counts=status_counts,
+    )
+
+
+def render_cluster_identity_audit_markdown(report: dict[str, Any]) -> str:
+    lines = [
+        "# Pavo Cluster Identity Audit",
+        "",
+        f"- Batch root: `{report.get('batch_root')}`",
+        f"- Cluster count: {report.get('cluster_count')}",
+        f"- Status counts: `{json.dumps(report.get('status_counts') or {}, sort_keys=True)}`",
+        "",
+        "Safety boundary: cluster labels are not speaker truth until evidence coverage, dominance, and conflict checks pass.",
+        "",
+        "## Clusters",
+        "",
+    ]
+    for cluster in report.get("clusters") or []:
+        lines.extend(
+            [
+                f"### {cluster.get('cluster_id')} - {cluster.get('status')}",
+                "",
+                f"- Candidate: `{cluster.get('candidate_name') or ''}` ({cluster.get('candidate_confidence') or 'unknown'})",
+                f"- Dominant evidence: `{cluster.get('dominant_speaker') or ''}` ({cluster.get('dominant_share')})",
+                f"- Strong coverage: {cluster.get('strong_coverage')}",
+                f"- Segment count: {cluster.get('segment_count')}",
+                f"- Recommended action: {cluster.get('recommended_action')}",
                 "",
             ]
         )
@@ -2227,6 +2320,83 @@ def _cluster_conflicts_with_suggestion(cluster: dict[str, Any] | None, suggested
     if _is_unknown_review_speaker(candidate) or _is_unknown_review_speaker(suggested):
         return False
     return candidate != suggested
+
+
+def _cluster_identity_audit_row(
+    cluster_id: str,
+    rows: list[dict[str, Any]],
+    cluster: dict[str, Any],
+    named_by_key: dict[tuple[str, float | None, float | None], dict[str, Any]],
+    *,
+    min_strong_coverage: float,
+    min_dominant_share: float,
+) -> dict[str, Any]:
+    strong_counts: dict[str, int] = {}
+    all_counts: dict[str, int] = {}
+    examples: dict[str, list[str]] = {}
+    for row in rows:
+        named = named_by_key.get(_review_segment_key(row))
+        if not named:
+            continue
+        speaker = str(named.get("speaker") or "")
+        confidence = str(named.get("confidence") or "unknown")
+        key = f"{speaker}/{confidence}"
+        all_counts[key] = all_counts.get(key, 0) + 1
+        if confidence in {"medium", "high", "manual_confirmed"} and not _is_unknown_review_speaker(speaker):
+            strong_counts[speaker] = strong_counts.get(speaker, 0) + 1
+            examples.setdefault(speaker, [])
+            if len(examples[speaker]) < 3 and named.get("text"):
+                examples[speaker].append(str(named.get("text")))
+
+    segment_count = len(rows)
+    strong_total = sum(strong_counts.values())
+    dominant_speaker = None
+    dominant_count = 0
+    if strong_counts:
+        dominant_speaker, dominant_count = sorted(strong_counts.items(), key=lambda item: (-item[1], item[0]))[0]
+    strong_coverage = round(strong_total / segment_count, 4) if segment_count else 0.0
+    dominant_share = round(dominant_count / strong_total, 4) if strong_total else 0.0
+    candidate = str(cluster.get("candidate_name") or "")
+    candidate_confidence = str(cluster.get("candidate_confidence") or "unknown")
+    candidate_conflicts = bool(
+        dominant_speaker
+        and not _is_unknown_review_speaker(candidate)
+        and candidate != dominant_speaker
+    )
+
+    status = "needs_targeted_review"
+    recommended_action = "Ask a human to identify representative clips before propagating this cluster."
+    if strong_total == 0:
+        status = "no_strong_named_evidence"
+        recommended_action = "Collect at least one reviewed/named speaker sample for this cluster."
+    elif candidate_conflicts:
+        status = "candidate_conflict"
+        recommended_action = "Do not propagate; review conflict clips and create must-link/cannot-link constraints."
+    elif strong_coverage >= min_strong_coverage and dominant_share >= min_dominant_share:
+        status = "safe_to_propagate"
+        recommended_action = f"Propagate {dominant_speaker} only with provenance and keep sampled review checks."
+    elif dominant_share >= min_dominant_share:
+        status = "low_coverage_targeted_review"
+        recommended_action = f"Ask targeted questions for {dominant_speaker}; evidence is dominant but sparse."
+
+    return {
+        "cluster_id": cluster_id,
+        "status": status,
+        "candidate_name": cluster.get("candidate_name"),
+        "candidate_confidence": cluster.get("candidate_confidence"),
+        "candidate_reason": cluster.get("candidate_reason"),
+        "segment_count": segment_count,
+        "duration_seconds": cluster.get("duration_seconds"),
+        "strong_named_count": strong_total,
+        "strong_coverage": strong_coverage,
+        "dominant_speaker": dominant_speaker,
+        "dominant_count": dominant_count,
+        "dominant_share": dominant_share,
+        "strong_counts": strong_counts,
+        "all_named_counts": all_counts,
+        "sample_quotes_by_speaker": examples,
+        "recommended_action": recommended_action,
+    }
 
 
 def _review_context_summary(neighbors: list[dict[str, Any]]) -> str:

@@ -28,6 +28,7 @@ from .review import (
     create_anchor_review_bundle,
     create_anchor_review_page,
     create_anchor_review_sheet,
+    create_cluster_identity_audit,
     compile_anchor_review_corrections,
     export_anchor_review_decisions,
     gate_anchor_review,
@@ -155,6 +156,13 @@ def build_parser() -> argparse.ArgumentParser:
     review_sub = review.add_subparsers(dest="review_command", required=True)
     review_anchors = review_sub.add_parser("anchors", help="Review speaker anchor clips")
     review_anchors_sub = review_anchors.add_subparsers(dest="review_anchors_command", required=True)
+    review_clusters = review_sub.add_parser("clusters", help="Audit diarization cluster identity")
+    review_clusters_sub = review_clusters.add_subparsers(dest="review_clusters_command", required=True)
+    review_clusters_audit = review_clusters_sub.add_parser("audit", help="Write a cluster identity propagation audit")
+    review_clusters_audit.add_argument("batch_root", type=Path)
+    review_clusters_audit.add_argument("--out", type=Path, help="Cluster audit JSON path")
+    review_clusters_audit.add_argument("--min-strong-coverage", type=float, default=0.25)
+    review_clusters_audit.add_argument("--min-dominant-share", type=float, default=0.85)
     review_anchors_init = review_anchors_sub.add_parser("init", help="Create a pending review sheet from a clip packet")
     review_anchors_init.add_argument("clip_packet", type=Path)
     review_anchors_init.add_argument("--out", type=Path, help="Review sheet JSON path")
@@ -526,6 +534,19 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
     if args.command == "review":
+        if args.review_command == "clusters":
+            if args.review_clusters_command == "audit":
+                result = create_cluster_identity_audit(
+                    args.batch_root,
+                    out_path=args.out,
+                    min_strong_coverage=args.min_strong_coverage,
+                    min_dominant_share=args.min_dominant_share,
+                )
+                print(f"audit_json: {result.json_path}")
+                print(f"audit_markdown: {result.markdown_path}")
+                print(f"cluster_count: {result.cluster_count}")
+                print(f"status_counts: {__import__('json').dumps(result.status_counts, sort_keys=True)}")
+                return 0 if result.cluster_count else 2
         if args.review_command == "anchors":
             if args.review_anchors_command == "init":
                 result = create_anchor_review_sheet(args.clip_packet, out_path=args.out)
