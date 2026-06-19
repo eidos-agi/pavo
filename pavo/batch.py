@@ -189,6 +189,7 @@ class BatchProofResult:
     doctor_report_path: Path
     doctor_markdown_path: Path
     verification_markdown_path: Path
+    review_packet: dict[str, Any]
 
     def as_report(self) -> dict[str, Any]:
         return {
@@ -208,6 +209,7 @@ class BatchProofResult:
             "checks": self.doctor.checks,
             "blockers": self.doctor.blockers,
             "next_command": self.doctor.next_command,
+            "review_packet": self.review_packet,
             "doctor": self.doctor.as_report(),
             "verification": self.verification.as_report(),
             "safety_boundary": "Batch proof verifies machine plumbing and artifact integrity. It does not mark speaker identity complete until human review gates pass.",
@@ -226,6 +228,9 @@ class BatchProofResult:
             f"- Checked artifacts: {self.verification.checked_artifact_count}",
             f"- Mismatches: {len(self.verification.mismatches)}",
             f"- Next command: `{self.doctor.next_command}`",
+            f"- Review packet state: `{self.review_packet.get('state')}`",
+            f"- Review packet items: {self.review_packet.get('item_count')}",
+            f"- Review unlock: {self.review_packet.get('total_unlockable_segments')} segments / {self.review_packet.get('total_unlockable_seconds')} seconds",
             "",
             "## Reports",
             "",
@@ -234,6 +239,9 @@ class BatchProofResult:
             f"- Doctor JSON: `{self.doctor_report_path}`",
             f"- Doctor Markdown: `{self.doctor_markdown_path}`",
             f"- Manifest verification Markdown: `{self.verification_markdown_path}`",
+            f"- Review decision brief: `{self.review_packet.get('decision_brief_html')}`",
+            f"- Review slate TSV: `{self.review_packet.get('slate_tsv')}`",
+            f"- Review page: `{self.review_packet.get('review_page')}`",
             "",
             "## Checks",
             "",
@@ -424,10 +432,56 @@ def prove_batch(
         doctor_report_path=doctor_report_path,
         doctor_markdown_path=doctor_markdown_path,
         verification_markdown_path=verification_markdown_path,
+        review_packet=_review_packet_summary(root, doctor.cluster_gate),
     )
     proof_report_path.write_text(json.dumps(result.as_report(), indent=2, sort_keys=True) + "\n")
     proof_markdown_path.write_text(result.as_markdown())
     return result
+
+
+def _review_packet_summary(batch_root: Path, cluster_gate: dict[str, Any] | None) -> dict[str, Any]:
+    bundle = batch_root / "pavo-cluster-question-bundle"
+    gate = cluster_gate or {}
+    review_queue = gate.get("review_queue") or {}
+    summary = review_queue.get("summary") or {}
+    items = review_queue.get("items") or []
+    return {
+        "state": gate.get("state"),
+        "item_count": len(items),
+        "minimum_reviews": summary.get("minimum_reviews"),
+        "pending_reviews": summary.get("pending_reviews"),
+        "possible_reviews_saved": summary.get("possible_reviews_saved"),
+        "reduction_percent": summary.get("reduction_percent"),
+        "total_unlockable_segments": summary.get("total_unlockable_segments"),
+        "total_unlockable_seconds": summary.get("total_unlockable_seconds"),
+        "forecast_risk_adjusted_segments": summary.get("forecast_risk_adjusted_segments"),
+        "review_sheet": gate.get("review_sheet"),
+        "slate_tsv": str(bundle / "pavo-cluster-review-decision-slate.tsv"),
+        "slate_markdown": str(bundle / "pavo-cluster-review-decision-slate.md"),
+        "decision_brief_json": str(bundle / "pavo-cluster-review-decision-brief.json"),
+        "decision_brief_markdown": str(bundle / "pavo-cluster-review-decision-brief.md"),
+        "decision_brief_html": str(bundle / "pavo-cluster-review-decision-brief.html"),
+        "review_page": str(bundle / "index.html"),
+        "validate_command": review_queue.get("validate_command"),
+        "finish_command": gate.get("finish_command") or review_queue.get("finish_command"),
+        "top_items": [
+            {
+                "rank": item.get("rank"),
+                "row_index": item.get("row_index"),
+                "cluster_id": item.get("cluster_id"),
+                "question": item.get("question"),
+                "target_speaker": item.get("target_speaker"),
+                "priority_tier": item.get("priority_tier"),
+                "priority_score": item.get("priority_score"),
+                "unlockable_segments": item.get("unlockable_segments"),
+                "unlockable_seconds": item.get("unlockable_seconds"),
+                "acoustic_verdict": item.get("acoustic_verdict"),
+                "clip_path": item.get("clip_path"),
+            }
+            for item in items[:7]
+        ],
+        "safety_boundary": "Review packet lists required human speaker decisions; it does not approve identity.",
+    }
 
 
 def verify_batch_manifest(report_path: Path | str) -> BatchManifestVerificationResult:

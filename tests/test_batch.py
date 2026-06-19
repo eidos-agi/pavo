@@ -165,6 +165,9 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertTrue(doctor_markdown_exists)
         self.assertTrue(verification_markdown_exists)
         self.assertEqual(proof_report["state"], "machine_ready_human_review_pending")
+        self.assertEqual(proof_report["review_packet"]["item_count"], 1)
+        self.assertEqual(proof_report["review_packet"]["total_unlockable_segments"], 10)
+        self.assertIn("pavo-cluster-review-decision-brief.html", proof_report["review_packet"]["decision_brief_html"])
         self.assertTrue(proof_markdown_exists)
 
     def test_batch_proof_cli_strict_complete_fails_when_human_gate_pending(self):
@@ -236,6 +239,37 @@ def _write_processed_batch(root: Path, *, recording_ids: list[str]) -> None:
                 "next_command": "open human review",
                 "blockers": ["1 cluster question still needs review before terminal consensus"],
                 "doctor": {"passed": True},
+                "state": "review_pending",
+                "review_sheet": str(root / "pavo-cluster-question-bundle" / "pavo-cluster-question-review-sheet.json"),
+                "review_queue": {
+                    "summary": {
+                        "minimum_reviews": 1,
+                        "pending_reviews": 1,
+                        "possible_reviews_saved": 9,
+                        "reduction_percent": 90.0,
+                        "total_unlockable_segments": 10,
+                        "total_unlockable_seconds": 42.5,
+                        "forecast_risk_adjusted_segments": 8,
+                    },
+                    "items": [
+                        {
+                            "rank": 1,
+                            "row_index": 1,
+                            "cluster_id": "S1",
+                            "question": "Can cluster S1 be confirmed as Daniel?",
+                            "target_speaker": "Daniel",
+                            "priority_tier": "urgent_listen",
+                            "priority_score": 99.0,
+                            "unlockable_segments": 10,
+                            "unlockable_seconds": 42.5,
+                            "acoustic_verdict": "listen_carefully_acoustic_drift",
+                            "clip_path": str(root / "clip.mp3"),
+                        }
+                    ],
+                    "validate_command": "pavo review clusters validate-slate ...",
+                    "finish_command": "pavo review clusters finish-from-slate ...",
+                },
+                "finish_command": "pavo review clusters finish-from-slate ...",
             }
         )
     )
