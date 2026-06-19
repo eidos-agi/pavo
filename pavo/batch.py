@@ -3802,6 +3802,7 @@ def write_batch_speaker_suggestions(
         "pending_decision_count": len(suggestions),
         "auto_accept_candidate_count": sum(1 for item in suggestions if item.get("review_lane") == "quick_confirm"),
         "must_listen_count": sum(1 for item in suggestions if item.get("review_lane") != "quick_confirm"),
+        "review_triage": _batch_speaker_review_triage(suggestions),
         "suggestions": suggestions,
         "commands": {
             "answer_sheet": f"pavo batch speaker-answer-sheet {shlex.quote(str(proof_path))}",
@@ -3850,6 +3851,7 @@ def verify_batch_speaker_suggestions(
     suggestion_count = len(suggestions)
     auto_accept_count = sum(1 for item in suggestions if isinstance(item, dict) and item.get("review_lane") == "quick_confirm")
     must_listen_count = sum(1 for item in suggestions if isinstance(item, dict) and item.get("review_lane") != "quick_confirm")
+    triage = payload.get("review_triage") if isinstance(payload.get("review_triage"), dict) else {}
     required_fields = {
         "queue_order",
         "decision_group",
@@ -3869,7 +3871,10 @@ def verify_batch_speaker_suggestions(
         _check("has_machine_confidence", all(item.get("machine_confidence") for item in suggestions if isinstance(item, dict)), "confidence labels"),
         _check("has_review_lane", all(item.get("review_lane") for item in suggestions if isinstance(item, dict)), "review lanes"),
         _check("human_required_explicit", all(item.get("human_required") is True for item in suggestions if isinstance(item, dict)), "human required"),
+        _check("has_review_triage", bool(triage.get("next_actions")), "review triage"),
+        _check("triage_counts_match", int(triage.get("total_decisions") or 0) == suggestion_count, f"{triage.get('total_decisions')}/{suggestion_count}"),
         _check("markdown_has_title", "Pavo Speaker Suggestions" in markdown, "title"),
+        _check("markdown_has_review_triage", "Review Triage" in markdown and "Next best decisions" in markdown, "review triage"),
         _check("markdown_has_safety_boundary", "do not approve identity" in markdown.lower() or "does not approve identity" in markdown.lower(), "safety boundary"),
         _check("markdown_has_finish_command", "pavo batch finalize-board-audit" in markdown, "finish command"),
     ]
@@ -3959,9 +3964,83 @@ def _batch_speaker_suggestion_review_reason(decision: str, blockers: list[str]) 
     return "pending_uncertain"
 
 
+def _batch_speaker_review_triage(suggestions: list[dict[str, Any]], *, limit: int = 5) -> dict[str, Any]:
+    lane_counts: dict[str, int] = {}
+    confidence_counts: dict[str, int] = {}
+    risk_counts: dict[str, int] = {}
+    lane_rank = {
+        "identity_search": 0,
+        "compare_candidates": 1,
+        "confirm_all_clips": 2,
+        "must_listen": 3,
+        "quick_confirm": 4,
+    }
+    confidence_rank = {"low": 0, "medium": 1, "high": 2}
+    risk_rank = {"high": 0, "medium": 1, "low": 2}
+    rows: list[dict[str, Any]] = []
+    for item in suggestions:
+        if not isinstance(item, dict):
+            continue
+        lane = str(item.get("review_lane") or "unknown")
+        confidence = str(item.get("machine_confidence") or "unknown")
+        risk = str(item.get("decision_risk") or "unknown")
+        lane_counts[lane] = lane_counts.get(lane, 0) + 1
+        confidence_counts[confidence] = confidence_counts.get(confidence, 0) + 1
+        risk_counts[risk] = risk_counts.get(risk, 0) + 1
+        blocker_count = len(item.get("safety_blockers") or []) if isinstance(item.get("safety_blockers"), list) else 0
+        rows.append(
+            {
+                "queue_order": item.get("queue_order"),
+                "decision_group": item.get("decision_group"),
+                "cluster_id": item.get("cluster_id"),
+                "speaker": item.get("speaker"),
+                "review_lane": lane,
+                "machine_confidence": confidence,
+                "decision_risk": risk,
+                "clip_count": item.get("clip_count"),
+                "why_now": _batch_speaker_triage_reason(item),
+                "_sort": (
+                    risk_rank.get(risk, 3),
+                    lane_rank.get(lane, 5),
+                    -blocker_count,
+                    confidence_rank.get(confidence, -1),
+                    _optional_int(item.get("queue_order")) or 999999,
+                    str(item.get("decision_group") or ""),
+                ),
+            }
+        )
+    ordered = sorted(rows, key=lambda row: row["_sort"])
+    for row in ordered:
+        row.pop("_sort", None)
+    return {
+        "strategy": "risk_lane_blockers_then_queue_order",
+        "total_decisions": len(rows),
+        "lane_counts": dict(sorted(lane_counts.items())),
+        "confidence_counts": dict(sorted(confidence_counts.items())),
+        "risk_counts": dict(sorted(risk_counts.items())),
+        "next_actions": ordered[: max(0, limit)],
+        "human_gate": "listen_before_identity_approval",
+    }
+
+
+def _batch_speaker_triage_reason(item: dict[str, Any]) -> str:
+    risk = str(item.get("decision_risk") or "unknown")
+    lane = str(item.get("review_lane") or "unknown").replace("_", " ")
+    confidence = str(item.get("machine_confidence") or "unknown")
+    blocker_count = len(item.get("safety_blockers") or []) if isinstance(item.get("safety_blockers"), list) else 0
+    clips = _optional_int(item.get("clip_count")) or 0
+    parts = [f"{risk} risk", f"{lane} lane", f"{confidence} machine confidence"]
+    if blocker_count:
+        parts.append(f"{blocker_count} safety blocker(s)")
+    if clips:
+        parts.append(f"{clips} clip(s)")
+    return "; ".join(parts) + "."
+
+
 def _render_batch_speaker_suggestions_markdown(payload: dict[str, Any]) -> str:
     suggestions = payload.get("suggestions") if isinstance(payload.get("suggestions"), list) else []
     commands = payload.get("commands") if isinstance(payload.get("commands"), dict) else {}
+    triage = payload.get("review_triage") if isinstance(payload.get("review_triage"), dict) else {}
     lines = [
         "# Pavo Speaker Suggestions",
         "",
@@ -3974,9 +4053,32 @@ def _render_batch_speaker_suggestions_markdown(payload: dict[str, Any]) -> str:
         "",
         "These are machine hypotheses only. Open the decision board, listen to the clips, then write the human decision.",
         "",
-        "## Suggestions",
+        "## Review Triage",
+        "",
+        f"- Strategy: `{triage.get('strategy') or 'risk_lane_blockers_then_queue_order'}`",
+        f"- Lane counts: `{triage.get('lane_counts') or {}}`",
+        f"- Confidence counts: `{triage.get('confidence_counts') or {}}`",
+        f"- Risk counts: `{triage.get('risk_counts') or {}}`",
+        f"- Human gate: `{triage.get('human_gate') or 'listen_before_identity_approval'}`",
+        "",
+        "### Next best decisions",
         "",
     ]
+    for item in triage.get("next_actions") or []:
+        if not isinstance(item, dict):
+            continue
+        lines.append(
+            f"- `{item.get('decision_group')}` / `{item.get('cluster_id')}` -> `{item.get('speaker')}`: {item.get('why_now')}"
+        )
+    if not triage.get("next_actions"):
+        lines.append("- No pending speaker decisions.")
+    lines.extend(
+        [
+            "",
+            "## Suggestions",
+            "",
+        ]
+    )
     if suggestions:
         for item in suggestions:
             if not isinstance(item, dict):
@@ -4305,6 +4407,7 @@ def _batch_speaker_suggestion_summary_for_cockpit(proof_path: Path, *, limit: in
         }
     payload = json.loads(path.read_text())
     suggestions = payload.get("suggestions") if isinstance(payload.get("suggestions"), list) else []
+    triage = payload.get("review_triage") if isinstance(payload.get("review_triage"), dict) else {}
     items = [
         {
             "queue_order": item.get("queue_order"),
@@ -4327,6 +4430,7 @@ def _batch_speaker_suggestion_summary_for_cockpit(proof_path: Path, *, limit: in
         "pending_decision_count": int(payload.get("pending_decision_count") or len(suggestions)),
         "quick_confirm_count": int(payload.get("auto_accept_candidate_count") or 0),
         "must_listen_count": int(payload.get("must_listen_count") or 0),
+        "triage": triage,
         "items": items,
     }
 
@@ -4345,6 +4449,7 @@ def verify_batch_review_cockpit(
         _check("has_readiness", "Machine ready" in html and "Human gate" in html, "readiness cards"),
         _check("has_first_decision", "First decision" in html and "Decision group" in html, "first decision"),
         _check("has_speaker_suggestions", "Speaker suggestions" in html and "Machine suggestion" in html, "speaker suggestions"),
+        _check("has_review_triage", "Review triage" in html and "risk_lane_blockers_then_queue_order" in html, "review triage"),
         _check("has_human_required", "Human required" in html, "human required"),
         _check("has_review_bundle", "Review bundle" in html and "pavo-batch-review-bundle.md" in html, "review bundle"),
         _check("has_calibration", "Calibration" in html and "speaker-calibration" in html, "calibration"),
@@ -4369,6 +4474,18 @@ def _render_batch_review_cockpit_html(payload: dict[str, Any]) -> str:
     commands = payload.get("commands") if isinstance(payload.get("commands"), dict) else {}
     checks = payload.get("checks") if isinstance(payload.get("checks"), list) else []
     suggestion_items = suggestion_summary.get("items") if isinstance(suggestion_summary.get("items"), list) else []
+    suggestion_triage = suggestion_summary.get("triage") if isinstance(suggestion_summary.get("triage"), dict) else {}
+    triage_actions = suggestion_triage.get("next_actions") if isinstance(suggestion_triage.get("next_actions"), list) else []
+    triage_rows = "\n".join(
+        "<tr>"
+        f"<td>{escape(str(item.get('decision_group') or ''))}<br><small>{escape(str(item.get('cluster_id') or ''))} -> {escape(str(item.get('speaker') or ''))}</small></td>"
+        f"<td>{escape(str(item.get('review_lane') or ''))}</td>"
+        f"<td>{escape(str(item.get('decision_risk') or ''))}</td>"
+        f"<td>{escape(str(item.get('why_now') or ''))}</td>"
+        "</tr>"
+        for item in triage_actions
+        if isinstance(item, dict)
+    )
     suggestion_rows = "\n".join(
         "<tr>"
         f"<td>{escape(str(item.get('queue_order') or ''))}</td>"
@@ -4437,6 +4554,10 @@ def _render_batch_review_cockpit_html(payload: dict[str, Any]) -> str:
         <div class="card"><div>Quick-confirm candidates</div><div class="big">{escape(str(suggestion_summary.get('quick_confirm_count') or 0))}</div></div>
         <div class="card"><div>Must-listen decisions</div><div class="big">{escape(str(suggestion_summary.get('must_listen_count') or 0))}</div></div>
       </section>
+      <h3>Review triage</h3>
+      <p>Strategy: <code>{escape(str(suggestion_triage.get('strategy') or 'risk_lane_blockers_then_queue_order'))}</code></p>
+      <p>Lane counts: <code>{escape(str(suggestion_triage.get('lane_counts') or {}))}</code></p>
+      <table><thead><tr><th>Decision</th><th>Lane</th><th>Risk</th><th>Why now</th></tr></thead><tbody>{triage_rows}</tbody></table>
       <h3>Machine suggestion preview</h3>
       <table><thead><tr><th>#</th><th>Decision</th><th>Machine suggestion</th><th>Review lane</th><th>Safety blockers</th></tr></thead><tbody>{suggestion_rows}</tbody></table>
     </section>
