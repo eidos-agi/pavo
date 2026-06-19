@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -63,6 +64,11 @@ from .transcribe import (
     process_audio,
     transcribe_recording,
 )
+
+
+DEFAULT_SHIM_SCAN_ROOTS = [
+    Path("/Volumes/GREENMARK/Clouds/repos-greenmark-waste-solutions/greenmark-cockpit/tools"),
+]
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -317,11 +323,51 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def find_pavo_shims(
+    *,
+    canonical_package_root: Path | None = None,
+    scan_roots: list[Path] | None = None,
+) -> list[Path]:
+    package_root = (canonical_package_root or Path(__file__).resolve().parent).resolve()
+    roots = scan_roots if scan_roots is not None else _configured_shim_scan_roots()
+    shims: list[Path] = []
+    for root in roots:
+        if not root.exists():
+            continue
+        for candidate in root.rglob("pavo.py"):
+            resolved = candidate.resolve()
+            if resolved == package_root / "cli.py":
+                continue
+            if package_root in resolved.parents:
+                continue
+            shims.append(resolved)
+    return sorted(dict.fromkeys(shims))
+
+
+def _configured_shim_scan_roots() -> list[Path]:
+    configured = os.environ.get("PAVO_SHIM_SCAN_ROOTS")
+    if configured:
+        return [Path(item).expanduser() for item in configured.split(os.pathsep) if item.strip()]
+    return DEFAULT_SHIM_SCAN_ROOTS
+
+
 def run_doctor(home: Path) -> int:
     pavo_home = init_home(home)
+    package_root = Path(__file__).resolve().parent
+    cli_path = shutil.which("pavo")
+    shims = find_pavo_shims(canonical_package_root=package_root)
     print(f"Pavo home: {pavo_home.root}")
     print(f"Config: {pavo_home.config_path}")
     print(f"State: {pavo_home.state_path}")
+    print(f"Canonical package: {package_root}")
+    print(f"Pavo CLI: {cli_path or 'missing from PATH'}")
+    if shims:
+        print("Pavo shim drift: found non-canonical pavo.py implementations")
+        for shim in shims:
+            print(f"- {shim}")
+        print("Fix: replace each shim with a tiny delegator to canonical `pavo`.")
+    else:
+        print("Pavo shim drift: none found")
 
     plaud_path = shutil.which("plaud")
     if not plaud_path:

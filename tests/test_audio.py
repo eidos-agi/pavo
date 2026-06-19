@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 
 from pavo.audio import AudioDoctorResult, run_audio_doctor
+from pavo.cli import find_pavo_shims
 
 
 class AudioDoctorTests(unittest.TestCase):
@@ -56,3 +57,29 @@ class AudioDoctorTests(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0)
         self.assertIn("doctor unavailable", result.report)
+
+    def test_find_pavo_shims_reports_noncanonical_pavo_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            canonical = root / "repo" / "pavo"
+            canonical.mkdir(parents=True)
+            (canonical / "cli.py").write_text("# canonical\n")
+            (canonical / "pavo.py").write_text("# package-local helper is not a shim\n")
+            tools = root / "greenmark-cockpit" / "tools"
+            tools.mkdir(parents=True)
+            shim = tools / "pavo.py"
+            shim.write_text("# old shim\n")
+
+            result = find_pavo_shims(canonical_package_root=canonical, scan_roots=[root])
+
+        self.assertEqual(result, [shim.resolve()])
+
+    def test_find_pavo_shims_ignores_missing_scan_roots(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            canonical = root / "repo" / "pavo"
+            canonical.mkdir(parents=True)
+
+            result = find_pavo_shims(canonical_package_root=canonical, scan_roots=[root / "missing"])
+
+        self.assertEqual(result, [])
