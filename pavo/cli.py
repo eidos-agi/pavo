@@ -23,6 +23,7 @@ from .batch import (
     load_operator_handoff,
     operator_handoff_ready_to_finish,
     prove_batch,
+    score_batch_speaker_agreement,
     summarize_batch_readiness,
     verify_batch_decision_board,
     verify_batch_manifest,
@@ -35,6 +36,7 @@ from .batch import (
     write_batch_review_rehearsal,
     write_batch_review_sprint,
     write_batch_speaker_answer_sheet,
+    write_batch_speaker_calibration,
 )
 from .brief import (
     build_brief_improvement_report,
@@ -245,6 +247,22 @@ def build_parser() -> argparse.ArgumentParser:
     batch_verify_review_rehearsal.add_argument("--rehearsal-json", type=Path, help="Override pavo-batch-review-rehearsal.json path")
     batch_verify_review_rehearsal.add_argument("--rehearsal-markdown", type=Path, help="Override pavo-batch-review-rehearsal.md path")
     batch_verify_review_rehearsal.add_argument("--json", action="store_true", help="Print machine-readable verification report")
+    batch_speaker_calibration = batch_sub.add_parser(
+        "speaker-calibration",
+        help="Write a second-listener calibration subset from the speaker answer sheet",
+    )
+    batch_speaker_calibration.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_speaker_calibration.add_argument("--out-dir", type=Path, help="Output directory; defaults beside the proof report")
+    batch_speaker_calibration.add_argument("--max-decisions", type=int, default=3, help="Maximum decisions to double-review")
+    batch_speaker_calibration.add_argument("--json", action="store_true", help="Print machine-readable calibration report")
+    batch_score_speaker_agreement = batch_sub.add_parser(
+        "score-speaker-agreement",
+        help="Score agreement between primary and second-listener speaker decision TSVs",
+    )
+    batch_score_speaker_agreement.add_argument("primary_tsv", type=Path)
+    batch_score_speaker_agreement.add_argument("secondary_tsv", type=Path)
+    batch_score_speaker_agreement.add_argument("--out", type=Path, help="Optional JSON report path")
+    batch_score_speaker_agreement.add_argument("--json", action="store_true", help="Print machine-readable agreement report")
     batch_review_now = batch_sub.add_parser(
         "review-now",
         help="Regenerate and verify the review sprint, then print launch instructions for human speaker review",
@@ -969,6 +987,49 @@ def main(argv: list[str] | None = None) -> int:
                 if result.blockers:
                     print("blockers: " + "; ".join(result.blockers))
             return 0 if result.passed else 3
+        if args.batch_command == "speaker-calibration":
+            try:
+                result = write_batch_speaker_calibration(
+                    args.proof_report,
+                    out_dir=args.out_dir,
+                    max_decisions=args.max_decisions,
+                )
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result, indent=2, sort_keys=True))
+            else:
+                print(f"passed: {str(bool(result.get('passed'))).lower()}")
+                print(f"selected_decision_count: {result.get('selected_decision_count')}")
+                print(f"source_decision_count: {result.get('source_decision_count')}")
+                print(f"markdown_path: {result.get('markdown_path')}")
+                print(f"tsv_path: {result.get('tsv_path')}")
+                if result.get("selected_decisions"):
+                    first = result["selected_decisions"][0]
+                    print(f"first_calibration_decision: {first.get('decision_group')}/{first.get('cluster_id')}/{first.get('decision_risk')}")
+                if result.get("blockers"):
+                    print("blockers: " + "; ".join(result["blockers"]))
+            return 0 if result.get("passed") else 3
+        if args.batch_command == "score-speaker-agreement":
+            try:
+                result = score_batch_speaker_agreement(args.primary_tsv, args.secondary_tsv, out_path=args.out)
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result, indent=2, sort_keys=True))
+            else:
+                print(f"passed: {str(bool(result.get('passed'))).lower()}")
+                print(f"common_decision_count: {result.get('common_decision_count')}")
+                print(f"agreed_decision_count: {result.get('agreed_decision_count')}")
+                print(f"agreement_rate: {result.get('agreement_rate')}")
+                print(f"cohen_kappa: {result.get('cohen_kappa')}")
+                if result.get("disagreements"):
+                    print("disagreements: " + "; ".join(item["decision_group"] for item in result["disagreements"]))
+                if result.get("blockers"):
+                    print("blockers: " + "; ".join(result["blockers"]))
+            return 0 if result.get("passed") else 3
         if args.batch_command == "review-now":
             try:
                 board_result = write_batch_decision_board(args.proof_report)

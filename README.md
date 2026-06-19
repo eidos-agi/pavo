@@ -119,6 +119,8 @@ pavo batch speaker-answer-sheet /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch verify-speaker-answer-sheet /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch review-rehearsal /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch verify-review-rehearsal /path/to/meeting-batch/pavo-batch-proof.json
+pavo batch speaker-calibration /path/to/meeting-batch/pavo-batch-proof.json
+pavo batch score-speaker-agreement primary.tsv secondary.tsv
 pavo batch review-now /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch finalize-reviewed-proof /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --check-validation
@@ -261,6 +263,16 @@ is a pre-review QC gate: passing rehearsal means the human review path is
 coherent and ready, not that speaker identity has been approved. Use
 `pavo batch verify-review-rehearsal` to check a written rehearsal report before
 sending or archiving it.
+
+Use `pavo batch speaker-calibration` to create a second-listener subset from the
+speaker answer sheet. It selects the highest-risk queued speaker decisions first
+and writes `pavo-batch-speaker-calibration.json`, Markdown, and TSV with
+`second_listener_decision`, `second_listener_review_reason`, and notes columns.
+After a second listener fills those columns, run
+`pavo batch score-speaker-agreement primary.tsv secondary.tsv` to report common
+decision count, agreement rate, Cohen's kappa for categorical decisions, and
+the exact disagreement rows to resolve. This measures reviewer consistency; it
+does not decide which speaker label is true.
 
 Use `pavo batch review-now` as the fastest safe human-review launch path. It
 regenerates the sprint, speaker answer sheet, and decision board, verifies the

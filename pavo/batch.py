@@ -3412,6 +3412,206 @@ def _render_batch_review_rehearsal_markdown(payload: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def write_batch_speaker_calibration(
+    proof_report_path: Path | str,
+    *,
+    out_dir: Path | str | None = None,
+    max_decisions: int = 3,
+) -> dict[str, Any]:
+    proof_path = Path(proof_report_path)
+    target_dir = Path(out_dir) if out_dir else proof_path.parent
+    target_dir.mkdir(parents=True, exist_ok=True)
+    answer_sheet = write_batch_speaker_answer_sheet(proof_path, out_dir=proof_path.parent)
+    rows, fieldnames = _read_tsv(answer_sheet.tsv_path)
+    risk_rank = {"high": 0, "medium": 1, "low": 2}
+    ordered = sorted(
+        rows,
+        key=lambda row: (
+            risk_rank.get(str(row.get("decision_risk") or "low"), 3),
+            int(row.get("queue_order") or 999999),
+            str(row.get("decision_group") or ""),
+        ),
+    )
+    selected = ordered[: max(0, max_decisions)]
+    calibration_rows: list[dict[str, str]] = []
+    for row in selected:
+        item = dict(row)
+        item["calibration_reason"] = _speaker_calibration_reason(item)
+        item["second_listener_decision"] = ""
+        item["second_listener_review_reason"] = ""
+        item["second_listener_notes"] = ""
+        calibration_rows.append(item)
+    calibration_fields = list(fieldnames)
+    for field in [
+        "calibration_reason",
+        "second_listener_decision",
+        "second_listener_review_reason",
+        "second_listener_notes",
+    ]:
+        if field not in calibration_fields:
+            calibration_fields.append(field)
+    json_path = target_dir / "pavo-batch-speaker-calibration.json"
+    markdown_path = target_dir / "pavo-batch-speaker-calibration.md"
+    tsv_path = target_dir / "pavo-batch-speaker-calibration.tsv"
+    payload = {
+        "generated_at": datetime.now(UTC).isoformat(),
+        "proof_report_path": str(proof_path),
+        "answer_sheet_path": str(answer_sheet.tsv_path),
+        "strategy": "second_listener_high_risk_then_queue_order",
+        "requested_max_decisions": max_decisions,
+        "selected_decision_count": len(calibration_rows),
+        "source_decision_count": len(rows),
+        "selected_decisions": calibration_rows,
+        "safety_boundary": "Calibration selects decisions for independent human review. It does not approve speaker identity or create voiceprints.",
+    }
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    markdown_path.write_text(_render_batch_speaker_calibration_markdown(payload), encoding="utf-8")
+    _write_tsv(tsv_path, calibration_rows, calibration_fields)
+    return {
+        "proof_report_path": str(proof_path),
+        "json_path": str(json_path),
+        "markdown_path": str(markdown_path),
+        "tsv_path": str(tsv_path),
+        "selected_decision_count": len(calibration_rows),
+        "source_decision_count": len(rows),
+        "selected_decisions": calibration_rows,
+        "passed": bool(calibration_rows) or not rows,
+        "blockers": [] if calibration_rows or not rows else ["no calibration decisions selected"],
+        "safety_boundary": payload["safety_boundary"],
+    }
+
+
+def score_batch_speaker_agreement(
+    primary_tsv: Path | str,
+    secondary_tsv: Path | str,
+    *,
+    out_path: Path | str | None = None,
+) -> dict[str, Any]:
+    primary_path = Path(primary_tsv)
+    secondary_path = Path(secondary_tsv)
+    primary_rows, _primary_fields = _read_tsv(primary_path)
+    secondary_rows, _secondary_fields = _read_tsv(secondary_path)
+    primary_by_group = {str(row.get("decision_group") or "").strip(): row for row in primary_rows if row.get("decision_group")}
+    secondary_by_group = {str(row.get("decision_group") or "").strip(): row for row in secondary_rows if row.get("decision_group")}
+    common_groups = sorted(set(primary_by_group) & set(secondary_by_group))
+    labels = sorted(VALID_REVIEW_DECISIONS)
+    pairs: list[tuple[str, str, str]] = []
+    disagreements: list[dict[str, Any]] = []
+    for group in common_groups:
+        primary_decision = _agreement_decision(primary_by_group[group], preferred="decision")
+        secondary_decision = _agreement_decision(secondary_by_group[group], preferred="second_listener_decision")
+        pairs.append((group, primary_decision, secondary_decision))
+        if primary_decision != secondary_decision:
+            disagreements.append(
+                {
+                    "decision_group": group,
+                    "cluster_id": primary_by_group[group].get("cluster_id") or secondary_by_group[group].get("cluster_id"),
+                    "primary_decision": primary_decision,
+                    "secondary_decision": secondary_decision,
+                    "primary_reason": primary_by_group[group].get("review_reason"),
+                    "secondary_reason": secondary_by_group[group].get("second_listener_review_reason") or secondary_by_group[group].get("review_reason"),
+                }
+            )
+    total = len(pairs)
+    agreed = sum(1 for _group, primary, secondary in pairs if primary == secondary)
+    observed = agreed / total if total else 0.0
+    primary_counts = {label: sum(1 for _group, primary, _secondary in pairs if primary == label) for label in labels}
+    secondary_counts = {label: sum(1 for _group, _primary, secondary in pairs if secondary == label) for label in labels}
+    expected = (
+        sum((primary_counts[label] / total) * (secondary_counts[label] / total) for label in labels)
+        if total
+        else 0.0
+    )
+    if total == 0:
+        kappa = None
+    elif expected == 1.0:
+        kappa = 1.0 if observed == 1.0 else 0.0
+    else:
+        kappa = (observed - expected) / (1.0 - expected)
+    report = {
+        "primary_tsv": str(primary_path),
+        "secondary_tsv": str(secondary_path),
+        "common_decision_count": total,
+        "agreed_decision_count": agreed,
+        "agreement_rate": round(observed, 4),
+        "cohen_kappa": round(kappa, 4) if kappa is not None else None,
+        "primary_counts": primary_counts,
+        "secondary_counts": secondary_counts,
+        "disagreements": disagreements,
+        "passed": total > 0 and not disagreements,
+        "blockers": [] if total > 0 else ["no common decision_group rows"],
+        "safety_boundary": "Agreement scoring measures reviewer consistency. It does not decide which speaker label is true.",
+    }
+    if out_path:
+        target = Path(out_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        report["out_path"] = str(target)
+    return report
+
+
+def _speaker_calibration_reason(row: dict[str, str]) -> str:
+    risk = str(row.get("decision_risk") or "unknown")
+    shape = str(row.get("decision_shape") or "speaker_identity_review").replace("_", " ")
+    score = str(row.get("priority_score") or "").strip()
+    score_text = f"; priority score {score}" if score else ""
+    return f"{risk} risk; {shape}{score_text}"
+
+
+def _render_batch_speaker_calibration_markdown(payload: dict[str, Any]) -> str:
+    lines = [
+        "# Pavo Speaker Calibration",
+        "",
+        f"- Strategy: `{payload.get('strategy')}`",
+        f"- Selected decisions: `{payload.get('selected_decision_count')}` of `{payload.get('source_decision_count')}`",
+        f"- Answer sheet: `{payload.get('answer_sheet_path')}`",
+        "",
+        "## Second-Listener Queue",
+        "",
+    ]
+    for row in payload.get("selected_decisions") or []:
+        lines.extend(
+            [
+                f"### {row.get('queue_order')}. {row.get('decision_group')} / {row.get('cluster_id')}",
+                "",
+                f"- Proposed speaker: `{row.get('speaker')}`",
+                f"- Risk: `{row.get('decision_risk')}`",
+                f"- Question: {row.get('question')}",
+                f"- Calibration reason: {row.get('calibration_reason')}",
+                f"- Suggested action: {row.get('suggested_review_action')}",
+                f"- Clip paths: `{row.get('clip_paths')}`",
+                "",
+            ]
+        )
+    if not payload.get("selected_decisions"):
+        lines.append("- No calibration decisions selected.")
+        lines.append("")
+    lines.extend(
+        [
+            "## How To Score",
+            "",
+            "Fill `second_listener_decision` and `second_listener_review_reason`, then run:",
+            "",
+            "```bash",
+            "pavo batch score-speaker-agreement primary.tsv secondary.tsv --json",
+            "```",
+            "",
+            "## Safety Boundary",
+            "",
+            str(payload.get("safety_boundary") or ""),
+        ]
+    )
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _agreement_decision(row: dict[str, str], *, preferred: str) -> str:
+    decision = str(row.get(preferred) or "").strip().lower()
+    if decision in VALID_REVIEW_DECISIONS:
+        return decision
+    fallback = str(row.get("decision") or "").strip().lower()
+    return fallback if fallback in VALID_REVIEW_DECISIONS else "pending"
+
+
 def _batch_review_sprint_payload(
     proof_path: Path,
     proof_report: dict[str, Any],

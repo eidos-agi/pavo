@@ -40,6 +40,8 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("pavo batch verify-speaker-answer-sheet", readme)
         self.assertIn("pavo batch review-rehearsal", readme)
         self.assertIn("pavo batch verify-review-rehearsal", readme)
+        self.assertIn("pavo batch speaker-calibration", readme)
+        self.assertIn("pavo batch score-speaker-agreement", readme)
         self.assertIn("pavo batch review-now", readme)
         self.assertIn("decision_shape", readme)
         self.assertIn("evidence_hints", readme)
@@ -842,6 +844,90 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(exit_code, 3)
         self.assertFalse(report["passed"])
         self.assertIn("has_first_decision", "\n".join(report["blockers"]))
+
+    def test_batch_speaker_calibration_cli_writes_second_listener_subset(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            main(["batch", "finalize-reviewed-proof", str(result.proof_report_path), "--json"])
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "batch",
+                        "speaker-calibration",
+                        str(result.proof_report_path),
+                        "--max-decisions",
+                        "1",
+                        "--json",
+                    ]
+                )
+
+            report = json.loads(stdout.getvalue())
+            markdown = Path(report["markdown_path"]).read_text()
+            tsv = Path(report["tsv_path"]).read_text()
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(report["passed"])
+        self.assertEqual(report["selected_decision_count"], 1)
+        self.assertEqual(report["selected_decisions"][0]["decision_group"], "D01")
+        self.assertIn("Pavo Speaker Calibration", markdown)
+        self.assertIn("second_listener_decision", tsv)
+        self.assertIn("second_listener_review_reason", tsv)
+
+    def test_batch_score_speaker_agreement_cli_reports_kappa(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            primary = root / "primary.tsv"
+            secondary = root / "secondary.tsv"
+            primary.write_text(
+                "decision_group\tcluster_id\tdecision\treview_reason\n"
+                "D01\tS1\tapproved\tapproved_clean_match\n"
+            )
+            secondary.write_text(
+                "decision_group\tcluster_id\tdecision\tsecond_listener_decision\tsecond_listener_review_reason\n"
+                "D01\tS1\tpending\tapproved\tapproved_clean_match\n"
+            )
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(["batch", "score-speaker-agreement", str(primary), str(secondary), "--json"])
+
+            report = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(report["passed"])
+        self.assertEqual(report["common_decision_count"], 1)
+        self.assertEqual(report["agreement_rate"], 1.0)
+        self.assertEqual(report["cohen_kappa"], 1.0)
+        self.assertFalse(report["disagreements"])
+
+    def test_batch_score_speaker_agreement_cli_reports_disagreements(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            primary = root / "primary.tsv"
+            secondary = root / "secondary.tsv"
+            primary.write_text(
+                "decision_group\tcluster_id\tdecision\treview_reason\n"
+                "D01\tS1\tapproved\tapproved_clean_match\n"
+            )
+            secondary.write_text(
+                "decision_group\tcluster_id\tdecision\tsecond_listener_decision\tsecond_listener_review_reason\n"
+                "D01\tS1\tpending\trejected\trejected_wrong_speaker\n"
+            )
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(["batch", "score-speaker-agreement", str(primary), str(secondary), "--json"])
+
+            report = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 3)
+        self.assertFalse(report["passed"])
+        self.assertEqual(report["agreement_rate"], 0.0)
+        self.assertEqual(report["disagreements"][0]["decision_group"], "D01")
 
     def test_batch_review_sprint_cli_writes_json_and_markdown_packet(self):
         with tempfile.TemporaryDirectory() as tmp:
