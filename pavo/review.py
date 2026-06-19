@@ -135,6 +135,7 @@ class AnchorReviewPageVerificationResult:
     shortcut_panel_present: bool
     keyboard_handler_present: bool
     audio_shortcuts_present: bool
+    draft_autosave_present: bool
     embedded_sheet_present: bool
     import_instruction_present: bool
     rerun_instruction_present: bool
@@ -156,6 +157,7 @@ class AnchorReviewPageVerificationResult:
             "shortcut_panel_present": self.shortcut_panel_present,
             "keyboard_handler_present": self.keyboard_handler_present,
             "audio_shortcuts_present": self.audio_shortcuts_present,
+            "draft_autosave_present": self.draft_autosave_present,
             "embedded_sheet_present": self.embedded_sheet_present,
             "import_instruction_present": self.import_instruction_present,
             "rerun_instruction_present": self.rerun_instruction_present,
@@ -1848,6 +1850,7 @@ def create_anchor_review_page(
     cards = "\n".join(_review_card(row, labels=labels, display_mode=display_mode) for row in rows)
     sheet_json = json.dumps(sheet).replace("</", "<\\/")
     download_name_json = json.dumps(sheet_path.name)
+    draft_key_json = json.dumps(f"pavo-review-draft:{sheet_path.resolve()}:{len(rows)}")
     title = sheet.get("review_title") or f"Pavo Anchor Review - {sheet.get('target_speaker_name') or sheet.get('target_speaker_label') or 'Speaker'}"
     instructions = _review_instructions(sheet, sheet_path)
     export_label = sheet.get("export_label") or "Export reviewed JSON"
@@ -2174,6 +2177,7 @@ def create_anchor_review_page(
     let dirty = false;
     let saveTimer = null;
     let activeRecording = null;
+    const reviewDraftKey = {draft_key_json};
 
     function initializeDecisionsFromSheet(sheet) {{
       originalSheet = sheet;
@@ -2393,11 +2397,36 @@ def create_anchor_review_page(
 
     function markDirty() {{
       dirty = true;
+      persistReviewDraft();
       setSaveStatus(backendAvailable ? "Unsaved changes" : "File mode: export review notes");
       if (backendAvailable) {{
         clearTimeout(saveTimer);
         saveTimer = setTimeout(() => saveReview(), 450);
       }}
+    }}
+
+    function persistReviewDraft() {{
+      try {{
+        localStorage.setItem(reviewDraftKey, JSON.stringify(buildReviewedSheet()));
+      }} catch (error) {{}}
+    }}
+
+    function loadReviewDraft() {{
+      try {{
+        const raw = localStorage.getItem(reviewDraftKey);
+        if (!raw) return null;
+        const draft = JSON.parse(raw);
+        if (!draft || !Array.isArray(draft.rows) || draft.rows.length !== originalSheet.rows.length) return null;
+        return draft;
+      }} catch (error) {{
+        return null;
+      }}
+    }}
+
+    function clearReviewDraft() {{
+      try {{
+        localStorage.removeItem(reviewDraftKey);
+      }} catch (error) {{}}
     }}
 
     async function saveReview() {{
@@ -2416,10 +2445,12 @@ def create_anchor_review_page(
         throw new Error(payload.error || `Save failed with HTTP ${{response.status}}`);
       }}
       dirty = false;
+      clearReviewDraft();
       setSaveStatus(`Saved: ${{payload.approved_count}} works, ${{payload.rejected_count}} problems, ${{payload.pending_count}} unsure`);
     }}
 
     function exportReviewedSheet() {{
+      persistReviewDraft();
       const blob = new Blob([JSON.stringify(buildReviewedSheet(), null, 2) + "\\n"], {{ type: "application/json" }});
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
@@ -2682,6 +2713,12 @@ def create_anchor_review_page(
     }});
     async function loadBackendSheet() {{
       if (!location.protocol.startsWith("http")) {{
+        const draft = loadReviewDraft();
+        if (draft) {{
+          initializeDecisionsFromSheet(draft);
+          setSaveStatus("Restored browser draft. Export review notes when done.");
+          return;
+        }}
         setSaveStatus("File mode: export review notes");
         return;
       }}
@@ -2693,6 +2730,12 @@ def create_anchor_review_page(
         setSaveStatus("Ready to save");
       }} catch (error) {{
         backendAvailable = false;
+        const draft = loadReviewDraft();
+        if (draft) {{
+          initializeDecisionsFromSheet(draft);
+          setSaveStatus("Restored browser draft. Export review notes when done.");
+          return;
+        }}
         setSaveStatus("File mode: export review notes");
       }}
     }}
@@ -3100,6 +3143,7 @@ def verify_anchor_review_page(
         "shortcut panel": parser.shortcut_panel_present,
         "keyboard shortcuts": "handleReviewShortcut" in html and 'addEventListener("keydown", handleReviewShortcut)' in html,
         "audio shortcuts": "toggleCurrentAudio" in html and "seekCurrentAudio" in html and "restartCurrentAudio" in html,
+        "draft autosave": "localStorage" in html and "persistReviewDraft" in html and "loadReviewDraft" in html,
         "embedded sheet JSON": embedded_sheet_present,
         "import instruction": (not requires_import) or "pavo review anchors import" in html,
         "rerun instruction": (not requires_rerun) or "pavo review anchors rerun-command" in html,
@@ -3122,6 +3166,7 @@ def verify_anchor_review_page(
         shortcut_panel_present=checks["shortcut panel"],
         keyboard_handler_present=checks["keyboard shortcuts"],
         audio_shortcuts_present=checks["audio shortcuts"],
+        draft_autosave_present=checks["draft autosave"],
         embedded_sheet_present=embedded_sheet_present,
         import_instruction_present=checks["import instruction"],
         rerun_instruction_present=checks["rerun instruction"],

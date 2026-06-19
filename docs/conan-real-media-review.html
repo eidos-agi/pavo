@@ -552,6 +552,7 @@
     let dirty = false;
     let saveTimer = null;
     let activeRecording = null;
+    const reviewDraftKey = "pavo-review-draft:/Users/rentamac/repos-eidos-agi/pavo/docs/conan-real-media-review-sheet.json:6";
 
     function initializeDecisionsFromSheet(sheet) {
       originalSheet = sheet;
@@ -771,11 +772,36 @@
 
     function markDirty() {
       dirty = true;
+      persistReviewDraft();
       setSaveStatus(backendAvailable ? "Unsaved changes" : "File mode: export review notes");
       if (backendAvailable) {
         clearTimeout(saveTimer);
         saveTimer = setTimeout(() => saveReview(), 450);
       }
+    }
+
+    function persistReviewDraft() {
+      try {
+        localStorage.setItem(reviewDraftKey, JSON.stringify(buildReviewedSheet()));
+      } catch (error) {}
+    }
+
+    function loadReviewDraft() {
+      try {
+        const raw = localStorage.getItem(reviewDraftKey);
+        if (!raw) return null;
+        const draft = JSON.parse(raw);
+        if (!draft || !Array.isArray(draft.rows) || draft.rows.length !== originalSheet.rows.length) return null;
+        return draft;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function clearReviewDraft() {
+      try {
+        localStorage.removeItem(reviewDraftKey);
+      } catch (error) {}
     }
 
     async function saveReview() {
@@ -794,10 +820,12 @@
         throw new Error(payload.error || `Save failed with HTTP ${response.status}`);
       }
       dirty = false;
+      clearReviewDraft();
       setSaveStatus(`Saved: ${payload.approved_count} works, ${payload.rejected_count} problems, ${payload.pending_count} unsure`);
     }
 
     function exportReviewedSheet() {
+      persistReviewDraft();
       const blob = new Blob([JSON.stringify(buildReviewedSheet(), null, 2) + "\n"], { type: "application/json" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
@@ -1060,6 +1088,12 @@
     });
     async function loadBackendSheet() {
       if (!location.protocol.startsWith("http")) {
+        const draft = loadReviewDraft();
+        if (draft) {
+          initializeDecisionsFromSheet(draft);
+          setSaveStatus("Restored browser draft. Export review notes when done.");
+          return;
+        }
         setSaveStatus("File mode: export review notes");
         return;
       }
@@ -1071,6 +1105,12 @@
         setSaveStatus("Ready to save");
       } catch (error) {
         backendAvailable = false;
+        const draft = loadReviewDraft();
+        if (draft) {
+          initializeDecisionsFromSheet(draft);
+          setSaveStatus("Restored browser draft. Export review notes when done.");
+          return;
+        }
         setSaveStatus("File mode: export review notes");
       }
     }
