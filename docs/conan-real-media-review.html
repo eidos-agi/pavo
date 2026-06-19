@@ -143,6 +143,33 @@
       color: #4f665b;
       font-size: 14px;
     }
+    .next-review-plan {
+      display: grid;
+      gap: 8px;
+      margin: 0 0 18px;
+      padding: 12px 16px;
+      border: 1px solid #c7d9cc;
+      background: #ffffff;
+    }
+    .next-review-plan h2 {
+      margin: 0;
+      font-size: 16px;
+    }
+    .next-review-row {
+      display: grid;
+      gap: 4px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border-left: 4px solid #174835;
+      background: #edf8ef;
+    }
+    .next-review-row strong {
+      color: #17211c;
+    }
+    .next-review-row span {
+      color: #4f665b;
+      font-size: 14px;
+    }
     .save-status {
       color: #315044;
       font-weight: 700;
@@ -339,6 +366,7 @@
       <code>R</code> reject/contradicts decision,
       <code>U</code> uncertain,
       <code>J</code>/<code>K</code> next/previous clip,
+      <code>N</code> next recommended review,
       <code>Space</code> play/pause,
       <code>&larr;</code>/<code>&rarr;</code> seek 2s,
       <code>0</code> restart clip,
@@ -348,6 +376,10 @@
     <section class="cluster-summary" id="cluster-summary" aria-live="polite">
       <h2>Cluster consensus</h2>
       <div id="cluster-summary-rows">Loading cluster consensus...</div>
+    </section>
+    <section class="next-review-plan" id="next-review-plan" aria-live="polite">
+      <h2>Minimal next reviews</h2>
+      <div id="next-review-plan-rows">Loading next review queue...</div>
     </section>
     <section class="actions">
       <button type="button" id="save-review">Save review</button>
@@ -871,6 +903,93 @@
       }).join("");
     }
 
+    function minimalNextReviewPlan() {
+      const clusters = new Map();
+      buildReviewedSheet().rows.forEach((row) => {
+        const question = row.cluster_question || {};
+        const clusterId = String(question.cluster_id || row.case || "unknown");
+        const cluster = clusters.get(clusterId) || {
+          clusterId,
+          targetSpeaker: question.dominant_speaker || row.target_speaker_label || question.candidate_name || "unknown",
+          question: question.question || "",
+          expectedImpact: question.expected_impact || "",
+          approvedRows: 0,
+          rejectedRows: 0,
+          pendingRows: 0,
+          totalRows: 0,
+          pending: []
+        };
+        cluster.totalRows += 1;
+        if (row.status === "approved" && row.approved === true) {
+          cluster.approvedRows += 1;
+        } else if (row.status === "rejected") {
+          cluster.rejectedRows += 1;
+        } else {
+          cluster.pendingRows += 1;
+          cluster.pending.push(row);
+        }
+        clusters.set(clusterId, cluster);
+      });
+      const plan = [];
+      clusters.forEach((cluster) => {
+        const [state] = clusterConsensusState(cluster);
+        if (["ready_for_must_link", "ready_for_cannot_link", "conflicting_review"].includes(state)) return;
+        if (!cluster.pending.length) return;
+        cluster.pending.sort((left, right) => {
+          const scoreDelta = Number(right.impact_score || 0) - Number(left.impact_score || 0);
+          if (scoreDelta !== 0) return scoreDelta;
+          return Number(left.impact_rank || left.index || 0) - Number(right.impact_rank || right.index || 0);
+        });
+        const row = cluster.pending[0];
+        const quorum = Math.min(2, Math.max(1, cluster.totalRows));
+        const closureRule = cluster.approvedRows
+          ? `Approve ${Math.max(0, quorum - cluster.approvedRows)} more matching sample(s), or reject this sample to early-stop.`
+          : "Reject to early-stop as cannot-link; approve only if the voice supports the proposed speaker.";
+        plan.push({
+          clusterId: cluster.clusterId,
+          targetSpeaker: cluster.targetSpeaker,
+          rowIndex: row.index,
+          impactRank: row.impact_rank || row.index,
+          impactScore: Number(row.impact_score || 0),
+          expectedImpact: cluster.expectedImpact,
+          text: row.text || "",
+          question: cluster.question,
+          closureRule
+        });
+      });
+      return plan.sort((left, right) => {
+        const scoreDelta = Number(right.impactScore || 0) - Number(left.impactScore || 0);
+        if (scoreDelta !== 0) return scoreDelta;
+        return Number(left.impactRank || left.rowIndex || 0) - Number(right.impactRank || right.rowIndex || 0);
+      });
+    }
+
+    function renderNextReviewPlan() {
+      const target = document.getElementById("next-review-plan-rows");
+      if (!target) return;
+      const plan = minimalNextReviewPlan();
+      if (!plan.length) {
+        target.textContent = "No minimal reviews remain. Export/import decisions, then finalize.";
+        return;
+      }
+      target.innerHTML = plan.map((item) => {
+        const text = item.text ? `<span>${escapeHtml(item.text.slice(0, 180))}</span>` : "";
+        const impact = item.expectedImpact ? ` • ${escapeHtml(item.expectedImpact)}` : "";
+        return `<div class="next-review-row" data-next-review-target="${escapeHtml(item.rowIndex)}">
+          <strong>${escapeHtml(item.clusterId)} row ${escapeHtml(item.rowIndex)} - ${escapeHtml(item.targetSpeaker)}${impact}</strong>
+          <span>${escapeHtml(item.closureRule)}</span>
+          ${text}
+        </div>`;
+      }).join("");
+    }
+
+    function focusNextRecommendedReview() {
+      const plan = minimalNextReviewPlan();
+      if (!plan.length) return;
+      const card = document.querySelector(`[data-review-index="${plan[0].rowIndex}"]`);
+      focusReviewCard(card);
+    }
+
     function setSaveStatus(message) {
       document.getElementById("save-status").textContent = message;
     }
@@ -1025,6 +1144,7 @@
       document.getElementById("review-count").textContent =
         `${reviewed.approved_count} ${statusLabels.approved.toLowerCase()}, ${reviewed.rejected_count} ${statusLabels.rejected.toLowerCase()}, ${reviewed.pending_count} ${statusLabels.pending.toLowerCase()}`;
       renderClusterSummary();
+      renderNextReviewPlan();
     }
 
     function applyDecisionToCard(card, status) {
@@ -1110,7 +1230,7 @@
       const key = event.key.toLowerCase();
       const code = event.code || "";
       const card = currentReviewCard();
-      if (!card && !["j", "k", "arrowleft", "arrowright", "0"].includes(key) && code !== "Space") return;
+      if (!card && !["j", "k", "n", "arrowleft", "arrowright", "0"].includes(key) && code !== "Space") return;
       if (key === "a") {
         event.preventDefault();
         setDecision(card.dataset.reviewIndex, "approved");
@@ -1129,6 +1249,9 @@
       } else if (key === "k") {
         event.preventDefault();
         moveReviewFocus(-1);
+      } else if (key === "n") {
+        event.preventDefault();
+        focusNextRecommendedReview();
       } else if (code === "Space") {
         event.preventDefault();
         toggleCurrentAudio();

@@ -1767,6 +1767,10 @@ class ReviewTests(unittest.TestCase):
         self.assertIn('id="cluster-summary"', html)
         self.assertIn("renderClusterSummary", html)
         self.assertIn("clusterConsensusState", html)
+        self.assertIn('id="next-review-plan"', html)
+        self.assertIn("minimalNextReviewPlan", html)
+        self.assertIn("focusNextRecommendedReview", html)
+        self.assertIn("<code>N</code> next recommended review", html)
         self.assertIn("<code>Space</code> play/pause", html)
         self.assertIn("<code>&larr;</code>/<code>&rarr;</code> seek 2s", html)
         self.assertIn('tabindex="0"', html)
@@ -1816,6 +1820,7 @@ class ReviewTests(unittest.TestCase):
         self.assertTrue(result.audio_shortcuts_present)
         self.assertTrue(result.draft_autosave_present)
         self.assertTrue(result.cluster_summary_present)
+        self.assertTrue(result.next_review_plan_present)
         self.assertTrue(result.embedded_sheet_present)
         self.assertTrue(result.import_instruction_present)
         self.assertTrue(result.rerun_instruction_present)
@@ -1899,6 +1904,7 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("audio shortcuts", result.missing)
         self.assertIn("draft autosave", result.missing)
         self.assertIn("cluster summary", result.missing)
+        self.assertIn("next review plan", result.missing)
         self.assertIn("embedded sheet JSON", result.missing)
 
     def test_summary_requires_all_rows_reviewed_before_human_reviewed_is_true(self):
