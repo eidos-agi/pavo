@@ -1183,6 +1183,22 @@ def _render_proof_review_checklist(
 
 
 def _review_packet_slate_tsv_lines(items: list[dict[str, Any]]) -> list[str]:
+    decision_keys = [
+        (
+            str(item.get("cluster_id") or ""),
+            str(item.get("target_speaker") or ""),
+            str(item.get("question") or ""),
+        )
+        for item in items
+    ]
+    decision_order: list[tuple[str, str, str]] = []
+    for key in decision_keys:
+        if key not in decision_order:
+            decision_order.append(key)
+    decision_meta: dict[tuple[str, str, str], dict[str, int]] = {}
+    for index, key in enumerate(decision_order, start=1):
+        row_count = sum(1 for candidate in decision_keys if candidate == key)
+        decision_meta[key] = {"index": index, "row_count": row_count}
     lines = [
         "\t".join(
             [
@@ -1199,10 +1215,19 @@ def _review_packet_slate_tsv_lines(items: list[dict[str, Any]]) -> list[str]:
                 "acoustic_verdict",
                 "clip_path",
                 "transcript",
+                "decision_group",
+                "decision_row_count",
+                "decision_clip_count",
             ]
         )
     ]
     for item in items:
+        key = (
+            str(item.get("cluster_id") or ""),
+            str(item.get("target_speaker") or ""),
+            str(item.get("question") or ""),
+        )
+        meta = decision_meta.get(key, {"index": 0, "row_count": 1})
         note = f"reviewed via pavo-batch-proof rank {item.get('rank')}; {item.get('question') or ''}"
         lines.append(
             "\t".join(
@@ -1220,6 +1245,9 @@ def _review_packet_slate_tsv_lines(items: list[dict[str, Any]]) -> list[str]:
                     _tsv_safe(str(item.get("acoustic_verdict") or "")),
                     _tsv_safe(str(item.get("clip_path") or "")),
                     _tsv_safe(str(item.get("transcript_excerpt") or "")),
+                    f"D{meta['index']:02d}",
+                    str(meta["row_count"]),
+                    str(meta["row_count"]),
                 ]
             )
         )
