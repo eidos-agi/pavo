@@ -499,17 +499,23 @@ def prove_batch(
         )
         + "\n"
     )
+    _add_proof_slate_commands(
+        review_packet,
+        batch_root=root,
+        proof_review_slate_path=proof_review_slate_path,
+    )
+    strict_proof_command = f"pavo batch prove {shlex.quote(str(root))} --strict-complete"
+    handoff_command = f"pavo batch handoff {shlex.quote(str(proof_report_path))} --check-validation"
     proof_review_checklist_path.write_text(
         _render_proof_review_checklist(
             batch_root=root,
             proof_slate_items=review_packet.get("proof_slate_items") or review_packet.get("top_items") or [],
             proof_review_slate_path=proof_review_slate_path,
+            validate_command=review_packet.get("validate_proof_slate_command"),
+            finish_command=review_packet.get("finish_proof_slate_command"),
+            strict_proof_command=strict_proof_command,
+            handoff_command=handoff_command,
         )
-    )
-    _add_proof_slate_commands(
-        review_packet,
-        batch_root=root,
-        proof_review_slate_path=proof_review_slate_path,
     )
     review_packet["proof_review_checklist_markdown"] = str(proof_review_checklist_path)
 
@@ -1023,6 +1029,10 @@ def _render_proof_review_checklist(
     batch_root: Path,
     proof_slate_items: list[dict[str, Any]],
     proof_review_slate_path: Path,
+    validate_command: str | None = None,
+    finish_command: str | None = None,
+    strict_proof_command: str | None = None,
+    handoff_command: str | None = None,
 ) -> str:
     grouped = _handoff_pending_review_questions(
         [
@@ -1080,7 +1090,6 @@ def _render_proof_review_checklist(
             lines.append(f"- Row {sample.get('row_index')}: `{clip_path}`")
             lines.append(f"  - Transcript: {sample.get('excerpt')}")
         lines.append("")
-    validation_report = proof_review_slate_path.with_suffix(".validation.json")
     lines.extend(
         [
             "## Finish Commands",
@@ -1088,10 +1097,23 @@ def _render_proof_review_checklist(
             "After editing the TSV, validate before mutation:",
             "",
             "```bash",
-            f"pavo review clusters validate-slate <review-sheet> {shlex.quote(str(proof_review_slate_path))} --report {shlex.quote(str(validation_report))}",
+            str(validate_command or ""),
             "```",
             "",
-            "Then use the exact `finish_command` in `pavo-batch-proof.json` or `pavo batch handoff --check-validation`.",
+            "If validation passes, materialize the reviewed speaker decisions:",
+            "",
+            "```bash",
+            str(finish_command or ""),
+            "```",
+            "",
+            "Then re-check the handoff and require strict proof:",
+            "",
+            "```bash",
+            str(handoff_command or ""),
+            str(strict_proof_command or ""),
+            "```",
+            "",
+            "Do not run the finish command until validation passes.",
             "",
         ]
     )
