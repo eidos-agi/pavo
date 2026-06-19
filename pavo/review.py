@@ -2088,6 +2088,7 @@ def status_cluster_review(
     status_markdown_path = root / "pavo-cluster-review-status.md"
     completion_commands = {
         "open_review_page": shlex.join(["open", str(page_path)]),
+        "validate_slate": shlex.join(["pavo", "review", "clusters", "validate-slate", str(sheet_path), str(slate_tsv_path)]),
         "finish_from_slate": shlex.join(
             ["pavo", "review", "clusters", "finish-from-slate", str(root), str(sheet_path), str(slate_tsv_path)]
         ),
@@ -6057,6 +6058,7 @@ def _cluster_review_decision_brief_payload(status: ClusterReviewStatusResult) ->
             "estimated_unlockable_seconds": status.estimated_unlockable_seconds,
         },
         "finish_command": status.completion_commands.get("finish_from_slate"),
+        "validate_command": status.completion_commands.get("validate_slate"),
         "open_review_page_command": status.completion_commands.get("open_review_page") or status.next_command,
         "safety_boundary": "Human listening is required. Pavo ranks and explains the next decisions but does not approve speaker identity automatically.",
         "blockers": status.blockers,
@@ -6105,6 +6107,7 @@ def _render_cluster_review_decision_brief_markdown(payload: dict[str, Any]) -> s
         "## Commands",
         "",
         f"- Open review page: `{payload['open_review_page_command']}`",
+        f"- Validate reviewed TSV: `{payload['validate_command']}`",
         f"- Finish from reviewed TSV: `{payload['finish_command']}`",
         "",
         "## Priority Mix",
@@ -6319,11 +6322,12 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
     <section class="commands">
       <h2>Commands</h2>
       <p>Open full review page: <code>{escape(str(payload.get('open_review_page_command') or ''))}</code></p>
+      <p>Validate reviewed TSV before mutation: <code>{escape(str(payload.get('validate_command') or ''))}</code></p>
       <p>Finish after TSV review: <code>{escape(str(payload.get('finish_command') or ''))}</code></p>
     </section>
     <section class="export-panel">
       <h2>Decision Export</h2>
-      <p>Mark each card, adjust speaker if needed, add notes, then export the TSV. The output is compatible with <code>pavo review clusters finish-from-slate</code>.</p>
+      <p>Mark each card, adjust speaker if needed, add notes, then export the TSV. Safe handoff is: export TSV, run <code>pavo review clusters validate-slate</code>, then run <code>pavo review clusters finish-from-slate</code>.</p>
       <p id="completion-summary" class="completion-summary">Pending review...</p>
       <div class="impact-grid" aria-label="Live decision impact">
         <div class="impact-cell"><strong id="approved-impact">0 / 0.0s</strong><span>approved unlock</span></div>
