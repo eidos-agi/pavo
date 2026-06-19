@@ -136,6 +136,7 @@ class AnchorReviewPageVerificationResult:
     keyboard_handler_present: bool
     audio_shortcuts_present: bool
     draft_autosave_present: bool
+    cluster_summary_present: bool
     embedded_sheet_present: bool
     import_instruction_present: bool
     rerun_instruction_present: bool
@@ -158,6 +159,7 @@ class AnchorReviewPageVerificationResult:
             "keyboard_handler_present": self.keyboard_handler_present,
             "audio_shortcuts_present": self.audio_shortcuts_present,
             "draft_autosave_present": self.draft_autosave_present,
+            "cluster_summary_present": self.cluster_summary_present,
             "embedded_sheet_present": self.embedded_sheet_present,
             "import_instruction_present": self.import_instruction_present,
             "rerun_instruction_present": self.rerun_instruction_present,
@@ -1998,6 +2000,44 @@ def create_anchor_review_page(
       margin: 0 4px;
       font-weight: 700;
     }}
+    .cluster-summary {{
+      display: grid;
+      gap: 8px;
+      margin: 0 0 18px;
+      padding: 12px 16px;
+      border: 1px solid #c7d9cc;
+      background: #ffffff;
+    }}
+    .cluster-summary h2 {{
+      margin: 0;
+      font-size: 16px;
+    }}
+    .cluster-summary-row {{
+      display: grid;
+      gap: 4px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      background: #f4f9f2;
+    }}
+    .cluster-summary-row strong {{
+      color: #17211c;
+    }}
+    .cluster-summary-row.ready {{
+      background: #edf8ef;
+      border-left: 4px solid #4c9560;
+    }}
+    .cluster-summary-row.conflict {{
+      background: #fff0ea;
+      border-left: 4px solid #b86b5f;
+    }}
+    .cluster-summary-row.pending {{
+      background: #fff8df;
+      border-left: 4px solid #d2b35f;
+    }}
+    .cluster-summary-row span {{
+      color: #4f665b;
+      font-size: 14px;
+    }}
     .save-status {{
       color: #315044;
       font-weight: 700;
@@ -2193,6 +2233,10 @@ def create_anchor_review_page(
       <code>0</code> restart clip,
       <code>/</code> note,
       <code>S</code> save/export.
+    </section>
+    <section class="cluster-summary" id="cluster-summary" aria-live="polite">
+      <h2>Cluster consensus</h2>
+      <div id="cluster-summary-rows">Loading cluster consensus...</div>
     </section>
     <section class="actions">
       <button type="button" id="save-review">Save review</button>
@@ -2426,6 +2470,67 @@ def create_anchor_review_page(
       }};
     }}
 
+    function escapeHtml(value) {{
+      return String(value == null ? "" : value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }}
+
+    function clusterConsensusState(cluster) {{
+      if (cluster.pendingRows > 0) return ["pending_review", "pending", "Finish pending samples before materializing."];
+      if (cluster.approvedRows > 0 && cluster.rejectedRows > 0) return ["conflicting_review", "conflict", "Do not materialize; re-listen or add samples."];
+      if (cluster.approvedRows > 0) return ["ready_for_must_link", "ready", "Ready to confirm this cluster after export/import."];
+      if (cluster.rejectedRows > 0) return ["ready_for_cannot_link", "ready", "Ready to reject this proposed speaker after export/import."];
+      return ["unresolved_no_decision", "pending", "Review at least one sample."];
+    }}
+
+    function renderClusterSummary() {{
+      const target = document.getElementById("cluster-summary-rows");
+      if (!target) return;
+      const clusters = new Map();
+      buildReviewedSheet().rows.forEach((row) => {{
+        const question = row.cluster_question || {{}};
+        const clusterId = String(question.cluster_id || row.case || "unknown");
+        const cluster = clusters.get(clusterId) || {{
+          clusterId,
+          targetSpeaker: question.dominant_speaker || row.target_speaker_label || question.candidate_name || "unknown",
+          question: question.question || "",
+          expectedImpact: question.expected_impact || "",
+          approvedRows: 0,
+          rejectedRows: 0,
+          pendingRows: 0,
+          totalRows: 0
+        }};
+        cluster.totalRows += 1;
+        if (row.status === "approved" && row.approved === true) {{
+          cluster.approvedRows += 1;
+        }} else if (row.status === "rejected") {{
+          cluster.rejectedRows += 1;
+        }} else {{
+          cluster.pendingRows += 1;
+        }}
+        clusters.set(clusterId, cluster);
+      }});
+      if (!clusters.size) {{
+        target.textContent = "No cluster questions in this review sheet.";
+        return;
+      }}
+      target.innerHTML = Array.from(clusters.values()).map((cluster) => {{
+        const [state, css, action] = clusterConsensusState(cluster);
+        const question = cluster.question ? `<span>${{escapeHtml(cluster.question)}}</span>` : "";
+        const impact = cluster.expectedImpact ? ` • ${{escapeHtml(cluster.expectedImpact)}}` : "";
+        return `<div class="cluster-summary-row ${{css}}">
+          <strong>${{escapeHtml(cluster.clusterId)}} - ${{escapeHtml(cluster.targetSpeaker)}}: ${{state}}</strong>
+          <span>${{cluster.approvedRows}} approved / ${{cluster.rejectedRows}} rejected / ${{cluster.pendingRows}} pending / ${{cluster.totalRows}} total${{impact}}</span>
+          ${{question}}
+          <span>${{escapeHtml(action)}}</span>
+        </div>`;
+      }}).join("");
+    }}
+
     function setSaveStatus(message) {{
       document.getElementById("save-status").textContent = message;
     }}
@@ -2579,6 +2684,7 @@ def create_anchor_review_page(
       const reviewed = buildReviewedSheet();
       document.getElementById("review-count").textContent =
         `${{reviewed.approved_count}} ${{statusLabels.approved.toLowerCase()}}, ${{reviewed.rejected_count}} ${{statusLabels.rejected.toLowerCase()}}, ${{reviewed.pending_count}} ${{statusLabels.pending.toLowerCase()}}`;
+      renderClusterSummary();
     }}
 
     function applyDecisionToCard(card, status) {{
@@ -3179,6 +3285,7 @@ def verify_anchor_review_page(
         "keyboard shortcuts": "handleReviewShortcut" in html and 'addEventListener("keydown", handleReviewShortcut)' in html,
         "audio shortcuts": "toggleCurrentAudio" in html and "seekCurrentAudio" in html and "restartCurrentAudio" in html,
         "draft autosave": "localStorage" in html and "persistReviewDraft" in html and "loadReviewDraft" in html,
+        "cluster summary": 'id="cluster-summary"' in html and "renderClusterSummary" in html and "clusterConsensusState" in html,
         "embedded sheet JSON": embedded_sheet_present,
         "import instruction": (not requires_import) or "pavo review anchors import" in html,
         "rerun instruction": (not requires_rerun) or "pavo review anchors rerun-command" in html,
@@ -3202,6 +3309,7 @@ def verify_anchor_review_page(
         keyboard_handler_present=checks["keyboard shortcuts"],
         audio_shortcuts_present=checks["audio shortcuts"],
         draft_autosave_present=checks["draft autosave"],
+        cluster_summary_present=checks["cluster summary"],
         embedded_sheet_present=embedded_sheet_present,
         import_instruction_present=checks["import instruction"],
         rerun_instruction_present=checks["rerun instruction"],
