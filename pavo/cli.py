@@ -22,6 +22,7 @@ from .download import save_audio
 from .overlap import SeparateOverlapsRequest, separate_overlaps
 from .plaud import PlaudCli, PlaudCliError
 from .review import (
+    advance_cluster_review,
     build_anchor_review_rerun_command,
     build_anchor_review_serve_command,
     create_anchor_review_assistant,
@@ -181,6 +182,12 @@ def build_parser() -> argparse.ArgumentParser:
     review_clusters_status.add_argument("--json", action="store_true", help="Print full machine-readable status JSON")
     review_clusters_status.add_argument("--report", type=Path, help="Write machine-readable status JSON report")
     review_clusters_status.add_argument("--markdown-report", type=Path, help="Write human-readable status Markdown report")
+    review_clusters_advance = review_clusters_sub.add_parser("advance", help="Run the next safe cluster-review machine step")
+    review_clusters_advance.add_argument("batch_root", type=Path)
+    review_clusters_advance.add_argument("--review-sheet", type=Path, help="Override cluster question review sheet")
+    review_clusters_advance.add_argument("--json", action="store_true", help="Print full machine-readable advance JSON")
+    review_clusters_advance.add_argument("--report", type=Path, help="Write machine-readable advance JSON report")
+    review_clusters_advance.add_argument("--markdown-report", type=Path, help="Write human-readable advance Markdown report")
     review_clusters_audit = review_clusters_sub.add_parser("audit", help="Write a cluster identity propagation audit")
     review_clusters_audit.add_argument("batch_root", type=Path)
     review_clusters_audit.add_argument("--out", type=Path, help="Cluster audit JSON path")
@@ -660,6 +667,25 @@ def main(argv: list[str] | None = None) -> int:
                 if result.blockers:
                     print("blockers: " + "; ".join(result.blockers))
                 return 0
+            if args.review_clusters_command == "advance":
+                result = advance_cluster_review(args.batch_root, review_sheet_path=args.review_sheet)
+                if args.report:
+                    args.report.parent.mkdir(parents=True, exist_ok=True)
+                    args.report.write_text(__import__("json").dumps(result.as_report(), indent=2, sort_keys=True) + "\n")
+                if args.markdown_report:
+                    args.markdown_report.parent.mkdir(parents=True, exist_ok=True)
+                    args.markdown_report.write_text(result.as_markdown())
+                if args.json:
+                    print(__import__("json").dumps(result.as_report(), indent=2, sort_keys=True))
+                    return 0 if result.action in {"await_human_review", "await_conflict_resolution"} or result.advanced else 2
+                print(f"before_state: {result.before_state}")
+                print(f"after_state: {result.after_state}")
+                print(f"action: {result.action}")
+                print(f"advanced: {str(result.advanced).lower()}")
+                print(f"next_command: {result.status.next_command}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+                return 0 if result.action in {"await_human_review", "await_conflict_resolution"} or result.advanced else 2
             if args.review_clusters_command == "audit":
                 result = create_cluster_identity_audit(
                     args.batch_root,

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from pavo.brief import build_meeting_brief
 from pavo.review import (
+    advance_cluster_review,
     build_anchor_review_rerun_command,
     build_anchor_review_serve_command,
     create_anchor_review_assistant,
@@ -732,6 +733,90 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.review_effort["minimum_reviews"], 1)
         self.assertTrue(result.page_verified)
         self.assertIn("open", result.next_command)
+
+    def test_cluster_review_advance_stops_at_human_review_boundary(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bundle = root / "pavo-cluster-question-bundle"
+            bundle.mkdir()
+            sheet = bundle / "pavo-cluster-question-review-sheet.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "pending",
+                                "approved": False,
+                                "target_speaker_label": "Daniel",
+                                "cluster_question": {"cluster_id": "S1", "dominant_speaker": "Daniel"},
+                            }
+                        ]
+                    }
+                )
+            )
+            create_anchor_review_page(sheet, out_path=bundle / "index.html")
+
+            result = advance_cluster_review(root)
+            report = result.as_report()
+            markdown = result.as_markdown()
+
+        self.assertEqual(result.before_state, "review_pending")
+        self.assertEqual(result.after_state, "review_pending")
+        self.assertEqual(result.action, "await_human_review")
+        self.assertFalse(result.advanced)
+        self.assertIn("required human listening", report["safety_boundary"])
+        self.assertIn("Pavo Cluster Review Advance", markdown)
+        self.assertIn("await_human_review", markdown)
+
+    def test_cli_cluster_review_advance_writes_reports(self):
+        from pavo.cli import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bundle = root / "pavo-cluster-question-bundle"
+            bundle.mkdir()
+            sheet = bundle / "pavo-cluster-question-review-sheet.json"
+            report = root / "advance.json"
+            markdown_report = root / "advance.md"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "pending",
+                                "approved": False,
+                                "target_speaker_label": "Daniel",
+                                "cluster_question": {"cluster_id": "S1", "dominant_speaker": "Daniel"},
+                            }
+                        ]
+                    }
+                )
+            )
+            create_anchor_review_page(sheet, out_path=bundle / "index.html")
+
+            exit_code = main(
+                [
+                    "review",
+                    "clusters",
+                    "advance",
+                    str(root),
+                    "--report",
+                    str(report),
+                    "--markdown-report",
+                    str(markdown_report),
+                    "--json",
+                ]
+            )
+            payload = json.loads(report.read_text())
+            markdown = markdown_report.read_text()
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["action"], "await_human_review")
+        self.assertFalse(payload["advanced"])
+        self.assertEqual(payload["status"]["state"], "review_pending")
+        self.assertIn("Pavo Cluster Review Advance", markdown)
 
     def test_cluster_review_status_reports_ready_to_finalize(self):
         with tempfile.TemporaryDirectory() as tmp:

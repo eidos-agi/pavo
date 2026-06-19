@@ -473,6 +473,57 @@ class ClusterReviewStatusResult:
 
 
 @dataclass(frozen=True)
+class ClusterReviewAdvanceResult:
+    batch_root: Path
+    before_state: str
+    after_state: str
+    action: str
+    advanced: bool
+    status: ClusterReviewStatusResult
+    blockers: list[str]
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "batch_root": str(self.batch_root),
+            "before_state": self.before_state,
+            "after_state": self.after_state,
+            "action": self.action,
+            "advanced": self.advanced,
+            "status": self.status.as_report(),
+            "blockers": self.blockers,
+            "safety_boundary": "Pavo advance only runs safe machine steps. It never approves speaker identity or bypasses required human listening.",
+        }
+
+    def as_markdown(self) -> str:
+        blockers = self.blockers or ["None"]
+        lines = [
+            "# Pavo Cluster Review Advance",
+            "",
+            f"- Batch root: `{self.batch_root}`",
+            f"- Before state: `{self.before_state}`",
+            f"- After state: `{self.after_state}`",
+            f"- Action: `{self.action}`",
+            f"- Advanced: `{str(self.advanced).lower()}`",
+            "",
+            "## Safety Boundary",
+            "",
+            "Pavo advance only runs safe machine steps. It never approves speaker identity or bypasses required human listening.",
+            "",
+            "## Current Status",
+            "",
+            f"- Next command: `{self.status.next_command}`",
+            f"- Candidate clips: {self.status.candidate_count}",
+            f"- Cluster consensus: {self.status.ready_cluster_count} ready / {self.status.conflicted_cluster_count} conflicted / {self.status.unresolved_cluster_count} unresolved",
+            f"- Review effort: {self.status.review_effort.get('summary')}",
+            "",
+            "## Blockers",
+            "",
+        ]
+        lines.extend(f"- {item}" for item in blockers)
+        return "\n".join(lines).rstrip() + "\n"
+
+
+@dataclass(frozen=True)
 class ClusterQuestionMaterializeResult:
     decision_report_path: Path
     out_dir: Path
@@ -1986,6 +2037,52 @@ def status_cluster_review(
         next_review_plan=next_review_plan,
         next_command=next_command,
         completion_commands=completion_commands,
+        blockers=list(dict.fromkeys(blockers)),
+    )
+
+
+def advance_cluster_review(
+    batch_root: Path | str,
+    *,
+    review_sheet_path: Path | str | None = None,
+) -> ClusterReviewAdvanceResult:
+    root = Path(batch_root)
+    before = status_cluster_review(root, review_sheet_path=review_sheet_path)
+    action = "status_only"
+    advanced = False
+    blockers: list[str] = []
+
+    if before.state == "needs_prepare":
+        prepare_cluster_review(root)
+        action = "prepared_review_queue"
+        advanced = True
+    elif before.state == "ready_to_finalize" and before.review_sheet_path is not None:
+        finalized = finalize_cluster_review(before.review_sheet_path, root)
+        action = "finalized_review"
+        advanced = bool(finalized.passed)
+        blockers.extend(finalized.blockers)
+    elif before.state == "review_pending":
+        action = "await_human_review"
+        blockers.extend(before.blockers)
+    elif before.state == "review_conflicted":
+        action = "await_conflict_resolution"
+        blockers.extend(before.blockers)
+    elif before.state in {"finalized_passed", "finalized_attention"}:
+        action = "already_finalized"
+        blockers.extend(before.blockers)
+    else:
+        blockers.extend(before.blockers)
+
+    after = status_cluster_review(root, review_sheet_path=review_sheet_path)
+    if after.blockers and action not in {"await_human_review", "await_conflict_resolution"}:
+        blockers.extend(after.blockers)
+    return ClusterReviewAdvanceResult(
+        batch_root=root,
+        before_state=before.state,
+        after_state=after.state,
+        action=action,
+        advanced=advanced,
+        status=after,
         blockers=list(dict.fromkeys(blockers)),
     )
 
