@@ -191,6 +191,7 @@ class BatchProofResult:
     proof_markdown_path: Path
     proof_review_slate_path: Path
     proof_decision_slate_path: Path
+    proof_decision_board_path: Path
     proof_review_checklist_path: Path
     doctor_report_path: Path
     doctor_markdown_path: Path
@@ -207,6 +208,7 @@ class BatchProofResult:
             "proof_markdown_path": str(self.proof_markdown_path),
             "proof_review_slate_path": str(self.proof_review_slate_path),
             "proof_decision_slate_path": str(self.proof_decision_slate_path),
+            "proof_decision_board_path": str(self.proof_decision_board_path),
             "proof_review_checklist_path": str(self.proof_review_checklist_path),
             "doctor_report_path": str(self.doctor_report_path),
             "doctor_markdown_path": str(self.doctor_markdown_path),
@@ -250,6 +252,7 @@ class BatchProofResult:
             f"- Proof Markdown: `{self.proof_markdown_path}`",
             f"- Proof review slate TSV: `{self.proof_review_slate_path}`",
             f"- Proof decision slate TSV: `{self.proof_decision_slate_path}`",
+            f"- Proof decision board HTML: `{self.proof_decision_board_path}`",
             f"- Proof review checklist: `{self.proof_review_checklist_path}`",
             f"- Doctor JSON: `{self.doctor_report_path}`",
             f"- Doctor Markdown: `{self.doctor_markdown_path}`",
@@ -604,6 +607,7 @@ def prove_batch(
     proof_markdown_path = target_dir / "pavo-batch-proof.md"
     proof_review_slate_path = target_dir / "pavo-batch-proof.review-slate.tsv"
     proof_decision_slate_path = target_dir / "pavo-batch-proof.decision-slate.tsv"
+    proof_decision_board_path = target_dir / "pavo-batch-proof.decision-board.html"
     proof_review_checklist_path = target_dir / "pavo-batch-proof.review-checklist.md"
 
     doctor = doctor_batch(root, refresh_cluster_gate=refresh_cluster_gate)
@@ -658,6 +662,7 @@ def prove_batch(
     )
     review_packet["proof_review_checklist_markdown"] = str(proof_review_checklist_path)
     review_packet["proof_decision_slate_tsv"] = str(proof_decision_slate_path)
+    review_packet["proof_decision_board_html"] = str(proof_decision_board_path)
 
     result = BatchProofResult(
         batch_root=root,
@@ -670,6 +675,7 @@ def prove_batch(
         proof_markdown_path=proof_markdown_path,
         proof_review_slate_path=proof_review_slate_path,
         proof_decision_slate_path=proof_decision_slate_path,
+        proof_decision_board_path=proof_decision_board_path,
         proof_review_checklist_path=proof_review_checklist_path,
         doctor_report_path=doctor_report_path,
         doctor_markdown_path=doctor_markdown_path,
@@ -678,6 +684,8 @@ def prove_batch(
     )
     proof_report_path.write_text(json.dumps(result.as_report(), indent=2, sort_keys=True) + "\n")
     proof_markdown_path.write_text(result.as_markdown())
+    write_batch_decision_board(proof_report_path, out_path=proof_decision_board_path)
+    proof_report_path.write_text(json.dumps(result.as_report(), indent=2, sort_keys=True) + "\n")
     return result
 
 
@@ -693,6 +701,8 @@ def _operator_handoff(result: BatchProofResult) -> dict[str, Any]:
         "proof_review_slate_tsv": proof_slate,
         "proof_decision_slate_tsv": result.review_packet.get("proof_decision_slate_tsv")
         or str(result.proof_decision_slate_path),
+        "proof_decision_board_html": result.review_packet.get("proof_decision_board_html")
+        or str(result.proof_decision_board_path),
         "proof_review_checklist_markdown": result.review_packet.get("proof_review_checklist_markdown")
         or str(result.proof_review_checklist_path),
         "proof_slate_item_count": result.review_packet.get("proof_slate_item_count"),
@@ -726,11 +736,13 @@ def enrich_operator_handoff_with_validation(handoff: dict[str, Any]) -> dict[str
     review_page = str(enriched.get("review_page") or "").strip()
     slate = str(enriched.get("proof_review_slate_tsv") or "").strip()
     decision_slate = str(enriched.get("proof_decision_slate_tsv") or "").strip()
+    decision_board = str(enriched.get("proof_decision_board_html") or "").strip()
     checklist = str(enriched.get("proof_review_checklist_markdown") or "").strip()
     artifact_checks = {
         "review_page": _handoff_artifact_check(review_page),
         "proof_review_slate_tsv": _handoff_artifact_check(slate),
         "proof_decision_slate_tsv": _handoff_artifact_check(decision_slate),
+        "proof_decision_board_html": _handoff_artifact_check(decision_board),
         "proof_review_checklist_markdown": _handoff_artifact_check(checklist),
     }
     validation_path = Path(slate).with_suffix(".validation.json") if slate else None
@@ -1016,6 +1028,7 @@ def format_operator_handoff(handoff: dict[str, Any]) -> str:
         f"review_page: {handoff.get('review_page')}",
         f"proof_review_slate_tsv: {handoff.get('proof_review_slate_tsv')}",
         f"proof_decision_slate_tsv: {handoff.get('proof_decision_slate_tsv')}",
+        f"proof_decision_board_html: {handoff.get('proof_decision_board_html')}",
         f"proof_review_checklist_markdown: {handoff.get('proof_review_checklist_markdown')}",
         f"proof_slate_item_count: {handoff.get('proof_slate_item_count')}",
         f"validate_command: {handoff.get('validate_command')}",

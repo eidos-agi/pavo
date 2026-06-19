@@ -178,10 +178,12 @@ class BatchDoctorTests(unittest.TestCase):
             proof_markdown = result.proof_markdown_path.read_text()
             proof_review_slate = result.proof_review_slate_path.read_text()
             proof_decision_slate = result.proof_decision_slate_path.read_text()
+            proof_decision_board = result.proof_decision_board_path.read_text()
             proof_review_checklist = result.proof_review_checklist_path.read_text()
             proof_markdown_exists = result.proof_markdown_path.exists()
             proof_review_slate_exists = result.proof_review_slate_path.exists()
             proof_decision_slate_exists = result.proof_decision_slate_path.exists()
+            proof_decision_board_exists = result.proof_decision_board_path.exists()
             proof_review_checklist_exists = result.proof_review_checklist_path.exists()
             doctor_report_exists = result.doctor_report_path.exists()
             doctor_markdown_exists = result.doctor_markdown_path.exists()
@@ -199,6 +201,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertFalse(proof_report["operator_handoff"]["complete"])
         self.assertTrue(proof_report["operator_handoff"]["proof_review_slate_tsv"].endswith("pavo-batch-proof.review-slate.tsv"))
         self.assertTrue(proof_report["operator_handoff"]["proof_decision_slate_tsv"].endswith("pavo-batch-proof.decision-slate.tsv"))
+        self.assertTrue(proof_report["operator_handoff"]["proof_decision_board_html"].endswith("pavo-batch-proof.decision-board.html"))
         self.assertEqual(proof_report["operator_handoff"]["proof_slate_item_count"], 2)
         self.assertIn("validate-slate", proof_report["operator_handoff"]["validate_command"])
         self.assertIn("finish-from-slate", proof_report["operator_handoff"]["finish_command"])
@@ -206,9 +209,11 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("Do not mark speaker identity complete", proof_report["operator_handoff"]["safety_boundary"])
         self.assertTrue(proof_report["proof_review_slate_path"].endswith("pavo-batch-proof.review-slate.tsv"))
         self.assertTrue(proof_report["proof_decision_slate_path"].endswith("pavo-batch-proof.decision-slate.tsv"))
+        self.assertTrue(proof_report["proof_decision_board_path"].endswith("pavo-batch-proof.decision-board.html"))
         self.assertTrue(proof_report["proof_review_checklist_path"].endswith("pavo-batch-proof.review-checklist.md"))
         self.assertTrue(proof_report["review_packet"]["proof_review_slate_tsv"].endswith("pavo-batch-proof.review-slate.tsv"))
         self.assertTrue(proof_report["review_packet"]["proof_decision_slate_tsv"].endswith("pavo-batch-proof.decision-slate.tsv"))
+        self.assertTrue(proof_report["review_packet"]["proof_decision_board_html"].endswith("pavo-batch-proof.decision-board.html"))
         self.assertTrue(
             proof_report["review_packet"]["proof_review_checklist_markdown"].endswith(
                 "pavo-batch-proof.review-checklist.md"
@@ -228,6 +233,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("pavo-cluster-review-decision-brief.html", proof_report["review_packet"]["decision_brief_html"])
         self.assertIn("Proof review slate TSV:", proof_markdown)
         self.assertIn("Proof decision slate TSV:", proof_markdown)
+        self.assertIn("Proof decision board HTML:", proof_markdown)
         self.assertIn("Proof review checklist:", proof_markdown)
         self.assertIn("Validate proof slate:", proof_markdown)
         self.assertIn("Finish from proof slate:", proof_markdown)
@@ -265,6 +271,9 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("D01\tpending\tDaniel\tS1\tCan cluster S1 be confirmed as Daniel?", proof_decision_slate)
         self.assertIn("\t1,2\t2\turgent_listen\t99.0", proof_decision_slate)
         self.assertIn("hello from the sample | second supporting sample", proof_decision_slate)
+        self.assertIn("Pavo Batch Decision Board", proof_decision_board)
+        self.assertIn("Generated Decision TSV", proof_decision_board)
+        self.assertIn("Can cluster S1 be confirmed as Daniel?", proof_decision_board)
         self.assertIn("# Pavo Proof Review Checklist", proof_review_checklist)
         self.assertIn("Pending speaker decisions: 1", proof_review_checklist)
         self.assertIn("Supporting proof rows: 2", proof_review_checklist)
@@ -281,6 +290,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertTrue(proof_markdown_exists)
         self.assertTrue(proof_review_slate_exists)
         self.assertTrue(proof_decision_slate_exists)
+        self.assertTrue(proof_decision_board_exists)
         self.assertTrue(proof_review_checklist_exists)
 
     def test_batch_apply_decision_slate_cli_updates_all_group_rows(self):
@@ -570,6 +580,8 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertRegex(checked_stdout.getvalue(), r"artifact_manifest_sha256: [0-9a-f]{64}")
         self.assertIn("proof_decision_slate_tsv: exists=true", checked_stdout.getvalue())
         self.assertRegex(checked_stdout.getvalue(), r"proof_decision_slate_tsv: exists=true bytes=\d+ sha256=[0-9a-f]{64}")
+        self.assertIn("proof_decision_board_html: exists=true", checked_stdout.getvalue())
+        self.assertRegex(checked_stdout.getvalue(), r"proof_decision_board_html: exists=true bytes=\d+ sha256=[0-9a-f]{64}")
         self.assertIn("proof_review_checklist_markdown: exists=true", checked_stdout.getvalue())
         self.assertRegex(checked_stdout.getvalue(), r"proof_review_checklist_markdown: exists=true bytes=\d+ sha256=[0-9a-f]{64}")
         self.assertIn("proof_review_slate_tsv: exists=true", checked_stdout.getvalue())
@@ -580,12 +592,14 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(json_report["proof_slate_item_count"], 2)
         self.assertRegex(json_report["artifact_manifest_sha256"], r"^[0-9a-f]{64}$")
         self.assertTrue(json_report["artifact_checks"]["proof_decision_slate_tsv"]["exists"])
+        self.assertTrue(json_report["artifact_checks"]["proof_decision_board_html"]["exists"])
         self.assertTrue(json_report["artifact_checks"]["proof_review_slate_tsv"]["exists"])
         self.assertTrue(json_report["artifact_checks"]["proof_review_checklist_markdown"]["exists"])
         self.assertTrue(json_report["artifact_checks"]["review_page"]["exists"])
         self.assertTrue(json_report["artifact_checks"]["validation_report"]["exists"])
         self.assertRegex(json_report["artifact_checks"]["proof_review_slate_tsv"]["sha256"], r"^[0-9a-f]{64}$")
         self.assertRegex(json_report["artifact_checks"]["proof_decision_slate_tsv"]["sha256"], r"^[0-9a-f]{64}$")
+        self.assertRegex(json_report["artifact_checks"]["proof_decision_board_html"]["sha256"], r"^[0-9a-f]{64}$")
         self.assertRegex(
             json_report["artifact_checks"]["proof_review_checklist_markdown"]["sha256"],
             r"^[0-9a-f]{64}$",

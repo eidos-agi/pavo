@@ -134,16 +134,19 @@ Use `pavo batch prove` as the simple operator front door. It refreshes the
 batch doctor, writes the doctor reports, verifies the manifest immediately, and
 writes `pavo-batch-proof.json`, `pavo-batch-proof.md`,
 `pavo-batch-proof.review-slate.tsv`, `pavo-batch-proof.decision-slate.tsv`, and
-`pavo-batch-proof.review-checklist.md`. The checklist groups proof rows into
-the smallest pending speaker decisions, with clips and transcript samples, so
-the reviewer can work top-to-bottom without reverse-engineering the TSV. By
-default it exits zero when machine proof passes. With `--strict-complete`, it
-exits nonzero until the human speaker review gate is complete.
+`pavo-batch-proof.review-checklist.md`. It also writes
+`pavo-batch-proof.decision-board.html`, a browser review board for the grouped
+decisions. The checklist and board group proof rows into the smallest pending
+speaker decisions, with clips and transcript samples, so the reviewer can work
+top-to-bottom without reverse-engineering the TSV. By default it exits zero
+when machine proof passes. With `--strict-complete`, it exits nonzero until the
+human speaker review gate is complete.
 
 Use `pavo batch decision-board` to write a self-contained browser board for the
-grouped speaker decisions. It shows each decision, supporting clips and
-transcript samples, keyboard shortcuts, and a generated decision TSV surface for
-the reviewer. It does not write reviewed decisions by itself.
+grouped speaker decisions again when you need to regenerate just that artifact.
+It shows each decision, supporting clips and transcript samples, keyboard
+shortcuts, and a generated decision TSV surface for the reviewer. It does not
+write reviewed decisions by itself.
 
 Use `pavo batch apply-decision-slate` after editing the compact decision slate.
 It expands each grouped `approved` / `rejected` / `pending` decision back onto
