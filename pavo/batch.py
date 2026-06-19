@@ -558,8 +558,14 @@ def load_operator_handoff(proof_report_path: Path | str) -> dict[str, Any]:
 
 def enrich_operator_handoff_with_validation(handoff: dict[str, Any]) -> dict[str, Any]:
     enriched = dict(handoff)
+    review_page = str(enriched.get("review_page") or "").strip()
     slate = str(enriched.get("proof_review_slate_tsv") or "").strip()
+    artifact_checks = {
+        "review_page": _handoff_artifact_check(review_page),
+        "proof_review_slate_tsv": _handoff_artifact_check(slate),
+    }
     validation_path = Path(slate).with_suffix(".validation.json") if slate else None
+    artifact_checks["validation_report"] = _handoff_artifact_check(str(validation_path) if validation_path else "")
     validation: dict[str, Any] = {
         "path": str(validation_path) if validation_path else None,
         "exists": bool(validation_path and validation_path.exists()),
@@ -585,8 +591,19 @@ def enrich_operator_handoff_with_validation(handoff: dict[str, Any]) -> dict[str
             )
         except (OSError, json.JSONDecodeError, ValueError) as exc:
             validation.update({"status": "unreadable", "error": str(exc)})
+    enriched["artifact_checks"] = artifact_checks
     enriched["validation"] = validation
     return enriched
+
+
+def _handoff_artifact_check(path_value: str) -> dict[str, Any]:
+    path = Path(path_value) if path_value else None
+    exists = bool(path and path.exists())
+    return {
+        "path": str(path) if path else None,
+        "exists": exists,
+        "bytes": path.stat().st_size if path and exists and path.is_file() else None,
+    }
 
 
 def format_operator_handoff(handoff: dict[str, Any]) -> str:
@@ -640,6 +657,14 @@ def format_operator_handoff(handoff: dict[str, Any]) -> str:
                 lines.append("blockers: " + "; ".join(str(blocker) for blocker in blockers))
         if validation.get("error"):
             lines.append(f"error: {validation.get('error')}")
+    artifact_checks = handoff.get("artifact_checks") if isinstance(handoff.get("artifact_checks"), dict) else None
+    if artifact_checks:
+        lines.extend(["", "artifact_checks:"])
+        for name in sorted(artifact_checks):
+            check = artifact_checks.get(name) or {}
+            lines.append(
+                f"{name}: exists={str(bool(check.get('exists'))).lower()} bytes={check.get('bytes')} path={check.get('path')}"
+            )
     return "\n".join(lines).rstrip() + "\n"
 
 
