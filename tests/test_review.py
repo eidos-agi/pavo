@@ -1,6 +1,8 @@
+import io
 import json
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
 from pavo.brief import build_meeting_brief
@@ -1124,6 +1126,8 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.approved_count, 1)
         self.assertTrue(result.ready_to_finalize)
         self.assertEqual(result.blockers, [])
+        self.assertTrue(result.as_report()["ready_to_finalize"])
+        self.assertEqual(result.as_report()["applied_count"], 1)
         self.assertEqual(after, original)
 
     def test_cluster_review_slate_import_rejects_cluster_mismatch(self):
@@ -1168,6 +1172,36 @@ class ReviewTests(unittest.TestCase):
             exit_code = main(["review", "clusters", "validate-slate", str(prepared.review_sheet_path), str(bad_path)])
 
         self.assertEqual(exit_code, 2)
+
+    def test_cli_cluster_review_validate_slate_json_is_machine_readable(self):
+        from pavo.cli import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            work = root / "pavo-work"
+            work.mkdir()
+            (work / "diarization-segments.json").write_text(
+                json.dumps({"segments": [{"recording_id": "rec-1", "start": 1.0, "end": 5.0, "speaker": "S1", "text": "Review me."}]})
+            )
+            (work / "named-speaker-evidence.json").write_text(
+                json.dumps({"segments": [{"recording_id": "rec-1", "start": 1.0, "end": 5.0, "speaker": "Daniel", "confidence": "medium", "text": "Review me."}]})
+            )
+            prepared = prepare_cluster_review(root, min_strong_coverage=0.0, min_dominant_share=0.5)
+            slate = export_cluster_review_slate(root)
+            bad = slate.tsv_path.read_text().replace("\tS1\t", "\tS999\t", 1)
+            bad_path = slate.tsv_path.with_name("bad-slate.tsv")
+            bad_path.write_text(bad)
+            stdout = io.StringIO()
+
+            with redirect_stdout(stdout):
+                exit_code = main(["review", "clusters", "validate-slate", str(prepared.review_sheet_path), str(bad_path), "--json"])
+            payload = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 2)
+        self.assertFalse(payload["passed"])
+        self.assertFalse(payload["ready_to_finalize"])
+        self.assertEqual(payload["applied_count"], 0)
+        self.assertIn("changed cluster_id", "; ".join(payload["blockers"]))
 
     def test_cluster_review_advance_stops_at_human_review_boundary(self):
         with tempfile.TemporaryDirectory() as tmp:

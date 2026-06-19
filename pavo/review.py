@@ -360,6 +360,19 @@ class ClusterReviewSlateValidationResult:
     pending_count: int
     blockers: list[str]
 
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "passed": self.passed,
+            "ready_to_finalize": self.ready_to_finalize,
+            "review_sheet": str(self.review_sheet_path),
+            "slate": str(self.slate_path),
+            "applied_count": self.applied_count,
+            "approved_count": self.approved_count,
+            "rejected_count": self.rejected_count,
+            "pending_count": self.pending_count,
+            "blockers": self.blockers,
+        }
+
 
 @dataclass(frozen=True)
 class ClusterReviewFinishFromSlateResult:
