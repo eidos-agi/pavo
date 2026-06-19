@@ -99,9 +99,12 @@ anything into tasks or other systems.
 proves every source recording directory has audio, transcript JSON, transcript
 Markdown, diarized Markdown, speaker-attributed Markdown, README, and fetch
 manifest coverage; then it checks batch-level work artifacts, run report, brief,
-and the cluster gate report. Its `passed` field means machine plumbing is
-healthy. Its `complete` field remains false until downstream human speaker
-review gates are actually cleared.
+and the cluster gate report. By default it refreshes the cluster gate before
+scoring the batch so stale review artifacts cannot silently pass. Use
+`--no-refresh-cluster-gate` only when intentionally inspecting an existing gate
+report. Its `passed` field means machine plumbing is healthy. Its `complete`
+field remains false until downstream human speaker review gates are actually
+cleared.
 
 When `--review-plan` is passed, Pavo also writes
 `pavo-review-cluster-plan.json` and `pavo-review-cluster-plan.md`. The plan

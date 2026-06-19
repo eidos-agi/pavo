@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .review import gate_cluster_review
+
 
 SOURCE_REQUIRED_FILES = [
     "audio",
@@ -89,10 +91,23 @@ class BatchDoctorResult:
         return "\n".join(lines).rstrip() + "\n"
 
 
-def doctor_batch(batch_root: Path | str) -> BatchDoctorResult:
+def doctor_batch(batch_root: Path | str, *, refresh_cluster_gate: bool = True) -> BatchDoctorResult:
     root = Path(batch_root)
     recordings = _source_recordings(root)
-    cluster_gate = _load_optional_json(root / "pavo-cluster-review-gate.json")
+    cluster_gate_path = root / "pavo-cluster-review-gate.json"
+    cluster_gate_markdown_path = root / "pavo-cluster-review-gate.md"
+    cluster_gate_refresh_error = None
+    if refresh_cluster_gate and root.exists():
+        try:
+            cluster_gate_result = gate_cluster_review(root)
+            cluster_gate = cluster_gate_result.as_report()
+            cluster_gate_path.write_text(json.dumps(cluster_gate, indent=2, sort_keys=True) + "\n")
+            cluster_gate_markdown_path.write_text(cluster_gate_result.as_markdown())
+        except (OSError, ValueError) as exc:
+            cluster_gate = _load_optional_json(cluster_gate_path)
+            cluster_gate_refresh_error = str(exc)
+    else:
+        cluster_gate = _load_optional_json(cluster_gate_path)
     run_report = _load_optional_json(root / "pavo-run-report.json")
     meeting_brief = _load_optional_json(root / "pavo-meeting-brief.json")
 
@@ -133,6 +148,11 @@ def doctor_batch(batch_root: Path | str) -> BatchDoctorResult:
         _check("speaker_attribution", (work_dir / "speaker-attribution.json").exists(), str(work_dir / "speaker-attribution.json")),
         _check("named_speaker_evidence", (work_dir / "named-speaker-evidence.json").exists(), str(work_dir / "named-speaker-evidence.json")),
         _check("cluster_gate_report", bool(cluster_gate), str(root / "pavo-cluster-review-gate.json")),
+        _check(
+            "cluster_gate_refresh",
+            not cluster_gate_refresh_error,
+            "refreshed" if refresh_cluster_gate and not cluster_gate_refresh_error else (cluster_gate_refresh_error or "not requested"),
+        ),
         _check(
             "cluster_gate_machine_plumbing",
             bool(cluster_gate and (cluster_gate.get("doctor") or {}).get("passed")),

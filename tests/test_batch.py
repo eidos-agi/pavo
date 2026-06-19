@@ -2,6 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from pavo.batch import doctor_batch
 from pavo.cli import main
@@ -13,7 +14,7 @@ class BatchDoctorTests(unittest.TestCase):
             root = Path(tmp)
             _write_processed_batch(root, recording_ids=["rec-a", "rec-b"])
 
-            result = doctor_batch(root)
+            result = doctor_batch(root, refresh_cluster_gate=False)
             report = result.as_report()
             markdown = result.as_markdown()
 
@@ -34,7 +35,7 @@ class BatchDoctorTests(unittest.TestCase):
             _write_processed_batch(root, recording_ids=["rec-a"])
             (root / "rec-a" / "transcript-diarized.md").unlink()
 
-            result = doctor_batch(root)
+            result = doctor_batch(root, refresh_cluster_gate=False)
             failed = {check["name"] for check in result.checks if not check["passed"]}
 
         self.assertFalse(result.passed)
@@ -59,6 +60,7 @@ class BatchDoctorTests(unittest.TestCase):
                     str(report_path),
                     "--markdown-report",
                     str(markdown_path),
+                    "--no-refresh-cluster-gate",
                 ]
             )
             report = json.loads(report_path.read_text())
@@ -68,6 +70,24 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertTrue(report["passed"])
         self.assertTrue(markdown_exists)
         self.assertEqual(report["state"], "machine_ready_human_review_pending")
+
+    def test_batch_doctor_refreshes_cluster_gate_by_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            stale_path = root / "pavo-cluster-review-gate.json"
+            stale_path.write_text(json.dumps({"doctor": {"passed": False}, "blockers": ["stale"]}))
+
+            with patch("pavo.batch.gate_cluster_review", return_value=_FakeClusterGate()):
+                result = doctor_batch(root)
+            refreshed = json.loads(stale_path.read_text())
+            markdown = (root / "pavo-cluster-review-gate.md").read_text()
+
+        self.assertTrue(result.passed)
+        self.assertEqual(result.cluster_gate["next_command"], "open refreshed review")
+        self.assertEqual(refreshed["next_command"], "open refreshed review")
+        self.assertIn("Refreshed Gate", markdown)
+        self.assertIn("cluster_gate_refresh", {check["name"] for check in result.checks})
 
 
 def _write_processed_batch(root: Path, *, recording_ids: list[str]) -> None:
@@ -103,6 +123,19 @@ def _write_processed_batch(root: Path, *, recording_ids: list[str]) -> None:
             }
         )
     )
+
+
+class _FakeClusterGate:
+    def as_report(self) -> dict[str, object]:
+        return {
+            "complete": False,
+            "next_command": "open refreshed review",
+            "blockers": ["1 cluster question still needs review before terminal consensus"],
+            "doctor": {"passed": True},
+        }
+
+    def as_markdown(self) -> str:
+        return "# Refreshed Gate\n"
 
 
 if __name__ == "__main__":

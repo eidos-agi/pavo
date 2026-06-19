@@ -92,6 +92,7 @@ def build_parser() -> argparse.ArgumentParser:
     batch_doctor.add_argument("--json", action="store_true", help="Print full machine-readable batch doctor JSON")
     batch_doctor.add_argument("--report", type=Path, help="Write machine-readable batch doctor JSON")
     batch_doctor.add_argument("--markdown-report", type=Path, help="Write human-readable batch doctor Markdown")
+    batch_doctor.add_argument("--no-refresh-cluster-gate", action="store_true", help="Read the existing cluster gate report instead of refreshing it")
 
     brief = subparsers.add_parser("brief", help="Create a composed readiness and action brief for a meeting batch")
     brief.add_argument("root", type=Path)
@@ -487,7 +488,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "batch":
         if args.batch_command == "doctor":
-            result = doctor_batch(args.batch_root)
+            result = doctor_batch(args.batch_root, refresh_cluster_gate=not args.no_refresh_cluster_gate)
             if args.report:
                 args.report.parent.mkdir(parents=True, exist_ok=True)
                 args.report.write_text(json.dumps(result.as_report(), indent=2, sort_keys=True) + "\n")
