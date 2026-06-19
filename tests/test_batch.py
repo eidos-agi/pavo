@@ -1,0 +1,109 @@
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+from pavo.batch import doctor_batch
+from pavo.cli import main
+
+
+class BatchDoctorTests(unittest.TestCase):
+    def test_batch_doctor_reports_machine_ready_with_human_gate_pending(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a", "rec-b"])
+
+            result = doctor_batch(root)
+            report = result.as_report()
+            markdown = result.as_markdown()
+
+        self.assertTrue(result.passed)
+        self.assertFalse(result.complete)
+        self.assertEqual(result.state, "machine_ready_human_review_pending")
+        self.assertEqual(result.source_recording_count, 2)
+        self.assertIn("human review", result.next_command)
+        self.assertIn("Pavo Batch Doctor", markdown)
+        self.assertIn("Source Recordings", markdown)
+        self.assertEqual(report["source_recording_count"], 2)
+        self.assertFalse(report["complete"])
+        self.assertIn("required human listening", report["safety_boundary"])
+
+    def test_batch_doctor_fails_when_source_recording_artifact_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            (root / "rec-a" / "transcript-diarized.md").unlink()
+
+            result = doctor_batch(root)
+            failed = {check["name"] for check in result.checks if not check["passed"]}
+
+        self.assertFalse(result.passed)
+        self.assertEqual(result.state, "needs_machine_repair")
+        self.assertIn("source_diarized_markdown", failed)
+        self.assertIn("rec-a missing: diarized_markdown", result.blockers)
+
+    def test_batch_doctor_cli_writes_reports(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            report_path = root / "batch-doctor.json"
+            markdown_path = root / "batch-doctor.md"
+
+            exit_code = main(
+                [
+                    "batch",
+                    "doctor",
+                    str(root),
+                    "--json",
+                    "--report",
+                    str(report_path),
+                    "--markdown-report",
+                    str(markdown_path),
+                ]
+            )
+            report = json.loads(report_path.read_text())
+            markdown_exists = markdown_path.exists()
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(report["passed"])
+        self.assertTrue(markdown_exists)
+        self.assertEqual(report["state"], "machine_ready_human_review_pending")
+
+
+def _write_processed_batch(root: Path, *, recording_ids: list[str]) -> None:
+    root.mkdir(parents=True, exist_ok=True)
+    for recording_id in recording_ids:
+        directory = root / recording_id
+        directory.mkdir()
+        (directory / f"{recording_id}.mp3").write_bytes(b"fake audio")
+        (directory / f"{recording_id}.transcript.json").write_text(json.dumps({"segments": []}))
+        (directory / "transcript.md").write_text("# Transcript\n")
+        (directory / "transcript-diarized.md").write_text("# Diarized\n")
+        (directory / "transcript-speaker-attributed.md").write_text("# Attributed\n")
+        (directory / "README.md").write_text("# Recording\n")
+        (directory / "fetch.json").write_text(json.dumps({"recording_id": recording_id}))
+
+    work = root / "_work"
+    work.mkdir()
+    (work / "diarization-segments.json").write_text(json.dumps([]))
+    (work / "speaker-attribution.json").write_text(json.dumps({"segments": []}))
+    (work / "named-speaker-evidence.json").write_text(json.dumps({"segments": []}))
+
+    (root / "pavo-run-report.json").write_text(
+        json.dumps({"counts": {"recordings_observed": len(recording_ids)}})
+    )
+    (root / "pavo-meeting-brief.json").write_text(json.dumps({"state": "needs_review"}))
+    (root / "pavo-cluster-review-gate.json").write_text(
+        json.dumps(
+            {
+                "complete": False,
+                "next_command": "open human review",
+                "blockers": ["1 cluster question still needs review before terminal consensus"],
+                "doctor": {"passed": True},
+            }
+        )
+    )
+
+
+if __name__ == "__main__":
+    unittest.main()

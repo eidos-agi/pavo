@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from .audio import run_audio_doctor
+from .batch import doctor_batch
 from .brief import (
     build_brief_improvement_report,
     build_meeting_brief,
@@ -84,6 +85,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("init", help="Create local Pavo config and state")
     subparsers.add_parser("doctor", help="Check local Pavo and Plaud readiness")
+    batch = subparsers.add_parser("batch", help="Batch-level source and artifact QA")
+    batch_sub = batch.add_subparsers(dest="batch_command", required=True)
+    batch_doctor = batch_sub.add_parser("doctor", help="Check one processed meeting batch for source and artifact coverage")
+    batch_doctor.add_argument("batch_root", type=Path)
+    batch_doctor.add_argument("--json", action="store_true", help="Print full machine-readable batch doctor JSON")
+    batch_doctor.add_argument("--report", type=Path, help="Write machine-readable batch doctor JSON")
+    batch_doctor.add_argument("--markdown-report", type=Path, help="Write human-readable batch doctor Markdown")
 
     brief = subparsers.add_parser("brief", help="Create a composed readiness and action brief for a meeting batch")
     brief.add_argument("root", type=Path)
@@ -476,6 +484,29 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "doctor":
         return run_doctor(home)
+
+    if args.command == "batch":
+        if args.batch_command == "doctor":
+            result = doctor_batch(args.batch_root)
+            if args.report:
+                args.report.parent.mkdir(parents=True, exist_ok=True)
+                args.report.write_text(json.dumps(result.as_report(), indent=2, sort_keys=True) + "\n")
+            if args.markdown_report:
+                args.markdown_report.parent.mkdir(parents=True, exist_ok=True)
+                args.markdown_report.write_text(result.as_markdown())
+            if args.json:
+                print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+                return 0 if result.passed else 2
+            print(f"passed: {str(result.passed).lower()}")
+            print(f"complete: {str(result.complete).lower()}")
+            print(f"state: {result.state}")
+            print(f"source_recording_count: {result.source_recording_count}")
+            print(f"next_command: {result.next_command}")
+            for check in result.checks:
+                print(f"check_{check['name']}: {'pass' if check['passed'] else 'fail'} - {check['detail']}")
+            if result.blockers:
+                print("blockers: " + "; ".join(result.blockers))
+            return 0 if result.passed else 2
 
     if args.command == "brief":
         if not args.root.exists():

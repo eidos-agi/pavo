@@ -84,6 +84,9 @@ pavo brief /path/to/meeting-batch --review-plan
 pavo brief /path/to/meeting-batch --review-plan-clips
 pavo brief-apply-hints /path/to/meeting-batch /path/to/pavo-reviewed-speaker-hints.json
 pavo brief-improvement baseline/pavo-meeting-brief.json current/pavo-meeting-brief.json
+pavo batch doctor /path/to/meeting-batch --json \
+  --report /path/to/meeting-batch/pavo-batch-doctor.json \
+  --markdown-report /path/to/meeting-batch/pavo-batch-doctor.md
 ```
 
 The brief writes `pavo-meeting-brief.json` and `pavo-meeting-brief.md` with
@@ -91,6 +94,14 @@ source counts, verification gates, a readiness score, review pressure,
 speaker-confidence counts, deduped candidate work packets, next actions, resume
 commands, and the privacy boundary. It is the simple front door before routing
 anything into tasks or other systems.
+
+`pavo batch doctor` is the hard coverage check for a processed meeting batch. It
+proves every source recording directory has audio, transcript JSON, transcript
+Markdown, diarized Markdown, speaker-attributed Markdown, README, and fetch
+manifest coverage; then it checks batch-level work artifacts, run report, brief,
+and the cluster gate report. Its `passed` field means machine plumbing is
+healthy. Its `complete` field remains false until downstream human speaker
+review gates are actually cleared.
 
 When `--review-plan` is passed, Pavo also writes
 `pavo-review-cluster-plan.json` and `pavo-review-cluster-plan.md`. The plan
