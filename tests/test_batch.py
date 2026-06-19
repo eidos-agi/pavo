@@ -172,6 +172,9 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("## Speaker Review Queue", proof_markdown)
         self.assertIn("Cluster `S1` row `1`", proof_markdown)
         self.assertIn("Unlock: 10 segments / 42.5 seconds", proof_markdown)
+        self.assertIn("Why: acoustic drift; high impact", proof_markdown)
+        self.assertIn("Transcript: hello from the sample", proof_markdown)
+        self.assertIn("Finish from slate:", proof_markdown)
         self.assertTrue(proof_markdown_exists)
 
     def test_batch_proof_cli_strict_complete_fails_when_human_gate_pending(self):
@@ -264,10 +267,15 @@ def _write_processed_batch(root: Path, *, recording_ids: list[str]) -> None:
                             "target_speaker": "Daniel",
                             "priority_tier": "urgent_listen",
                             "priority_score": 99.0,
+                            "priority_reason": "acoustic drift; high impact",
                             "unlockable_segments": 10,
                             "unlockable_seconds": 42.5,
                             "acoustic_verdict": "listen_carefully_acoustic_drift",
                             "clip_path": str(root / "clip.mp3"),
+                            "transcript_excerpt": "hello from the sample",
+                            "approve_effect": "approving unlocks the cluster",
+                            "reject_effect": "rejecting prevents unsafe propagation",
+                            "terminal_decision_rule": "one contradiction is enough",
                         }
                     ],
                     "validate_command": "pavo review clusters validate-slate ...",
