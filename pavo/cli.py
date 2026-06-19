@@ -36,6 +36,7 @@ from .batch import (
     verify_batch_speaker_answer_sheet,
     verify_batch_speaker_suggestions,
     write_batch_decision_board,
+    write_batch_active_correction_status,
     write_batch_review_bundle,
     write_batch_review_completion,
     write_batch_review_pack,
@@ -285,6 +286,14 @@ def build_parser() -> argparse.ArgumentParser:
     batch_verify_speaker_suggestions.add_argument("--markdown", type=Path, help="Override pavo-batch-speaker-suggestions.md path")
     batch_verify_speaker_suggestions.add_argument("--tsv", type=Path, help="Override pavo-batch-speaker-suggestions.tsv path")
     batch_verify_speaker_suggestions.add_argument("--json", action="store_true", help="Print machine-readable verification report")
+    batch_active_correction_status = batch_sub.add_parser(
+        "active-correction-status",
+        help="Evaluate active-correction stop-rule progress from a decision slate",
+    )
+    batch_active_correction_status.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_active_correction_status.add_argument("--decision-slate", type=Path, help="Reviewed decision slate; defaults to reviewed slate if present, otherwise proof slate")
+    batch_active_correction_status.add_argument("--out-dir", type=Path, help="Output directory; defaults beside the proof report")
+    batch_active_correction_status.add_argument("--json", action="store_true", help="Print machine-readable active-correction status")
     batch_review_rehearsal = batch_sub.add_parser(
         "review-rehearsal",
         help="Regenerate and verify all human-review surfaces before the listener starts",
@@ -1122,6 +1131,27 @@ def main(argv: list[str] | None = None) -> int:
                 if result.blockers:
                     print("blockers: " + "; ".join(result.blockers))
             return 0 if result.passed else 3
+        if args.batch_command == "active-correction-status":
+            try:
+                result = write_batch_active_correction_status(
+                    args.proof_report,
+                    decision_slate_path=args.decision_slate,
+                    out_dir=args.out_dir,
+                )
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+            else:
+                print(f"stop_rule_satisfied: {str(result.stop_rule_satisfied).lower()}")
+                print(f"reviewed_stop_rule_count: {result.reviewed_stop_rule_count}")
+                print(f"required_stop_rule_count: {result.required_stop_rule_count}")
+                print(f"remaining_after_stop_rule_count: {result.remaining_after_stop_rule_count}")
+                print(f"json_path: {result.json_path}")
+                print(f"markdown_path: {result.markdown_path}")
+                print(f"next_action: {result.payload.get('next_action')}")
+            return 0 if result.stop_rule_satisfied else 3
         if args.batch_command == "review-rehearsal":
             try:
                 result = write_batch_review_rehearsal(

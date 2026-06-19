@@ -746,6 +746,33 @@ class BatchSpeakerSuggestionVerifyResult:
 
 
 @dataclass(frozen=True)
+class BatchActiveCorrectionStatusResult:
+    proof_report_path: Path
+    decision_slate_path: Path
+    json_path: Path
+    markdown_path: Path
+    stop_rule_satisfied: bool
+    reviewed_stop_rule_count: int
+    required_stop_rule_count: int
+    remaining_after_stop_rule_count: int
+    payload: dict[str, Any]
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "proof_report_path": str(self.proof_report_path),
+            "decision_slate_path": str(self.decision_slate_path),
+            "json_path": str(self.json_path),
+            "markdown_path": str(self.markdown_path),
+            "stop_rule_satisfied": self.stop_rule_satisfied,
+            "reviewed_stop_rule_count": self.reviewed_stop_rule_count,
+            "required_stop_rule_count": self.required_stop_rule_count,
+            "remaining_after_stop_rule_count": self.remaining_after_stop_rule_count,
+            "payload": self.payload,
+            "safety_boundary": "Active-correction status measures human review progress against the stop rule. It does not approve speaker identity.",
+        }
+
+
+@dataclass(frozen=True)
 class BatchReviewCompletionResult:
     proof_report_path: Path
     out_dir: Path
@@ -4050,6 +4077,136 @@ def _batch_speaker_triage_reason(item: dict[str, Any]) -> str:
     if clips:
         parts.append(f"{clips} clip(s)")
     return "; ".join(parts) + "."
+
+
+def write_batch_active_correction_status(
+    proof_report_path: Path | str,
+    *,
+    decision_slate_path: Path | str | None = None,
+    out_dir: Path | str | None = None,
+) -> BatchActiveCorrectionStatusResult:
+    proof_path = Path(proof_report_path)
+    target_dir = Path(out_dir) if out_dir else proof_path.parent
+    target_dir.mkdir(parents=True, exist_ok=True)
+    suggestions = write_batch_speaker_suggestions(proof_path, out_dir=proof_path.parent)
+    triage = suggestions.payload.get("review_triage") if isinstance(suggestions.payload.get("review_triage"), dict) else {}
+    stop_rule = triage.get("stop_rule") if isinstance(triage.get("stop_rule"), dict) else {}
+    slate_path = Path(decision_slate_path) if decision_slate_path else _default_batch_decision_slate_path(proof_path)
+    decision_rows, _fieldnames = _read_tsv(slate_path)
+    decisions_by_group = {str(row.get("decision_group") or "").strip(): row for row in decision_rows}
+    required_groups = [str(value) for value in stop_rule.get("decision_groups") or [] if str(value).strip()]
+    reviewed_groups: list[str] = []
+    pending_groups: list[str] = []
+    missing_reason_groups: list[str] = []
+    missing_groups: list[str] = []
+    for group in required_groups:
+        row = decisions_by_group.get(group)
+        if row is None:
+            missing_groups.append(group)
+            continue
+        decision = str(row.get("decision") or "").strip().lower() or "pending"
+        reason = str(row.get("review_reason") or "").strip()
+        if decision in {"approved", "rejected"}:
+            reviewed_groups.append(group)
+            if reason not in BATCH_SPEAKER_REVIEW_REASONS:
+                missing_reason_groups.append(group)
+        else:
+            pending_groups.append(group)
+    reviewed_non_stop_groups = [
+        group
+        for group, row in decisions_by_group.items()
+        if group not in required_groups and str(row.get("decision") or "").strip().lower() in {"approved", "rejected"}
+    ]
+    stop_rule_satisfied = bool(required_groups) and not pending_groups and not missing_groups and not missing_reason_groups
+    next_required_group = (pending_groups + missing_reason_groups + missing_groups + required_groups[:1])[0] if required_groups else None
+    payload = {
+        "generated_at": datetime.now(UTC).isoformat(),
+        "proof_report_path": str(proof_path),
+        "decision_slate_path": str(slate_path),
+        "speaker_suggestions_path": str(suggestions.json_path),
+        "triage_strategy": triage.get("strategy"),
+        "stop_rule": stop_rule,
+        "stop_rule_satisfied": stop_rule_satisfied,
+        "required_stop_rule_count": len(required_groups),
+        "reviewed_stop_rule_count": len(reviewed_groups),
+        "pending_stop_rule_count": len(pending_groups),
+        "missing_stop_rule_count": len(missing_groups),
+        "missing_reason_stop_rule_count": len(missing_reason_groups),
+        "reviewed_stop_rule_groups": reviewed_groups,
+        "pending_stop_rule_groups": pending_groups,
+        "missing_stop_rule_groups": missing_groups,
+        "missing_reason_stop_rule_groups": missing_reason_groups,
+        "reviewed_non_stop_rule_groups": reviewed_non_stop_groups,
+        "remaining_after_stop_rule_count": int(triage.get("remaining_after_stop_rule_count") or 0),
+        "next_required_group": next_required_group,
+        "next_action": (
+            "stop rule satisfied; reassess remaining lower-risk decisions with sampling or second-listener calibration"
+            if stop_rule_satisfied
+            else f"review stop-rule decision group {next_required_group}"
+        ),
+        "safety_boundary": "This status evaluates progress against the active-correction stop rule. It does not approve speaker identity or infer reviewed decisions.",
+    }
+    json_path = target_dir / "pavo-batch-active-correction-status.json"
+    markdown_path = target_dir / "pavo-batch-active-correction-status.md"
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    markdown_path.write_text(_render_batch_active_correction_status_markdown(payload), encoding="utf-8")
+    return BatchActiveCorrectionStatusResult(
+        proof_report_path=proof_path,
+        decision_slate_path=slate_path,
+        json_path=json_path,
+        markdown_path=markdown_path,
+        stop_rule_satisfied=stop_rule_satisfied,
+        reviewed_stop_rule_count=len(reviewed_groups),
+        required_stop_rule_count=len(required_groups),
+        remaining_after_stop_rule_count=int(triage.get("remaining_after_stop_rule_count") or 0),
+        payload=payload,
+    )
+
+
+def _default_batch_decision_slate_path(proof_path: Path) -> Path:
+    reviewed = proof_path.with_name("pavo-batch-proof.decision-slate.reviewed.tsv")
+    if reviewed.exists():
+        return reviewed
+    proof_report = json.loads(proof_path.read_text())
+    decision_slate_value = (
+        proof_report.get("proof_decision_slate_path")
+        or (proof_report.get("review_packet") or {}).get("proof_decision_slate_tsv")
+        or (proof_report.get("operator_handoff") or {}).get("proof_decision_slate_tsv")
+    )
+    if not decision_slate_value:
+        raise ValueError(f"proof report does not name a decision slate: {proof_path}")
+    return Path(str(decision_slate_value))
+
+
+def _render_batch_active_correction_status_markdown(payload: dict[str, Any]) -> str:
+    stop_rule = payload.get("stop_rule") if isinstance(payload.get("stop_rule"), dict) else {}
+    lines = [
+        "# Pavo Active Correction Status",
+        "",
+        f"- Stop rule: `{stop_rule.get('name')}`",
+        f"- Stop rule satisfied: `{str(bool(payload.get('stop_rule_satisfied'))).lower()}`",
+        f"- Required stop-rule decisions: `{payload.get('required_stop_rule_count')}`",
+        f"- Reviewed stop-rule decisions: `{payload.get('reviewed_stop_rule_count')}`",
+        f"- Remaining after stop rule: `{payload.get('remaining_after_stop_rule_count')}`",
+        f"- Decision slate: `{payload.get('decision_slate_path')}`",
+        f"- Next action: {payload.get('next_action')}",
+        "",
+        "## Stop-Rule Groups",
+        "",
+        f"- Reviewed: `{', '.join(payload.get('reviewed_stop_rule_groups') or []) or 'none'}`",
+        f"- Pending: `{', '.join(payload.get('pending_stop_rule_groups') or []) or 'none'}`",
+        f"- Missing reasons: `{', '.join(payload.get('missing_reason_stop_rule_groups') or []) or 'none'}`",
+        f"- Missing groups: `{', '.join(payload.get('missing_stop_rule_groups') or []) or 'none'}`",
+        "",
+        "## Lower-Risk Progress",
+        "",
+        f"- Reviewed non-stop-rule groups: `{', '.join(payload.get('reviewed_non_stop_rule_groups') or []) or 'none'}`",
+        "",
+        "## Safety Boundary",
+        "",
+        str(payload.get("safety_boundary") or ""),
+    ]
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def _render_batch_speaker_suggestions_markdown(payload: dict[str, Any]) -> str:

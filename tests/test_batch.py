@@ -848,6 +848,67 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("do not approve identity", markdown.lower())
         self.assertIn("machine_suggested_decision", tsv)
 
+    def test_batch_active_correction_status_reports_pending_stop_rule(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            main(["batch", "finalize-reviewed-proof", str(result.proof_report_path), "--json"])
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(["batch", "active-correction-status", str(result.proof_report_path), "--json"])
+
+            report = json.loads(stdout.getvalue())
+            payload = report["payload"]
+            markdown = Path(report["markdown_path"]).read_text()
+
+        self.assertEqual(exit_code, 3)
+        self.assertFalse(report["stop_rule_satisfied"])
+        self.assertEqual(report["required_stop_rule_count"], 1)
+        self.assertEqual(report["reviewed_stop_rule_count"], 0)
+        self.assertEqual(payload["pending_stop_rule_groups"], ["D01"])
+        self.assertIn("Pavo Active Correction Status", markdown)
+        self.assertIn("Stop rule satisfied: `false`", markdown)
+
+    def test_batch_active_correction_status_passes_after_stop_rule_decision(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            main(["batch", "finalize-reviewed-proof", str(result.proof_report_path), "--json"])
+            decision_lines = result.proof_decision_slate_path.read_text().splitlines()
+            headers = decision_lines[0].split("\t")
+            values = decision_lines[1].split("\t")
+            row = dict(zip(headers, values, strict=True))
+            row["decision"] = "approved"
+            row["review_reason"] = "approved_clean_match"
+            reviewed_slate = root / "reviewed-decision-slate.tsv"
+            reviewed_slate.write_text("\t".join(headers) + "\n" + "\t".join(row.get(header, "") for header in headers) + "\n")
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "batch",
+                        "active-correction-status",
+                        str(result.proof_report_path),
+                        "--decision-slate",
+                        str(reviewed_slate),
+                        "--json",
+                    ]
+                )
+
+            report = json.loads(stdout.getvalue())
+            payload = report["payload"]
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(report["stop_rule_satisfied"])
+        self.assertEqual(report["reviewed_stop_rule_count"], 1)
+        self.assertEqual(payload["reviewed_stop_rule_groups"], ["D01"])
+        self.assertEqual(payload["pending_stop_rule_groups"], [])
+        self.assertIn("reassess remaining lower-risk decisions", payload["next_action"])
+
     def test_batch_review_completion_cli_writes_and_verifies_gate_report(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
