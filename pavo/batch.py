@@ -653,6 +653,7 @@ class BatchReadinessResult:
     pending_decision_count: int | None
     pending_row_count: int | None
     review_sprint: dict[str, Any]
+    review_completion: dict[str, Any]
     next_action: str
     blockers: list[str]
     proof: dict[str, Any]
@@ -674,6 +675,7 @@ class BatchReadinessResult:
             "pending_decision_count": self.pending_decision_count,
             "pending_row_count": self.pending_row_count,
             "review_sprint": self.review_sprint,
+            "review_completion": self.review_completion,
             "next_action": self.next_action,
             "blockers": self.blockers,
             "proof": self.proof,
@@ -1216,6 +1218,55 @@ def _handoff_decision_progress(slate: str) -> dict[str, Any]:
         "inconsistent_decision_count": len(inconsistent_groups),
         "inconsistent_decisions": inconsistent_groups,
         "progress_percent": progress,
+    }
+
+
+def _decision_slate_review_completion(path_value: str | None) -> dict[str, Any]:
+    path = Path(path_value) if path_value else None
+    if not path or not path.exists():
+        return {
+            "path": str(path) if path else None,
+            "total_decision_count": 0,
+            "approved_decision_count": 0,
+            "rejected_decision_count": 0,
+            "pending_decision_count": 0,
+            "reviewed_decision_count": 0,
+            "missing_reason_decision_count": 0,
+            "missing_reason_decision_groups": [],
+            "progress_percent": 100.0,
+            "export_ready": True,
+        }
+    rows, _fieldnames = _read_tsv(path)
+    approved = 0
+    rejected = 0
+    pending = 0
+    missing_reason_groups: list[str] = []
+    for row in rows:
+        decision = str(row.get("decision") or "").strip().lower() or "pending"
+        group = str(row.get("decision_group") or "").strip()
+        reason = str(row.get("review_reason") or "").strip()
+        if decision == "approved":
+            approved += 1
+        elif decision == "rejected":
+            rejected += 1
+        else:
+            pending += 1
+        if decision in {"approved", "rejected"} and reason not in BATCH_SPEAKER_REVIEW_REASONS:
+            missing_reason_groups.append(group or f"row-{len(missing_reason_groups) + 1}")
+    total = len(rows)
+    reviewed = approved + rejected
+    progress = round((reviewed / total) * 100, 1) if total else 100.0
+    return {
+        "path": str(path),
+        "total_decision_count": total,
+        "approved_decision_count": approved,
+        "rejected_decision_count": rejected,
+        "pending_decision_count": pending,
+        "reviewed_decision_count": reviewed,
+        "missing_reason_decision_count": len(missing_reason_groups),
+        "missing_reason_decision_groups": missing_reason_groups,
+        "progress_percent": progress,
+        "export_ready": pending == 0 and not missing_reason_groups,
     }
 
 
@@ -2576,6 +2627,7 @@ def summarize_batch_readiness(
     pending_decision_count = _optional_int(validation.get("pending_decision_count"))
     pending_row_count = _optional_int(validation.get("pending_count"))
     review_sprint = _batch_review_sprint_from_validation(validation)
+    review_completion = _decision_slate_review_completion(str(handoff.get("proof_decision_slate_tsv") or ""))
     board_ready = bool(board_report and board_report.get("passed"))
     review_pack_ready = bool(pack_report and pack_report.get("passed"))
     if complete:
@@ -2606,6 +2658,7 @@ def summarize_batch_readiness(
         pending_decision_count=pending_decision_count,
         pending_row_count=pending_row_count,
         review_sprint=review_sprint,
+        review_completion=review_completion,
         next_action=next_action,
         blockers=list(dict.fromkeys(blockers)),
         proof=proof_report,

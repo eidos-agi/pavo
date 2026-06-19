@@ -239,7 +239,8 @@ identity safety boundary is present. Review-pack verification runs this gate too
 Use `pavo batch review-now` as the fastest safe human-review launch path. It
 regenerates the sprint, verifies the sprint, checks readiness, prints the review
 sprint, decision board, expected audit JSON path, exact `finalize-board-audit`
-command, and next action. Add `--open-board` or `--open-sprint` when the
+command, review progress percent, export readiness, missing reason count, and
+next action. Add `--open-board` or `--open-sprint` when the
 operator wants Pavo to open the local review surfaces directly. The sprint and
 board both carry the same decision rubric: approve only when every supporting
 clip matches the named speaker, reject wrong-speaker/overlap/noisy conflicts,

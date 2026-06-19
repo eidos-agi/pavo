@@ -777,6 +777,9 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"pending_row_count: {result.pending_row_count}")
                 print(f"review_sprint_estimated_minutes: {result.review_sprint.get('estimated_minutes')}")
                 print(f"review_sprint_pending_clip_count: {result.review_sprint.get('pending_clip_count')}")
+                print(f"review_progress_percent: {result.review_completion.get('progress_percent')}")
+                print(f"review_export_ready: {str(bool(result.review_completion.get('export_ready'))).lower()}")
+                print(f"missing_reason_decision_count: {result.review_completion.get('missing_reason_decision_count')}")
                 print(f"next_action: {result.next_action}")
                 if result.blockers:
                     print("blockers: " + "; ".join(result.blockers))
@@ -851,6 +854,7 @@ def main(argv: list[str] | None = None) -> int:
                 "pending_decisions": readiness.pending_decision_count,
                 "pending_clips": readiness.review_sprint.get("pending_clip_count"),
                 "estimated_review_minutes": readiness.review_sprint.get("estimated_minutes"),
+                "review_completion": readiness.review_completion,
                 "decision_board_written": board_result.as_report(),
                 "review_sprint_written": sprint_result.as_report(),
                 "review_pack_written": pack_result.as_report(),
@@ -869,6 +873,9 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"pending_decisions: {readiness.pending_decision_count}")
                 print(f"pending_clips: {readiness.review_sprint.get('pending_clip_count')}")
                 print(f"estimated_review_minutes: {readiness.review_sprint.get('estimated_minutes')}")
+                print(f"review_progress_percent: {readiness.review_completion.get('progress_percent')}")
+                print(f"review_export_ready: {str(bool(readiness.review_completion.get('export_ready'))).lower()}")
+                print(f"missing_reason_decision_count: {readiness.review_completion.get('missing_reason_decision_count')}")
                 print(f"open_review_sprint: {review_paths['open_review_sprint']}")
                 print(f"open_decision_board: {review_paths['open_decision_board']}")
                 print(f"audit_json_expected_path: {review_paths['audit_json_expected_path']}")

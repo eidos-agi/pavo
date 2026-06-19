@@ -806,6 +806,9 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("review_sprint_ready: true", text)
         self.assertIn("pending_decisions: 1", text)
         self.assertIn("pending_clips: 2", text)
+        self.assertIn("review_progress_percent: 0.0", text)
+        self.assertIn("review_export_ready: false", text)
+        self.assertIn("missing_reason_decision_count: 0", text)
         self.assertIn("open_review_sprint:", text)
         self.assertIn("pavo-batch-review-sprint.md", text)
         self.assertIn("open_decision_board:", text)
@@ -844,6 +847,10 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(report["human_gate"], "pending")
         self.assertEqual(report["pending_decisions"], 1)
         self.assertEqual(report["pending_clips"], 2)
+        self.assertEqual(report["review_completion"]["total_decision_count"], 1)
+        self.assertEqual(report["review_completion"]["pending_decision_count"], 1)
+        self.assertEqual(report["review_completion"]["missing_reason_decision_count"], 0)
+        self.assertFalse(report["review_completion"]["export_ready"])
         self.assertTrue(report["decision_board_written"]["out_path"].endswith("pavo-batch-proof.decision-board.html"))
         self.assertTrue(report["review_pack_written"]["out_dir"].endswith("handoff-pack"))
         self.assertTrue(report["review_sprint_verification"]["passed"])
@@ -921,6 +928,9 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(report["review_sprint"]["pending_decision_count"], 1)
         self.assertEqual(report["review_sprint"]["pending_clip_count"], 2)
         self.assertEqual(report["review_sprint"]["estimated_minutes"], 1.8)
+        self.assertEqual(report["review_completion"]["total_decision_count"], 1)
+        self.assertEqual(report["review_completion"]["pending_decision_count"], 1)
+        self.assertFalse(report["review_completion"]["export_ready"])
         self.assertEqual(report["review_sprint"]["focus_order"][0]["cluster_id"], "S1")
         self.assertIn("Listen to every supporting clip", report["review_sprint"]["review_rule"])
         self.assertIn("review 1 pending speaker decision", report["next_action"])
@@ -985,6 +995,38 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertTrue(report["board_ready"])
         self.assertFalse(report["review_pack_ready"])
         self.assertIn("review pack:", "\n".join(report["blockers"]))
+
+    def test_batch_readiness_reports_missing_reasons_in_completion_summary(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            text = result.proof_decision_slate_path.read_text()
+            result.proof_decision_slate_path.write_text(text.replace("\tpending\tDaniel\t\t", "\tapproved\tDaniel\t\t"))
+            out_dir = root / "handoff-pack"
+            main(["batch", "review-pack", str(result.proof_report_path), "--out-dir", str(out_dir), "--json"])
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "batch",
+                        "readiness",
+                        str(result.proof_report_path),
+                        "--pack-dir",
+                        str(out_dir),
+                        "--json",
+                    ]
+                )
+
+            report = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 3)
+        self.assertEqual(report["review_completion"]["approved_decision_count"], 1)
+        self.assertEqual(report["review_completion"]["pending_decision_count"], 0)
+        self.assertEqual(report["review_completion"]["missing_reason_decision_count"], 1)
+        self.assertEqual(report["review_completion"]["missing_reason_decision_groups"], ["D01"])
+        self.assertFalse(report["review_completion"]["export_ready"])
 
     def test_batch_verify_review_pack_cli_fails_when_artifact_tampered(self):
         with tempfile.TemporaryDirectory() as tmp:
