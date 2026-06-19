@@ -302,6 +302,8 @@ class BatchDoctorTests(unittest.TestCase):
             "- cluster S1 speaker Daniel: Can cluster S1 be confirmed as Daniel? (2 clips; rows 1, 2;",
             checked_stdout.getvalue(),
         )
+        self.assertIn("sample row 1: hello from the sample", checked_stdout.getvalue())
+        self.assertIn("sample row 2: second supporting sample", checked_stdout.getvalue())
         self.assertIn("pending_rows:", checked_stdout.getvalue())
         self.assertIn("- row 1 cluster S1 speaker Daniel: Can cluster S1 be confirmed as Daniel?", checked_stdout.getvalue())
         self.assertIn("- row 2 cluster S1 speaker Daniel: Can cluster S1 be confirmed as Daniel?", checked_stdout.getvalue())
@@ -330,9 +332,17 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(json_report["validation"]["pending_review_questions"][0]["cluster_id"], "S1")
         self.assertEqual(json_report["validation"]["pending_review_questions"][0]["clip_count"], 2)
         self.assertEqual(json_report["validation"]["pending_review_questions"][0]["row_indices"], ["1", "2"])
+        self.assertEqual(
+            json_report["validation"]["pending_review_questions"][0]["transcript_samples"],
+            [
+                {"row_index": "1", "excerpt": "hello from the sample"},
+                {"row_index": "2", "excerpt": "second supporting sample"},
+            ],
+        )
         self.assertEqual(len(json_report["validation"]["pending_rows"]), 2)
         self.assertEqual(json_report["validation"]["pending_rows"][0]["row_index"], "1")
         self.assertEqual(json_report["validation"]["pending_rows"][0]["cluster_id"], "S1")
+        self.assertEqual(json_report["validation"]["pending_rows"][0]["transcript"], "hello from the sample")
         self.assertEqual(json_report["validation"]["pending_rows"][0]["speaker"], "Daniel")
         self.assertFalse(operator_handoff_ready_to_finish(json_report))
         self.assertIn("finish-from-slate", json_report["finish_command"])

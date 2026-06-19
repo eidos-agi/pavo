@@ -668,6 +668,7 @@ def _handoff_pending_rows(slate: str, *, limit: int = 20) -> list[dict[str, Any]
                         "priority_tier": row.get("priority_tier"),
                         "priority_score": row.get("priority_score"),
                         "acoustic_verdict": row.get("acoustic_verdict"),
+                        "transcript": row.get("transcript"),
                     }
                 )
                 if len(rows) >= limit:
@@ -697,6 +698,7 @@ def _handoff_pending_review_questions(pending_rows: list[dict[str, Any]]) -> lis
                 "priority_tier": row.get("priority_tier"),
                 "priority_score": row.get("priority_score"),
                 "acoustic_verdict": row.get("acoustic_verdict"),
+                "transcript_samples": [],
             }
             order.append(key)
         group = grouped[key]
@@ -705,7 +707,22 @@ def _handoff_pending_review_questions(pending_rows: list[dict[str, Any]]) -> lis
             group["row_indices"].append(row.get("row_index"))
         if row.get("clip_path"):
             group["clip_paths"].append(row.get("clip_path"))
+        transcript = _handoff_transcript_excerpt(row.get("transcript"))
+        if transcript:
+            group["transcript_samples"].append(
+                {
+                    "row_index": row.get("row_index"),
+                    "excerpt": transcript,
+                }
+            )
     return [grouped[key] for key in order]
+
+
+def _handoff_transcript_excerpt(value: Any, *, limit: int = 140) -> str:
+    text = " ".join(str(value or "").split())
+    if len(text) <= limit:
+        return text
+    return text[: max(0, limit - 3)].rstrip() + "..."
 
 
 def operator_handoff_ready_to_finish(handoff: dict[str, Any]) -> bool:
@@ -799,6 +816,13 @@ def format_operator_handoff(handoff: dict[str, Any]) -> str:
                             acoustic_verdict=item.get("acoustic_verdict"),
                         )
                     )
+                    for sample in item.get("transcript_samples") or []:
+                        lines.append(
+                            "  sample row {row_index}: {excerpt}".format(
+                                row_index=sample.get("row_index"),
+                                excerpt=sample.get("excerpt"),
+                            )
+                        )
             if pending_rows:
                 lines.append("pending_rows:")
                 for row in pending_rows:
