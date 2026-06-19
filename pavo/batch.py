@@ -758,10 +758,12 @@ def operator_handoff_ready_to_finish(handoff: dict[str, Any]) -> bool:
 def _handoff_artifact_check(path_value: str) -> dict[str, Any]:
     path = Path(path_value) if path_value else None
     exists = bool(path and path.exists())
+    fingerprint = _file_fingerprint(path) if path and exists and path.is_file() else {}
     return {
         "path": str(path) if path else None,
         "exists": exists,
-        "bytes": path.stat().st_size if path and exists and path.is_file() else None,
+        "bytes": fingerprint.get("bytes"),
+        "sha256": fingerprint.get("sha256"),
     }
 
 
@@ -864,7 +866,7 @@ def format_operator_handoff(handoff: dict[str, Any]) -> str:
         for name in sorted(artifact_checks):
             check = artifact_checks.get(name) or {}
             lines.append(
-                f"{name}: exists={str(bool(check.get('exists'))).lower()} bytes={check.get('bytes')} path={check.get('path')}"
+                f"{name}: exists={str(bool(check.get('exists'))).lower()} bytes={check.get('bytes')} sha256={check.get('sha256')} path={check.get('path')}"
             )
     return "\n".join(lines).rstrip() + "\n"
 

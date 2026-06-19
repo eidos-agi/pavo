@@ -333,7 +333,9 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("pending_count: 2", strict_stdout.getvalue())
         self.assertIn("artifact_checks:", checked_stdout.getvalue())
         self.assertIn("proof_review_checklist_markdown: exists=true", checked_stdout.getvalue())
+        self.assertRegex(checked_stdout.getvalue(), r"proof_review_checklist_markdown: exists=true bytes=\d+ sha256=[0-9a-f]{64}")
         self.assertIn("proof_review_slate_tsv: exists=true", checked_stdout.getvalue())
+        self.assertRegex(checked_stdout.getvalue(), r"proof_review_slate_tsv: exists=true bytes=\d+ sha256=[0-9a-f]{64}")
         self.assertIn("review_page: exists=true", checked_stdout.getvalue())
         self.assertIn("validation_report: exists=true", checked_stdout.getvalue())
         self.assertEqual(json_report["state"], "machine_ready_human_review_pending")
@@ -342,6 +344,13 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertTrue(json_report["artifact_checks"]["proof_review_checklist_markdown"]["exists"])
         self.assertTrue(json_report["artifact_checks"]["review_page"]["exists"])
         self.assertTrue(json_report["artifact_checks"]["validation_report"]["exists"])
+        self.assertRegex(json_report["artifact_checks"]["proof_review_slate_tsv"]["sha256"], r"^[0-9a-f]{64}$")
+        self.assertRegex(
+            json_report["artifact_checks"]["proof_review_checklist_markdown"]["sha256"],
+            r"^[0-9a-f]{64}$",
+        )
+        self.assertRegex(json_report["artifact_checks"]["review_page"]["sha256"], r"^[0-9a-f]{64}$")
+        self.assertRegex(json_report["artifact_checks"]["validation_report"]["sha256"], r"^[0-9a-f]{64}$")
         self.assertEqual(json_report["validation"]["status"], "pending_review")
         self.assertTrue(json_report["validation"]["fresh"])
         self.assertEqual(json_report["validation"]["pending_count"], 2)
