@@ -112,6 +112,7 @@ pavo batch speaker-memory-candidates \
 pavo batch review-pack /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch verify-review-pack /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch readiness /path/to/meeting-batch/pavo-batch-proof.json
+pavo batch review-sprint /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch finalize-reviewed-proof /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --check-validation
 pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --strict-ready
@@ -211,6 +212,11 @@ speaker review is still pending or ready to finalize, and exits `2` when a
 machine artifact needs repair. Its JSON report includes a `review_sprint`
 object with pending decisions, pending clips, estimated minutes, focus order,
 and the rule that every supporting clip must be heard before identity approval.
+
+Use `pavo batch review-sprint` to write `pavo-batch-review-sprint.json` and
+`pavo-batch-review-sprint.md`, a compact reviewer packet with the same sprint
+estimate, focus order, links, finish commands, and safety boundary. Review packs
+generate and include these sprint files automatically.
 
 Use `pavo batch finalize-reviewed-proof` when the proof slate has been reviewed.
 It validates the proof slate, materializes the cluster decisions, writes speaker

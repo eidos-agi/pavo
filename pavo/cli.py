@@ -27,6 +27,7 @@ from .batch import (
     verify_batch_review_pack,
     write_batch_decision_board,
     write_batch_review_pack,
+    write_batch_review_sprint,
 )
 from .brief import (
     build_brief_improvement_report,
@@ -133,6 +134,13 @@ def build_parser() -> argparse.ArgumentParser:
     batch_readiness.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
     batch_readiness.add_argument("--pack-dir", type=Path, help="Review pack directory; defaults beside the proof report")
     batch_readiness.add_argument("--json", action="store_true", help="Print machine-readable readiness report")
+    batch_review_sprint = batch_sub.add_parser(
+        "review-sprint",
+        help="Write a compact JSON and Markdown sprint packet for pending human speaker review",
+    )
+    batch_review_sprint.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_review_sprint.add_argument("--out-dir", type=Path, help="Output directory; defaults beside the proof report")
+    batch_review_sprint.add_argument("--json", action="store_true", help="Print machine-readable sprint report")
     batch_decision_board = batch_sub.add_parser(
         "decision-board",
         help="Write a browser-friendly board for grouped proof speaker decisions",
@@ -703,6 +711,23 @@ def main(argv: list[str] | None = None) -> int:
             if result.machine_ready and result.board_ready and result.review_pack_ready:
                 return 3
             return 2
+        if args.batch_command == "review-sprint":
+            try:
+                result = write_batch_review_sprint(args.proof_report, out_dir=args.out_dir)
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+            else:
+                print(f"json_path: {result.json_path}")
+                print(f"markdown_path: {result.markdown_path}")
+                print(f"state: {result.state}")
+                print(f"complete: {str(result.complete).lower()}")
+                print(f"pending_decision_count: {result.pending_decision_count}")
+                print(f"pending_clip_count: {result.pending_clip_count}")
+                print(f"estimated_minutes: {result.estimated_minutes}")
+            return 0
         if args.batch_command == "decision-board":
             try:
                 result = write_batch_decision_board(args.proof_report, out_path=args.out)

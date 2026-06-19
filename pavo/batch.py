@@ -567,6 +567,35 @@ class BatchReviewPackVerifyResult:
 
 
 @dataclass(frozen=True)
+class BatchReviewSprintResult:
+    proof_report_path: Path
+    out_dir: Path
+    json_path: Path
+    markdown_path: Path
+    state: str
+    complete: bool
+    pending_decision_count: int
+    pending_clip_count: int
+    estimated_minutes: float
+    payload: dict[str, Any]
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "proof_report_path": str(self.proof_report_path),
+            "out_dir": str(self.out_dir),
+            "json_path": str(self.json_path),
+            "markdown_path": str(self.markdown_path),
+            "state": self.state,
+            "complete": self.complete,
+            "pending_decision_count": self.pending_decision_count,
+            "pending_clip_count": self.pending_clip_count,
+            "estimated_minutes": self.estimated_minutes,
+            "payload": self.payload,
+            "safety_boundary": "Review sprint packets guide human speaker review. They do not approve identity or copy raw audio.",
+        }
+
+
+@dataclass(frozen=True)
 class BatchReadinessResult:
     proof_report_path: Path
     state: str
@@ -2228,6 +2257,7 @@ def write_batch_review_pack(
 
     handoff = proof_report.get("operator_handoff") if isinstance(proof_report.get("operator_handoff"), dict) else {}
     review_packet = proof_report.get("review_packet") if isinstance(proof_report.get("review_packet"), dict) else {}
+    write_batch_review_sprint(proof_path, out_dir=proof_path.parent)
     artifacts_to_copy = _batch_review_pack_artifacts(proof_path, proof_report, handoff, review_packet)
     copied: dict[str, dict[str, Any]] = {}
     missing: list[dict[str, Any]] = []
@@ -2559,6 +2589,133 @@ def _batch_review_sprint_reason(item: dict[str, Any]) -> str:
     return "; ".join(parts) or "pending speaker decision"
 
 
+def write_batch_review_sprint(
+    proof_report_path: Path | str,
+    *,
+    out_dir: Path | str | None = None,
+) -> BatchReviewSprintResult:
+    proof_path = Path(proof_report_path)
+    proof_report = json.loads(proof_path.read_text())
+    handoff = enrich_operator_handoff_with_validation(load_operator_handoff(proof_path))
+    validation = handoff.get("validation") if isinstance(handoff.get("validation"), dict) else {}
+    sprint = _batch_review_sprint_from_validation(validation)
+    target_dir = Path(out_dir) if out_dir else proof_path.parent
+    target_dir.mkdir(parents=True, exist_ok=True)
+    json_path = target_dir / "pavo-batch-review-sprint.json"
+    markdown_path = target_dir / "pavo-batch-review-sprint.md"
+    payload = _batch_review_sprint_payload(proof_path, proof_report, handoff, validation, sprint)
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    markdown_path.write_text(_render_batch_review_sprint_markdown(payload), encoding="utf-8")
+    return BatchReviewSprintResult(
+        proof_report_path=proof_path,
+        out_dir=target_dir,
+        json_path=json_path,
+        markdown_path=markdown_path,
+        state=str(payload.get("state") or ""),
+        complete=bool(payload.get("complete")),
+        pending_decision_count=int(sprint.get("pending_decision_count") or 0),
+        pending_clip_count=int(sprint.get("pending_clip_count") or 0),
+        estimated_minutes=float(sprint.get("estimated_minutes") or 0),
+        payload=payload,
+    )
+
+
+def _batch_review_sprint_payload(
+    proof_path: Path,
+    proof_report: dict[str, Any],
+    handoff: dict[str, Any],
+    validation: dict[str, Any],
+    sprint: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "generated_at": datetime.now(UTC).isoformat(),
+        "proof_report_path": str(proof_path),
+        "batch_root": proof_report.get("batch_root"),
+        "state": handoff.get("state"),
+        "complete": bool(handoff.get("complete")),
+        "review_page": handoff.get("review_page"),
+        "decision_board": handoff.get("proof_decision_board_html"),
+        "proof_review_slate_tsv": handoff.get("proof_review_slate_tsv"),
+        "proof_decision_slate_tsv": handoff.get("proof_decision_slate_tsv"),
+        "validation": {
+            "path": validation.get("path"),
+            "status": validation.get("status"),
+            "fresh": validation.get("fresh"),
+            "passed": validation.get("passed"),
+            "pending_count": validation.get("pending_count"),
+            "pending_decision_count": validation.get("pending_decision_count"),
+            "next_action": validation.get("next_action"),
+        },
+        "review_sprint": sprint,
+        "commands": {
+            "readiness": f"pavo batch readiness {shlex.quote(str(proof_path))}",
+            "finalize_board_audit": (
+                f"pavo batch finalize-board-audit {shlex.quote(str(proof_path))} "
+                "pavo-batch-proof.decision-board.audit.json"
+            ),
+            "validate": handoff.get("validate_command"),
+            "finish": handoff.get("finish_command"),
+            "strict_proof": handoff.get("strict_proof_command"),
+        },
+        "safety_boundary": "Listen to every supporting clip before approving or rejecting speaker identity. Pavo can guide and verify the workflow, but the human owns the final identity decision.",
+    }
+
+
+def _render_batch_review_sprint_markdown(payload: dict[str, Any]) -> str:
+    sprint = payload.get("review_sprint") if isinstance(payload.get("review_sprint"), dict) else {}
+    commands = payload.get("commands") if isinstance(payload.get("commands"), dict) else {}
+    lines = [
+        "# Pavo Batch Review Sprint",
+        "",
+        f"- State: `{payload.get('state')}`",
+        f"- Complete: `{str(bool(payload.get('complete'))).lower()}`",
+        f"- Pending decisions: `{sprint.get('pending_decision_count')}`",
+        f"- Pending clips: `{sprint.get('pending_clip_count')}`",
+        f"- Estimated review time: `{sprint.get('estimated_minutes')}` minutes",
+        f"- Decision board: `{payload.get('decision_board')}`",
+        f"- Review page: `{payload.get('review_page')}`",
+        "",
+        "## Review Rule",
+        "",
+        str(payload.get("safety_boundary")),
+        "",
+        "## Focus Order",
+        "",
+    ]
+    focus_order = sprint.get("focus_order") if isinstance(sprint.get("focus_order"), list) else []
+    if focus_order:
+        for item in focus_order:
+            lines.extend(
+                [
+                    f"### {item.get('order')}. {item.get('cluster_id')} -> {item.get('speaker')}",
+                    "",
+                    f"- Question: {item.get('question')}",
+                    f"- Clips: `{item.get('clip_count')}`",
+                    f"- Estimate: `{item.get('estimated_minutes')}` minutes",
+                    f"- Why now: {item.get('why_first')}",
+                    "",
+                ]
+            )
+    else:
+        lines.append("- No pending speaker decisions.")
+        lines.append("")
+    lines.extend(
+        [
+            "## Commands",
+            "",
+            "```bash",
+            str(commands.get("readiness") or ""),
+            str(commands.get("finalize_board_audit") or ""),
+            str(commands.get("validate") or ""),
+            str(commands.get("finish") or ""),
+            str(commands.get("strict_proof") or ""),
+            "```",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def _batch_review_pack_artifacts(
     proof_path: Path,
     proof_report: dict[str, Any],
@@ -2577,6 +2734,8 @@ def _batch_review_pack_artifacts(
         "proof_review_slate_tsv": proof_slate,
         "proof_decision_slate_tsv": _path_from_report(handoff.get("proof_decision_slate_tsv")),
         "proof_decision_board_html": _path_from_report(handoff.get("proof_decision_board_html")),
+        "proof_review_sprint_json": proof_path.with_name("pavo-batch-review-sprint.json"),
+        "proof_review_sprint_markdown": proof_path.with_name("pavo-batch-review-sprint.md"),
         "proof_review_checklist_markdown": _path_from_report(handoff.get("proof_review_checklist_markdown")),
         "proof_review_validation_json": validation_report,
         "cluster_review_page_html": _path_from_report(review_packet.get("review_page")),
