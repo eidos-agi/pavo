@@ -291,8 +291,9 @@ does not decide which speaker label is true.
 
 Use `pavo batch review-cockpit` to render a browser-friendly one-page operator
 surface for the current handoff. It shows machine readiness, human gate state,
-pending decision/clip counts, the first decision to review, calibration path,
-artifact links, finish commands, and the rehearsal checks. Use
+pending decision/clip counts, the first decision to review, speaker suggestion
+counts and preview rows, calibration path, artifact links, finish commands, and
+the rehearsal checks. Use
 `pavo batch verify-review-cockpit` before sending the page as the human-review
 front door.
 

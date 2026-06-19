@@ -2691,6 +2691,7 @@ def _write_batch_review_pack_cockpit(
     checks = [
         _check("machine_ready", bool(proof_report.get("passed")), str(proof_report.get("passed"))),
         _check("speaker_answer_sheet_exists", answer_sheet_result.tsv_path.exists(), str(answer_sheet_result.tsv_path)),
+        _check("speaker_suggestions_exists", proof_path.with_name("pavo-batch-speaker-suggestions.json").exists(), str(proof_path.with_name("pavo-batch-speaker-suggestions.json"))),
         _check("speaker_calibration_exists", Path(str(calibration_result.get("tsv_path") or "")).exists(), str(calibration_result.get("tsv_path") or "")),
         _check("review_pack_target_named", target_dir.name != "", str(target_dir)),
         _check("human_gate_is_explicit", True, "complete" if proof_report.get("complete") else "pending"),
@@ -2708,6 +2709,7 @@ def _write_batch_review_pack_cockpit(
         "pending_clip_count": pending_clip_count,
         "estimated_minutes": None,
         "first_decision": first_decision,
+        "speaker_suggestion_summary": _batch_speaker_suggestion_summary_for_cockpit(proof_path),
         "artifacts": {
             "decision_board": str(proof_path.with_name("pavo-batch-proof.decision-board.html")),
             "review_sprint_markdown": str(proof_path.with_name("pavo-batch-review-sprint.md")),
@@ -3681,6 +3683,7 @@ def write_batch_review_rehearsal(
         "pending_clip_count": expected_clips,
         "estimated_minutes": float(readiness.review_sprint.get("estimated_minutes") or 0),
         "first_decision": first_decision,
+        "speaker_suggestion_summary": _batch_speaker_suggestion_summary_for_cockpit(proof_path),
         "artifacts": {
             "decision_board": str(board_result.out_path),
             "review_sprint_markdown": str(sprint_result.markdown_path),
@@ -3857,6 +3860,45 @@ def write_batch_review_cockpit(
     }
 
 
+def _batch_speaker_suggestion_summary_for_cockpit(proof_path: Path, *, limit: int = 5) -> dict[str, Any]:
+    path = proof_path.with_name("pavo-batch-speaker-suggestions.json")
+    if not path.exists():
+        return {
+            "path": str(path),
+            "available": False,
+            "pending_decision_count": 0,
+            "quick_confirm_count": 0,
+            "must_listen_count": 0,
+            "items": [],
+        }
+    payload = json.loads(path.read_text())
+    suggestions = payload.get("suggestions") if isinstance(payload.get("suggestions"), list) else []
+    items = [
+        {
+            "queue_order": item.get("queue_order"),
+            "decision_group": item.get("decision_group"),
+            "cluster_id": item.get("cluster_id"),
+            "speaker": item.get("speaker"),
+            "machine_suggested_decision": item.get("machine_suggested_decision"),
+            "machine_confidence": item.get("machine_confidence"),
+            "review_lane": item.get("review_lane"),
+            "human_required": item.get("human_required"),
+            "why": item.get("why"),
+            "safety_blockers": item.get("safety_blockers") if isinstance(item.get("safety_blockers"), list) else [],
+        }
+        for item in suggestions[:limit]
+        if isinstance(item, dict)
+    ]
+    return {
+        "path": str(path),
+        "available": True,
+        "pending_decision_count": int(payload.get("pending_decision_count") or len(suggestions)),
+        "quick_confirm_count": int(payload.get("auto_accept_candidate_count") or 0),
+        "must_listen_count": int(payload.get("must_listen_count") or 0),
+        "items": items,
+    }
+
+
 def verify_batch_review_cockpit(
     proof_report_path: Path | str,
     *,
@@ -3870,6 +3912,8 @@ def verify_batch_review_cockpit(
         _check("has_title", "Pavo Review Cockpit" in html, "title"),
         _check("has_readiness", "Machine ready" in html and "Human gate" in html, "readiness cards"),
         _check("has_first_decision", "First decision" in html and "Decision group" in html, "first decision"),
+        _check("has_speaker_suggestions", "Speaker suggestions" in html and "Machine suggestion" in html, "speaker suggestions"),
+        _check("has_human_required", "Human required" in html, "human required"),
         _check("has_calibration", "Calibration" in html and "speaker-calibration" in html, "calibration"),
         _check("has_finish_command", "finalize-board-audit" in html, "finish command"),
         _check("has_safety_boundary", "does not approve speaker identity" in html, "safety boundary"),
@@ -3887,9 +3931,22 @@ def verify_batch_review_cockpit(
 
 def _render_batch_review_cockpit_html(payload: dict[str, Any]) -> str:
     first = payload.get("first_decision") if isinstance(payload.get("first_decision"), dict) else {}
+    suggestion_summary = payload.get("speaker_suggestion_summary") if isinstance(payload.get("speaker_suggestion_summary"), dict) else {}
     artifacts = payload.get("artifacts") if isinstance(payload.get("artifacts"), dict) else {}
     commands = payload.get("commands") if isinstance(payload.get("commands"), dict) else {}
     checks = payload.get("checks") if isinstance(payload.get("checks"), list) else []
+    suggestion_items = suggestion_summary.get("items") if isinstance(suggestion_summary.get("items"), list) else []
+    suggestion_rows = "\n".join(
+        "<tr>"
+        f"<td>{escape(str(item.get('queue_order') or ''))}</td>"
+        f"<td>{escape(str(item.get('decision_group') or ''))}<br><small>{escape(str(item.get('cluster_id') or ''))} -> {escape(str(item.get('speaker') or ''))}</small></td>"
+        f"<td><strong>{escape(str(item.get('machine_suggested_decision') or ''))}</strong><br><small>{escape(str(item.get('machine_confidence') or ''))}</small></td>"
+        f"<td>{escape(str(item.get('review_lane') or ''))}</td>"
+        f"<td>{escape('; '.join(str(value) for value in item.get('safety_blockers') or []) or 'None; still listen')}</td>"
+        "</tr>"
+        for item in suggestion_items
+        if isinstance(item, dict)
+    )
     artifact_cards = "\n".join(
         f'<li><strong>{escape(str(name))}</strong><br><code>{escape(str(value))}</code></li>'
         for name, value in artifacts.items()
@@ -3938,6 +3995,17 @@ def _render_batch_review_cockpit_html(payload: dict[str, Any]) -> str:
       <p><strong>Risk:</strong> {escape(str(first.get('decision_risk') or ''))}</p>
       <p><strong>Question:</strong> {escape(str(first.get('question') or ''))}</p>
       <p><strong>Suggested action:</strong> {escape(str(first.get('suggested_review_action') or ''))}</p>
+    </section>
+    <section class="card">
+      <h2>Speaker suggestions</h2>
+      <p>Machine suggestions are hypotheses for faster review. Human required: <strong>true</strong>. They do not approve speaker identity.</p>
+      <section class="grid">
+        <div class="card"><div>Suggestion file</div><code>{escape(str(suggestion_summary.get('path') or artifacts.get('speaker_suggestions_markdown') or ''))}</code></div>
+        <div class="card"><div>Quick-confirm candidates</div><div class="big">{escape(str(suggestion_summary.get('quick_confirm_count') or 0))}</div></div>
+        <div class="card"><div>Must-listen decisions</div><div class="big">{escape(str(suggestion_summary.get('must_listen_count') or 0))}</div></div>
+      </section>
+      <h3>Machine suggestion preview</h3>
+      <table><thead><tr><th>#</th><th>Decision</th><th>Machine suggestion</th><th>Review lane</th><th>Safety blockers</th></tr></thead><tbody>{suggestion_rows}</tbody></table>
     </section>
     <section class="card">
       <h2>Calibration</h2>
