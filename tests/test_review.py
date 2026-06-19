@@ -25,6 +25,7 @@ from pavo.review import (
     finalize_cluster_review,
     gate_anchor_review,
     import_anchor_review_sheet,
+    import_cluster_review_slate,
     materialize_anchor_review_decisions,
     materialize_cluster_question_decisions,
     parse_plain_english_review,
@@ -807,6 +808,88 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("Review me.", markdown)
         self.assertIn("row_index\tcluster_id\tdecision\tspeaker\tnote", tsv)
         self.assertIn("\tpending\tDaniel\t", tsv)
+
+    def test_cluster_review_slate_import_updates_review_sheet(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            work = root / "pavo-work"
+            work.mkdir()
+            (work / "diarization-segments.json").write_text(
+                json.dumps(
+                    {
+                        "segments": [
+                            {
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 5.0,
+                                "speaker": "S1",
+                                "text": "Review me.",
+                            }
+                        ]
+                    }
+                )
+            )
+            (work / "named-speaker-evidence.json").write_text(
+                json.dumps(
+                    {
+                        "segments": [
+                            {
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 5.0,
+                                "speaker": "Daniel",
+                                "confidence": "medium",
+                                "text": "Review me.",
+                            }
+                        ]
+                    }
+                )
+            )
+
+            prepared = prepare_cluster_review(root, min_strong_coverage=0.0, min_dominant_share=0.5)
+            slate = export_cluster_review_slate(root)
+            lines = slate.tsv_path.read_text().splitlines()
+            cells = lines[1].split("\t")
+            header = lines[0].split("\t")
+            cells[header.index("decision")] = "approved"
+            cells[header.index("speaker")] = "Alex"
+            cells[header.index("note")] = "sounds like Alex after listening"
+            filled = slate.tsv_path.with_name("filled-slate.tsv")
+            filled.write_text("\n".join([lines[0], "\t".join(cells)]) + "\n")
+
+            imported = import_cluster_review_slate(prepared.review_sheet_path, filled)
+            sheet = json.loads(prepared.review_sheet_path.read_text())
+            decision = export_cluster_question_decisions(prepared.review_sheet_path)
+            report = json.loads(decision.report_path.read_text())
+
+        self.assertEqual(imported.applied_count, 1)
+        self.assertEqual(imported.approved_count, 1)
+        self.assertEqual(imported.pending_count, 0)
+        self.assertEqual(sheet["rows"][0]["status"], "approved")
+        self.assertTrue(sheet["rows"][0]["approved"])
+        self.assertEqual(sheet["rows"][0]["target_speaker_label"], "Alex")
+        self.assertEqual(sheet["rows"][0]["cluster_question"]["dominant_speaker"], "Alex")
+        self.assertEqual(report["decisions"][0]["dominant_speaker"], "Alex")
+
+    def test_cluster_review_slate_import_rejects_cluster_mismatch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            work = root / "pavo-work"
+            work.mkdir()
+            (work / "diarization-segments.json").write_text(
+                json.dumps({"segments": [{"recording_id": "rec-1", "start": 1.0, "end": 5.0, "speaker": "S1", "text": "Review me."}]})
+            )
+            (work / "named-speaker-evidence.json").write_text(
+                json.dumps({"segments": [{"recording_id": "rec-1", "start": 1.0, "end": 5.0, "speaker": "Daniel", "confidence": "medium", "text": "Review me."}]})
+            )
+            prepared = prepare_cluster_review(root, min_strong_coverage=0.0, min_dominant_share=0.5)
+            slate = export_cluster_review_slate(root)
+            bad = slate.tsv_path.read_text().replace("\tS1\t", "\tS999\t", 1)
+            bad_path = slate.tsv_path.with_name("bad-slate.tsv")
+            bad_path.write_text(bad)
+
+            with self.assertRaisesRegex(ValueError, "changed cluster_id"):
+                import_cluster_review_slate(prepared.review_sheet_path, bad_path)
 
     def test_cluster_review_advance_stops_at_human_review_boundary(self):
         with tempfile.TemporaryDirectory() as tmp:

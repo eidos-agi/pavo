@@ -42,6 +42,7 @@ from .review import (
     finalize_cluster_review,
     gate_anchor_review,
     import_anchor_review_sheet,
+    import_cluster_review_slate,
     materialize_anchor_review_decisions,
     materialize_cluster_question_decisions,
     prepare_cluster_review,
@@ -187,6 +188,10 @@ def build_parser() -> argparse.ArgumentParser:
     review_clusters_slate.add_argument("batch_root", type=Path)
     review_clusters_slate.add_argument("--review-sheet", type=Path, help="Override cluster question review sheet")
     review_clusters_slate.add_argument("--out-dir", type=Path, help="Directory for Markdown and TSV slate outputs")
+    review_clusters_import_slate = review_clusters_sub.add_parser("import-slate", help="Validate and import a filled cluster decision slate TSV")
+    review_clusters_import_slate.add_argument("review_sheet", type=Path)
+    review_clusters_import_slate.add_argument("slate_tsv", type=Path)
+    review_clusters_import_slate.add_argument("--out", type=Path, help="Imported review sheet path; defaults to replacing review_sheet")
     review_clusters_advance = review_clusters_sub.add_parser("advance", help="Run the next safe cluster-review machine step")
     review_clusters_advance.add_argument("batch_root", type=Path)
     review_clusters_advance.add_argument("--review-sheet", type=Path, help="Override cluster question review sheet")
@@ -682,6 +687,16 @@ def main(argv: list[str] | None = None) -> int:
                 if result.blockers:
                     print("blockers: " + "; ".join(result.blockers))
                 return 0 if result.item_count or result.state in {"ready_to_finalize", "finalized_passed"} else 2
+            if args.review_clusters_command == "import-slate":
+                result = import_cluster_review_slate(args.review_sheet, args.slate_tsv, out_path=args.out)
+                print(f"review_sheet: {result.review_sheet_path}")
+                print(f"slate: {result.slate_path}")
+                print(f"imported_sheet: {result.imported_sheet_path}")
+                print(f"applied_count: {result.applied_count}")
+                print(f"approved_count: {result.approved_count}")
+                print(f"rejected_count: {result.rejected_count}")
+                print(f"pending_count: {result.pending_count}")
+                return 0 if result.applied_count else 2
             if args.review_clusters_command == "advance":
                 result = advance_cluster_review(args.batch_root, review_sheet_path=args.review_sheet)
                 if args.report:

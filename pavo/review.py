@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+import csv
 import json
 import math
 import re
@@ -320,6 +321,17 @@ class ClusterReviewSlateResult:
     item_count: int
     state: str
     blockers: list[str]
+
+
+@dataclass(frozen=True)
+class ClusterReviewSlateImportResult:
+    review_sheet_path: Path
+    slate_path: Path
+    imported_sheet_path: Path
+    applied_count: int
+    approved_count: int
+    rejected_count: int
+    pending_count: int
 
 
 @dataclass(frozen=True)
@@ -2099,6 +2111,72 @@ def export_cluster_review_slate(
         item_count=len(status.next_review_plan),
         state=status.state,
         blockers=list(status.blockers),
+    )
+
+
+def import_cluster_review_slate(
+    review_sheet_path: Path | str,
+    slate_tsv_path: Path | str,
+    *,
+    out_path: Path | str | None = None,
+) -> ClusterReviewSlateImportResult:
+    sheet_path = Path(review_sheet_path)
+    slate_path = Path(slate_tsv_path)
+    sheet = json.loads(sheet_path.read_text())
+    rows = sheet.get("rows") or []
+    row_by_index = {str(row.get("index")): row for row in rows}
+    slate_rows = _read_cluster_review_slate_tsv(slate_path)
+    seen: set[str] = set()
+    applied = 0
+
+    for slate_row in slate_rows:
+        row_index = str(slate_row.get("row_index") or "").strip()
+        if not row_index:
+            raise ValueError("slate row missing row_index")
+        if row_index in seen:
+            raise ValueError(f"duplicate slate row_index {row_index}")
+        seen.add(row_index)
+        original = row_by_index.get(row_index)
+        if original is None:
+            raise ValueError(f"slate row_index {row_index} does not exist in review sheet")
+        question = original.get("cluster_question") if isinstance(original.get("cluster_question"), dict) else {}
+        cluster_id = str(question.get("cluster_id") or original.get("case") or "")
+        slate_cluster = str(slate_row.get("cluster_id") or "").strip()
+        if slate_cluster and slate_cluster != cluster_id:
+            raise ValueError(f"slate row_index {row_index} changed cluster_id from {cluster_id} to {slate_cluster}")
+
+        decision = str(slate_row.get("decision") or "pending").strip().lower()
+        if decision not in {"approved", "rejected", "pending"}:
+            raise ValueError(f"slate row_index {row_index} has invalid decision {decision!r}")
+        speaker = str(slate_row.get("speaker") or "").strip()
+        note = str(slate_row.get("note") or "").strip()
+        original["status"] = decision
+        original["approved"] = decision == "approved"
+        if note:
+            original["reviewer_note"] = note
+        if decision == "approved" and speaker:
+            original["target_speaker_label"] = speaker
+            original["target_speaker_name"] = speaker
+            question["dominant_speaker"] = speaker
+            question["candidate_name"] = speaker
+            original["cluster_question"] = question
+        applied += 1
+
+    target_path = Path(out_path) if out_path else sheet_path
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    target_path.write_text(json.dumps(sheet, indent=2, sort_keys=True) + "\n")
+    updated_rows = sheet.get("rows") or []
+    approved = [row for row in updated_rows if row.get("status") == "approved" and row.get("approved") is True]
+    rejected = [row for row in updated_rows if row.get("status") == "rejected"]
+    pending = [row for row in updated_rows if row.get("status") not in {"approved", "rejected"}]
+    return ClusterReviewSlateImportResult(
+        review_sheet_path=sheet_path,
+        slate_path=slate_path,
+        imported_sheet_path=target_path,
+        applied_count=applied,
+        approved_count=len(approved),
+        rejected_count=len(rejected),
+        pending_count=len(pending),
     )
 
 
@@ -5669,6 +5747,17 @@ def _render_cluster_review_slate_tsv(status: ClusterReviewStatusResult) -> str:
         ]
         rows.append("\t".join(_tsv_cell(value) for value in values))
     return "\n".join(rows).rstrip() + "\n"
+
+
+def _read_cluster_review_slate_tsv(path: Path) -> list[dict[str, str]]:
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        required = {"row_index", "cluster_id", "decision", "speaker", "note"}
+        fieldnames = set(reader.fieldnames or [])
+        missing = sorted(required - fieldnames)
+        if missing:
+            raise ValueError(f"slate TSV missing required column(s): {', '.join(missing)}")
+        return [dict(row) for row in reader]
 
 
 def _tsv_cell(value: Any) -> str:
