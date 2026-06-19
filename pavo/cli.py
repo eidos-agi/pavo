@@ -39,6 +39,7 @@ from .review import (
     import_anchor_review_sheet,
     materialize_anchor_review_decisions,
     materialize_cluster_question_decisions,
+    prepare_cluster_review,
     serve_anchor_review_bundle,
     status_anchor_review,
     summarize_anchor_review_sheet,
@@ -163,6 +164,13 @@ def build_parser() -> argparse.ArgumentParser:
     review_anchors_sub = review_anchors.add_subparsers(dest="review_anchors_command", required=True)
     review_clusters = review_sub.add_parser("clusters", help="Audit diarization cluster identity")
     review_clusters_sub = review_clusters.add_subparsers(dest="review_clusters_command", required=True)
+    review_clusters_prepare = review_clusters_sub.add_parser("prepare", help="Prepare the full impact-ranked cluster review queue")
+    review_clusters_prepare.add_argument("batch_root", type=Path)
+    review_clusters_prepare.add_argument("--out-dir", type=Path, help="Bundle output directory; defaults to batch pavo-cluster-question-bundle")
+    review_clusters_prepare.add_argument("--samples-per-cluster", type=int, default=2)
+    review_clusters_prepare.add_argument("--clip-padding", type=float, default=0.25)
+    review_clusters_prepare.add_argument("--min-strong-coverage", type=float, default=0.25)
+    review_clusters_prepare.add_argument("--min-dominant-share", type=float, default=0.85)
     review_clusters_audit = review_clusters_sub.add_parser("audit", help="Write a cluster identity propagation audit")
     review_clusters_audit.add_argument("batch_root", type=Path)
     review_clusters_audit.add_argument("--out", type=Path, help="Cluster audit JSON path")
@@ -559,6 +567,32 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "review":
         if args.review_command == "clusters":
+            if args.review_clusters_command == "prepare":
+                result = prepare_cluster_review(
+                    args.batch_root,
+                    out_dir=args.out_dir,
+                    samples_per_cluster=args.samples_per_cluster,
+                    clip_padding=args.clip_padding,
+                    min_strong_coverage=args.min_strong_coverage,
+                    min_dominant_share=args.min_dominant_share,
+                )
+                print(f"audit_json: {result.audit_json_path}")
+                print(f"question_json: {result.question_json_path}")
+                print(f"bundle_dir: {result.bundle_dir}")
+                print(f"review_sheet: {result.review_sheet_path}")
+                print(f"review_page: {result.review_page_path}")
+                print(f"impact_json: {result.impact_json_path}")
+                print(f"impact_markdown: {result.impact_markdown_path}")
+                print(f"page_verified: {str(result.page_verified).lower()}")
+                print(f"cluster_count: {result.cluster_count}")
+                print(f"question_count: {result.question_count}")
+                print(f"candidate_count: {result.candidate_count}")
+                print(f"copied_clip_count: {result.copied_clip_count}")
+                print(f"missing_clip_count: {result.missing_clip_count}")
+                print(f"top_cluster_id: {result.top_cluster_id}")
+                print(f"estimated_unlockable_segments: {result.estimated_unlockable_segments}")
+                print(f"estimated_unlockable_seconds: {result.estimated_unlockable_seconds}")
+                return 0 if result.page_verified and result.candidate_count and result.missing_clip_count == 0 else 2
             if args.review_clusters_command == "audit":
                 result = create_cluster_identity_audit(
                     args.batch_root,

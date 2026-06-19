@@ -22,6 +22,7 @@ from pavo.review import (
     materialize_anchor_review_decisions,
     materialize_cluster_question_decisions,
     parse_plain_english_review,
+    prepare_cluster_review,
     save_anchor_review_sheet_payload,
     status_anchor_review,
     summarize_anchor_review_sheet,
@@ -562,6 +563,84 @@ class ReviewTests(unittest.TestCase):
             self.assertEqual(report["questions"][0]["cluster_id"], "S1")
             self.assertEqual(report["questions"][0]["samples"][0]["recording_id"], "rec-1")
             self.assertIn("Pavo Cluster Question Plan", result.markdown_path.read_text())
+
+    def test_prepare_cluster_review_creates_verified_impact_queue(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            recording = root / "rec-1"
+            recording.mkdir()
+            _write_test_wav(recording / "rec-1.wav")
+            work = root / "_work"
+            work.mkdir()
+            (work / "diarization-segments.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "recording_id": "rec-1",
+                            "start": 1.0,
+                            "end": 5.0,
+                            "speaker": "S-small",
+                            "candidate_name": "Alex",
+                            "text": "Small cluster sample.",
+                        },
+                        {
+                            "recording_id": "rec-1",
+                            "start": 6.0,
+                            "end": 12.0,
+                            "speaker": "S-big",
+                            "candidate_name": "Daniel",
+                            "text": "Large cluster sample with enough words to matter.",
+                        },
+                        {
+                            "recording_id": "rec-1",
+                            "start": 13.0,
+                            "end": 19.0,
+                            "speaker": "S-big",
+                            "candidate_name": "Daniel",
+                            "text": "Another large cluster sample with useful context.",
+                        },
+                    ]
+                )
+            )
+            (work / "named-speaker-evidence.json").write_text(
+                json.dumps(
+                    {
+                        "segments": [
+                            {
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 5.0,
+                                "speaker": "Alex",
+                                "confidence": "medium",
+                                "text": "Small cluster sample.",
+                            },
+                            {
+                                "recording_id": "rec-1",
+                                "start": 6.0,
+                                "end": 12.0,
+                                "speaker": "Daniel",
+                                "confidence": "medium",
+                                "text": "Large cluster sample with enough words to matter.",
+                            },
+                        ]
+                    }
+                )
+            )
+
+            result = prepare_cluster_review(root, min_strong_coverage=0.0, min_dominant_share=0.5)
+            sheet = json.loads(result.review_sheet_path.read_text())
+            impact_json_exists = result.impact_json_path.exists()
+            impact_markdown_exists = result.impact_markdown_path.exists()
+
+        self.assertTrue(result.page_verified)
+        self.assertEqual(result.cluster_count, 2)
+        self.assertEqual(result.question_count, 2)
+        self.assertEqual(result.candidate_count, 3)
+        self.assertEqual(result.missing_clip_count, 0)
+        self.assertEqual(sheet["sort"]["mode"], "impact_desc")
+        self.assertEqual(sheet["rows"][0]["cluster_question"]["cluster_id"], "S-big")
+        self.assertTrue(impact_json_exists)
+        self.assertTrue(impact_markdown_exists)
 
     def test_create_cluster_question_bundle_writes_review_page(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1341,6 +1420,21 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.pending_count, 0)
         self.assertEqual(result.blockers, [])
         self.assertEqual(result.next_action, "run the rerun command and regenerate Plaud decompose proof")
+
+
+def _write_test_wav(path: Path) -> None:
+    import math
+    import struct
+    import wave
+
+    sample_rate = 8000
+    with wave.open(str(path), "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(sample_rate)
+        for index in range(sample_rate * 24):
+            value = int(12000 * math.sin(2 * math.pi * 440 * index / sample_rate))
+            wav.writeframes(struct.pack("<h", value))
 
 
 if __name__ == "__main__":

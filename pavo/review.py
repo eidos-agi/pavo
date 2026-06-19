@@ -224,6 +224,27 @@ class ClusterQuestionImpactResult:
 
 
 @dataclass(frozen=True)
+class ClusterReviewPrepareResult:
+    batch_root: Path
+    audit_json_path: Path
+    question_json_path: Path
+    bundle_dir: Path
+    review_sheet_path: Path
+    review_page_path: Path
+    impact_json_path: Path
+    impact_markdown_path: Path
+    page_verified: bool
+    cluster_count: int
+    question_count: int
+    candidate_count: int
+    copied_clip_count: int
+    missing_clip_count: int
+    top_cluster_id: str | None
+    estimated_unlockable_segments: int
+    estimated_unlockable_seconds: float
+
+
+@dataclass(frozen=True)
 class ClusterQuestionMaterializeResult:
     decision_report_path: Path
     out_dir: Path
@@ -912,6 +933,55 @@ def create_cluster_question_bundle(
         candidate_count=len(rows),
         copied_clip_count=copied,
         missing_clip_count=missing,
+    )
+
+
+def prepare_cluster_review(
+    batch_root: Path | str,
+    *,
+    out_dir: Path | str | None = None,
+    samples_per_cluster: int = 2,
+    clip_padding: float = 0.25,
+    min_strong_coverage: float = 0.25,
+    min_dominant_share: float = 0.85,
+) -> ClusterReviewPrepareResult:
+    root = Path(batch_root)
+    audit = create_cluster_identity_audit(
+        root,
+        min_strong_coverage=min_strong_coverage,
+        min_dominant_share=min_dominant_share,
+    )
+    questions = create_cluster_question_plan(
+        root,
+        audit_path=audit.json_path,
+        samples_per_cluster=samples_per_cluster,
+    )
+    bundle = create_cluster_question_bundle(
+        questions.json_path,
+        batch_root=root,
+        out_dir=out_dir,
+        clip_padding=clip_padding,
+    )
+    impact = create_cluster_question_impact_report(bundle.review_sheet_path)
+    page = verify_anchor_review_page(bundle.review_sheet_path, bundle.review_page_path)
+    return ClusterReviewPrepareResult(
+        batch_root=root,
+        audit_json_path=audit.json_path,
+        question_json_path=questions.json_path,
+        bundle_dir=bundle.bundle_dir,
+        review_sheet_path=bundle.review_sheet_path,
+        review_page_path=bundle.review_page_path,
+        impact_json_path=impact.json_path,
+        impact_markdown_path=impact.markdown_path,
+        page_verified=page.passed,
+        cluster_count=audit.cluster_count,
+        question_count=questions.question_count,
+        candidate_count=bundle.candidate_count,
+        copied_clip_count=bundle.copied_clip_count,
+        missing_clip_count=bundle.missing_clip_count,
+        top_cluster_id=impact.top_cluster_id,
+        estimated_unlockable_segments=impact.estimated_unlockable_segments,
+        estimated_unlockable_seconds=impact.estimated_unlockable_seconds,
     )
 
 
