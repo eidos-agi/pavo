@@ -83,3 +83,17 @@ class AudioDoctorTests(unittest.TestCase):
             result = find_pavo_shims(canonical_package_root=canonical, scan_roots=[root / "missing"])
 
         self.assertEqual(result, [])
+
+    def test_find_pavo_shims_allows_marked_canonical_delegator(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            canonical = root / "repo" / "pavo"
+            canonical.mkdir(parents=True)
+            tools = root / "greenmark-cockpit" / "tools"
+            tools.mkdir(parents=True)
+            delegator = tools / "pavo.py"
+            delegator.write_text("PAVO_CANONICAL_DELEGATOR = True\n")
+
+            result = find_pavo_shims(canonical_package_root=canonical, scan_roots=[root])
+
+        self.assertEqual(result, [])

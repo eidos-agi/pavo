@@ -228,6 +228,10 @@ plaud login
 pavo init
 pavo doctor
 pavo config show
+pavo meetings today
+pavo meetings latest --days 7
+pavo meetings fetch <recording-id> --audio --slug greenmark-call
+pavo meetings process ./meetings/2026-06-18-plaud
 pavo plaud me
 pavo plaud files
 pavo plaud audio-url <recording-id>

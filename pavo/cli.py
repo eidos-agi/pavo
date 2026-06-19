@@ -20,6 +20,8 @@ from .brief import (
 )
 from .config import DEFAULT_HOME, home_from_arg, init_home
 from .download import save_audio
+from .meetings import diarize as run_meeting_diarize
+from .meetings import meetings_fetch, meetings_latest, meetings_process, meetings_today
 from .overlap import SeparateOverlapsRequest, separate_overlaps
 from .plaud import PlaudCli, PlaudCliError
 from .review import (
@@ -101,6 +103,42 @@ def build_parser() -> argparse.ArgumentParser:
     brief_apply_hints.add_argument("batch_root", type=Path)
     brief_apply_hints.add_argument("speaker_hints", type=Path)
     brief_apply_hints.add_argument("--out", type=Path, help="Overlay output path; defaults to batch _work")
+
+    meetings = subparsers.add_parser("meetings", help="Plaud-backed meeting intake commands")
+    meetings_sub = meetings.add_subparsers(dest="meetings_command", required=True)
+    meetings_today_parser = meetings_sub.add_parser("today", help="List Plaud recordings created today")
+    meetings_today_parser.add_argument("--json", action="store_true", help="Wrap Plaud output in JSON")
+    meetings_latest_parser = meetings_sub.add_parser("latest", help="List recent Plaud recordings")
+    meetings_latest_parser.add_argument("--days", type=int, default=7)
+    meetings_latest_parser.add_argument("--source", default="plaud", choices=["plaud"])
+    meetings_latest_parser.add_argument("--json", action="store_true", help="Wrap Plaud output in JSON")
+    meetings_fetch_parser = meetings_sub.add_parser("fetch", help="Fetch Plaud transcript into a meeting folder")
+    meetings_fetch_parser.add_argument("recording_id")
+    meetings_fetch_parser.add_argument("--transcript", action="store_true", default=True)
+    meetings_fetch_parser.add_argument("--audio", action="store_true", help="Download Plaud audio when available")
+    meetings_fetch_parser.add_argument("--out", type=Path, help="Output folder")
+    meetings_fetch_parser.add_argument("--slug", help="Meeting folder slug when --out is omitted")
+    meetings_fetch_parser.add_argument("--json", action="store_true")
+    meetings_process_parser = meetings_sub.add_parser(
+        "process",
+        help="Transcribe, diarize, attribute, and build speaker evidence for fetched Plaud MP3 folders",
+    )
+    meetings_process_parser.add_argument("recordings_root", type=Path)
+    meetings_process_parser.add_argument("--model", default="mlx-community/whisper-tiny")
+    meetings_process_parser.add_argument("--suffix", default="")
+    meetings_process_parser.add_argument("--force", action="store_true")
+    meetings_process_parser.add_argument("--speakers", type=int, default=7)
+    meetings_process_parser.add_argument("--min-duration", type=float, default=1.2)
+    meetings_process_parser.add_argument("--skip-transcribe", action="store_true")
+    meetings_process_parser.add_argument("--skip-diarize", action="store_true")
+    meetings_process_parser.add_argument("--skip-attribute", action="store_true")
+    meetings_process_parser.add_argument("--skip-evidence", action="store_true")
+    meetings_process_parser.add_argument("--keep-going", action="store_true")
+    meetings_process_parser.add_argument("--json", action="store_true")
+
+    diarize_parser = subparsers.add_parser("diarize", help="Prepare a fetched transcript for meeting diarization")
+    diarize_parser.add_argument("transcript_path", type=Path)
+    diarize_parser.add_argument("--project", default="greenmark")
 
     audio = subparsers.add_parser("audio", help="Audio intelligence checks")
     audio_sub = audio.add_subparsers(dest="audio_command", required=True)
@@ -340,8 +378,18 @@ def find_pavo_shims(
                 continue
             if package_root in resolved.parents:
                 continue
+            if _is_canonical_delegator(resolved):
+                continue
             shims.append(resolved)
     return sorted(dict.fromkeys(shims))
+
+
+def _is_canonical_delegator(path: Path) -> bool:
+    try:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return False
+    return "PAVO_CANONICAL_DELEGATOR = True" in text
 
 
 def _configured_shim_scan_roots() -> list[Path]:
@@ -530,6 +578,38 @@ def main(argv: list[str] | None = None) -> int:
         print(f"segment_count: {result.segment_count}")
         print(f"speaker_count: {result.speaker_count}")
         return 0 if result.segment_count else 2
+
+    if args.command == "meetings":
+        if args.meetings_command == "today":
+            return meetings_today(json_output=args.json)
+        if args.meetings_command == "latest":
+            return meetings_latest(days=args.days, json_output=args.json)
+        if args.meetings_command == "fetch":
+            return meetings_fetch(
+                args.recording_id,
+                audio=args.audio,
+                out=args.out,
+                slug=args.slug,
+                json_output=args.json,
+            )
+        if args.meetings_command == "process":
+            return meetings_process(
+                args.recordings_root,
+                model=args.model,
+                suffix=args.suffix,
+                force=args.force,
+                speakers=args.speakers,
+                min_duration=args.min_duration,
+                skip_transcribe=args.skip_transcribe,
+                skip_diarize=args.skip_diarize,
+                skip_attribute=args.skip_attribute,
+                skip_evidence=args.skip_evidence,
+                keep_going=args.keep_going,
+                json_output=args.json,
+            )
+
+    if args.command == "diarize":
+        return run_meeting_diarize(args.transcript_path, project=args.project)
 
     if args.command == "audio":
         if args.audio_command == "doctor":
