@@ -508,6 +508,10 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("Focus next pending", html)
         self.assertIn("focusNextPending", html)
         self.assertIn("est. minutes", html)
+        self.assertIn("Decision Rubric", html)
+        self.assertIn("Approve only when every supporting clip sounds like the named speaker", html)
+        self.assertIn("Reject when any supporting clip is the wrong speaker", html)
+        self.assertIn("Keep pending when the clips disagree", html)
         self.assertIn("Download Audit JSON", html)
         self.assertIn("pavo batch apply-decision-board-audit", html)
         self.assertIn("pavo batch finalize-board-audit", html)
@@ -649,6 +653,10 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("- [ ] Clip 1:", sprint_markdown)
         self.assertIn("Row 1: hello from the sample", sprint_markdown)
         self.assertIn("- [ ] Approved", sprint_markdown)
+        self.assertIn("Decision Rubric", sprint_markdown)
+        self.assertIn("Approve only when every supporting clip sounds like the named speaker", sprint_markdown)
+        self.assertIn("Reject when any supporting clip is the wrong speaker", sprint_markdown)
+        self.assertIn("Keep pending when the clips disagree", sprint_markdown)
         self.assertIn("Listen to every supporting clip", sprint_markdown)
         self.assertIn("pavo batch finalize-board-audit", sprint_markdown)
 
@@ -671,6 +679,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(report["pending_decision_count"], 1)
         self.assertEqual(report["pending_clip_count"], 2)
         self.assertIn("clip_exists", "\n".join(check["name"] for check in report["checks"]))
+        self.assertIn("markdown_has_decision_rubric", "\n".join(check["name"] for check in report["checks"]))
         self.assertFalse(report["blockers"])
 
     def test_batch_verify_review_sprint_cli_fails_when_markdown_loses_checklist(self):
@@ -692,6 +701,31 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(exit_code, 3)
         self.assertFalse(report["passed"])
         self.assertIn("markdown_has_listen_checklist", "\n".join(report["blockers"]))
+
+    def test_batch_verify_review_sprint_cli_fails_when_rubric_is_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            main(["batch", "finalize-reviewed-proof", str(result.proof_report_path), "--json"])
+            main(["batch", "review-sprint", str(result.proof_report_path), "--json"])
+            markdown_path = result.proof_report_path.with_name("pavo-batch-review-sprint.md")
+            markdown_path.write_text(
+                markdown_path.read_text().replace(
+                    "Approve only when every supporting clip sounds like the named speaker",
+                    "Approve rule removed",
+                )
+            )
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(["batch", "verify-review-sprint", str(result.proof_report_path), "--json"])
+
+            report = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 3)
+        self.assertFalse(report["passed"])
+        self.assertIn("markdown_has_decision_rubric", "\n".join(report["blockers"]))
 
     def test_batch_review_now_cli_prepares_verified_launch_packet(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -760,6 +794,8 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(report["human_gate"], "pending")
         self.assertEqual(report["pending_decisions"], 1)
         self.assertEqual(report["pending_clips"], 2)
+        self.assertTrue(report["decision_board_written"]["out_path"].endswith("pavo-batch-proof.decision-board.html"))
+        self.assertTrue(report["review_pack_written"]["out_dir"].endswith("handoff-pack"))
         self.assertTrue(report["review_sprint_verification"]["passed"])
         self.assertTrue(report["review_paths"]["open_review_sprint"].endswith("pavo-batch-review-sprint.md"))
         self.assertTrue(report["review_paths"]["open_decision_board"].endswith("pavo-batch-proof.decision-board.html"))

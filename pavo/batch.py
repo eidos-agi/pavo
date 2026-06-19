@@ -43,6 +43,12 @@ GENERATED_ARTIFACT_PATHS = {
     "cluster_decision_brief": "pavo-cluster-question-bundle/pavo-cluster-review-decision-brief.html",
 }
 
+BATCH_SPEAKER_DECISION_RUBRIC = [
+    "Approve only when every supporting clip sounds like the named speaker and the transcript context does not contradict that identity.",
+    "Reject when any supporting clip is the wrong speaker, too overlapped, too noisy, or clearly contradicts the proposed identity.",
+    "Keep pending when the clips disagree, the speaker is uncertain, or another listener should make the call.",
+]
+
 
 @dataclass(frozen=True)
 class BatchDoctorResult:
@@ -2223,6 +2229,11 @@ def verify_batch_decision_board(
         _check("has_download_tsv", "Download TSV" in html and "downloadTsv" in html, "Download TSV control"),
         _check("has_download_audit_json", "Download Audit JSON" in html and "downloadAudit" in html, "Download Audit JSON control"),
         _check("has_review_sprint", "Review Sprint" in html and "focusNextPending" in html, "guided review sprint"),
+        _check(
+            "has_decision_rubric",
+            "Decision Rubric" in html and all(rule in html for rule in BATCH_SPEAKER_DECISION_RUBRIC),
+            "approve/reject/pending rubric",
+        ),
         _check("has_autosave", "localStorage" in html and "Autosaved locally" in html, "localStorage autosave"),
         _check("has_audit_events", "auditEvents" in html and "auditPayload" in html, "audit event export"),
         _check("has_finalize_board_audit_command", "pavo batch finalize-board-audit" in html, "finalize-board-audit command"),
@@ -2284,6 +2295,7 @@ def write_batch_review_pack(
 
     handoff = proof_report.get("operator_handoff") if isinstance(proof_report.get("operator_handoff"), dict) else {}
     review_packet = proof_report.get("review_packet") if isinstance(proof_report.get("review_packet"), dict) else {}
+    write_batch_decision_board(proof_path)
     write_batch_review_sprint(proof_path, out_dir=proof_path.parent)
     artifacts_to_copy = _batch_review_pack_artifacts(proof_path, proof_report, handoff, review_packet)
     copied: dict[str, dict[str, Any]] = {}
@@ -2708,6 +2720,11 @@ def verify_batch_review_sprint(
             pending_decision_count == 0 or ("- [ ] Approved" in markdown and "- [ ] Rejected" in markdown),
             "decision checkboxes",
         ),
+        _check(
+            "markdown_has_decision_rubric",
+            pending_decision_count == 0 or all(rule in markdown for rule in BATCH_SPEAKER_DECISION_RUBRIC),
+            "approve/reject/pending rubric",
+        ),
         _check("markdown_has_finalize_command", "pavo batch finalize-board-audit" in markdown, "finalize command"),
         _check("has_safety_boundary", "human owns the final identity decision" in str(payload.get("safety_boundary") or ""), "identity boundary"),
     ]
@@ -2753,6 +2770,7 @@ def _batch_review_sprint_payload(
             "next_action": validation.get("next_action"),
         },
         "review_sprint": sprint,
+        "decision_rubric": list(BATCH_SPEAKER_DECISION_RUBRIC),
         "commands": {
             "readiness": f"pavo batch readiness {shlex.quote(str(proof_path))}",
             "finalize_board_audit": (
@@ -2785,9 +2803,18 @@ def _render_batch_review_sprint_markdown(payload: dict[str, Any]) -> str:
         "",
         str(payload.get("safety_boundary")),
         "",
-        "## Focus Order",
+        "## Decision Rubric",
         "",
     ]
+    for rule in payload.get("decision_rubric") or BATCH_SPEAKER_DECISION_RUBRIC:
+        lines.append(f"- {rule}")
+    lines.extend(
+        [
+            "",
+        "## Focus Order",
+        "",
+        ]
+    )
     focus_order = sprint.get("focus_order") if isinstance(sprint.get("focus_order"), list) else []
     if focus_order:
         for item in focus_order:
@@ -3024,6 +3051,7 @@ def _render_batch_decision_board_html(
         _render_batch_decision_card(row, rows_by_group.get(str(row.get("decision_group") or ""), []))
         for row in decisions
     )
+    decision_rubric_html = "\n".join(f"<li>{escape(rule)}</li>" for rule in BATCH_SPEAKER_DECISION_RUBRIC)
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -3043,6 +3071,9 @@ def _render_batch_decision_board_html(
     .sprint {{ margin-top:14px; border:1px solid #c7d7fe; background:#eff5ff; border-radius:14px; padding:12px; display:flex; gap:12px; align-items:center; justify-content:space-between; }}
     .sprint strong {{ display:block; font-size:15px; }}
     .sprint button {{ background:var(--brand); }}
+    .rubric {{ margin-top:12px; background:#fff7ed; border:1px solid #fed7aa; border-radius:14px; padding:12px 14px; }}
+    .rubric strong {{ display:block; margin-bottom:6px; }}
+    .rubric ul {{ margin:0; padding-left:20px; color:#4b5563; font-size:13px; line-height:1.45; }}
     main {{ display:grid; grid-template-columns:minmax(0,1fr) 360px; gap:18px; padding:18px 24px 32px; }}
     .card {{ background:#fff; border:1px solid var(--line); border-radius:16px; box-shadow:0 8px 24px rgba(23,32,51,.06); margin-bottom:14px; overflow:hidden; }}
     .card-head {{ display:flex; gap:12px; align-items:flex-start; justify-content:space-between; padding:16px; border-bottom:1px solid var(--line); }}
@@ -3087,6 +3118,12 @@ def _render_batch_decision_board_html(
         <div class="sub">Listen to every supporting clip, decide the grouped speaker question, then download the audit JSON. Pavo will not approve identity by itself.</div>
       </div>
       <button onclick="focusNextPending()">Focus next pending</button>
+    </div>
+    <div class="rubric" id="decision-rubric">
+      <strong>Decision Rubric</strong>
+      <ul>
+        {decision_rubric_html}
+      </ul>
     </div>
   </header>
   <main>

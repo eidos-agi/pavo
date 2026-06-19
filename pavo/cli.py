@@ -825,7 +825,9 @@ def main(argv: list[str] | None = None) -> int:
             return 0 if result.passed else 3
         if args.batch_command == "review-now":
             try:
+                board_result = write_batch_decision_board(args.proof_report)
                 sprint_result = write_batch_review_sprint(args.proof_report)
+                pack_result = write_batch_review_pack(args.proof_report, out_dir=args.pack_dir)
                 sprint_verification = verify_batch_review_sprint(args.proof_report)
                 readiness = summarize_batch_readiness(args.proof_report, pack_dir=args.pack_dir)
             except (OSError, json.JSONDecodeError, ValueError) as exc:
@@ -849,7 +851,9 @@ def main(argv: list[str] | None = None) -> int:
                 "pending_decisions": readiness.pending_decision_count,
                 "pending_clips": readiness.review_sprint.get("pending_clip_count"),
                 "estimated_review_minutes": readiness.review_sprint.get("estimated_minutes"),
+                "decision_board_written": board_result.as_report(),
                 "review_sprint_written": sprint_result.as_report(),
+                "review_pack_written": pack_result.as_report(),
                 "review_sprint_verification": sprint_verification.as_report(),
                 "review_paths": review_paths,
                 "opened": opened,
