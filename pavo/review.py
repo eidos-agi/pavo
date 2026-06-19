@@ -179,6 +179,15 @@ class ClusterIdentityAuditResult:
 
 
 @dataclass(frozen=True)
+class ClusterQuestionPlanResult:
+    batch_root: Path
+    json_path: Path
+    markdown_path: Path
+    question_count: int
+    cluster_count: int
+
+
+@dataclass(frozen=True)
 class AnchorReviewGateResult:
     review_sheet_path: Path
     passed: bool
@@ -672,6 +681,97 @@ def render_cluster_identity_audit_markdown(report: dict[str, Any]) -> str:
                 "",
             ]
         )
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def create_cluster_question_plan(
+    batch_root: Path | str,
+    *,
+    audit_path: Path | str | None = None,
+    out_path: Path | str | None = None,
+    samples_per_cluster: int = 2,
+) -> ClusterQuestionPlanResult:
+    root = Path(batch_root)
+    audit_file = Path(audit_path) if audit_path else root / "pavo-cluster-identity-audit.json"
+    if audit_file.exists():
+        audit = json.loads(audit_file.read_text())
+    else:
+        audit_result = create_cluster_identity_audit(root)
+        audit = json.loads(audit_result.json_path.read_text())
+        audit_file = audit_result.json_path
+
+    diarization_by_cluster: dict[str, list[dict[str, Any]]] = {}
+    for segment in _load_diarization_segments(root):
+        diarization_by_cluster.setdefault(str(segment.get("speaker") or "unknown"), []).append(segment)
+    named_by_key = {_review_segment_key(segment): segment for segment in _load_named_evidence_segments(root)}
+
+    questions = []
+    for cluster in audit.get("clusters") or []:
+        cluster_id = str(cluster.get("cluster_id") or "")
+        samples = _cluster_question_samples(
+            diarization_by_cluster.get(cluster_id, []),
+            named_by_key=named_by_key,
+            limit=samples_per_cluster,
+        )
+        if not samples:
+            continue
+        questions.append(_cluster_question(cluster, samples))
+
+    report_path = Path(out_path) if out_path else root / "pavo-cluster-question-plan.json"
+    markdown_path = report_path.with_suffix(".md")
+    report = {
+        "passed": bool(questions),
+        "batch_root": str(root),
+        "source_audit": str(audit_file),
+        "cluster_count": len(audit.get("clusters") or []),
+        "question_count": len(questions),
+        "questions": questions,
+        "safety_boundary": "Questions guide human review. They do not approve cluster identity or mutate speaker evidence.",
+    }
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    markdown_path.write_text(render_cluster_question_plan_markdown(report), encoding="utf-8")
+    return ClusterQuestionPlanResult(
+        batch_root=root,
+        json_path=report_path,
+        markdown_path=markdown_path,
+        question_count=len(questions),
+        cluster_count=len(audit.get("clusters") or []),
+    )
+
+
+def render_cluster_question_plan_markdown(report: dict[str, Any]) -> str:
+    lines = [
+        "# Pavo Cluster Question Plan",
+        "",
+        f"- Batch root: `{report.get('batch_root')}`",
+        f"- Source audit: `{report.get('source_audit')}`",
+        f"- Cluster count: {report.get('cluster_count')}",
+        f"- Question count: {report.get('question_count')}",
+        "",
+        "Safety boundary: answer these questions in review before propagating cluster identity.",
+        "",
+        "## Questions",
+        "",
+    ]
+    for item in report.get("questions") or []:
+        lines.extend(
+            [
+                f"### {item.get('cluster_id')} - {item.get('question')}",
+                "",
+                f"- Status: `{item.get('status')}`",
+                f"- Expected impact: {item.get('expected_impact')}",
+                f"- Stop condition: {item.get('stop_condition')}",
+                f"- Suggested decision: {item.get('suggested_decision')}",
+                "",
+                "Representative samples:",
+            ]
+        )
+        for sample in item.get("samples") or []:
+            lines.append(
+                f"- `{sample.get('recording_id')}` {sample.get('start')}-{sample.get('end')}: {sample.get('text')}"
+            )
+        lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -2397,6 +2497,93 @@ def _cluster_identity_audit_row(
         "sample_quotes_by_speaker": examples,
         "recommended_action": recommended_action,
     }
+
+
+def _cluster_question(
+    cluster: dict[str, Any],
+    samples: list[dict[str, Any]],
+) -> dict[str, Any]:
+    status = str(cluster.get("status") or "needs_targeted_review")
+    cluster_id = str(cluster.get("cluster_id") or "")
+    dominant = cluster.get("dominant_speaker")
+    candidate = cluster.get("candidate_name")
+    if status == "candidate_conflict":
+        question = f"Does cluster {cluster_id} belong to {candidate} or {dominant}?"
+        suggested = "Create cannot-link/must-link constraints before propagation."
+        stop = "At least one conflict sample is explicitly assigned or rejected."
+    elif status == "low_coverage_targeted_review":
+        question = f"Can cluster {cluster_id} be confirmed as {dominant}?"
+        suggested = f"Approve representative {dominant} samples if the voice matches."
+        stop = "Two representative samples confirm the same speaker, or one sample contradicts it."
+    elif status == "no_strong_named_evidence":
+        question = f"Who is the representative speaker for cluster {cluster_id}?"
+        suggested = "Identify or mark unassigned before any propagation."
+        stop = "One clean representative sample has a reviewed speaker label."
+    else:
+        question = f"What speaker identity should constrain cluster {cluster_id}?"
+        suggested = "Review representative clips before propagating."
+        stop = "Representative samples either agree on one speaker or expose a split cluster."
+
+    return {
+        "cluster_id": cluster_id,
+        "status": status,
+        "question": question,
+        "candidate_name": candidate,
+        "dominant_speaker": dominant,
+        "strong_coverage": cluster.get("strong_coverage"),
+        "dominant_share": cluster.get("dominant_share"),
+        "expected_impact": f"{cluster.get('segment_count')} segments / {cluster.get('duration_seconds') or 'unknown'} seconds",
+        "suggested_decision": suggested,
+        "stop_condition": stop,
+        "samples": samples,
+    }
+
+
+def _cluster_question_samples(
+    rows: list[dict[str, Any]],
+    *,
+    named_by_key: dict[tuple[str, float | None, float | None], dict[str, Any]],
+    limit: int,
+) -> list[dict[str, Any]]:
+    scored = []
+    for row in rows:
+        text = str(row.get("text") or "").strip()
+        named = named_by_key.get(_review_segment_key(row))
+        confidence = str(named.get("confidence") if named else "")
+        speaker = str(named.get("speaker") if named else row.get("candidate_name") or "")
+        score = _question_sample_score(row, named)
+        scored.append((score, row, named, speaker, confidence, text))
+    results = []
+    for _, row, named, speaker, confidence, text in sorted(scored, key=lambda item: (-item[0], str(item[1].get("recording_id") or ""), _safe_float(item[1].get("start")) or 0.0)):
+        if len(results) >= limit:
+            break
+        results.append(
+            {
+                "recording_id": row.get("recording_id"),
+                "start": row.get("start"),
+                "end": row.get("end"),
+                "cluster_speaker": row.get("speaker"),
+                "candidate_name": row.get("candidate_name"),
+                "named_speaker": speaker,
+                "named_confidence": confidence,
+                "text": text[:500],
+                "selection_reason": "longer informative sample with available text/evidence",
+            }
+        )
+    return results
+
+
+def _question_sample_score(row: dict[str, Any], named: dict[str, Any] | None) -> float:
+    duration = max(0.0, (_safe_float(row.get("end")) or 0.0) - (_safe_float(row.get("start")) or 0.0))
+    text = str(row.get("text") or "")
+    score = min(duration, 20.0)
+    if 20 <= len(text) <= 240:
+        score += 5.0
+    if named and str(named.get("confidence")) in {"medium", "high", "manual_confirmed"}:
+        score += 4.0
+    if named and not _is_unknown_review_speaker(named.get("speaker")):
+        score += 2.0
+    return score
 
 
 def _review_context_summary(neighbors: list[dict[str, Any]]) -> str:
