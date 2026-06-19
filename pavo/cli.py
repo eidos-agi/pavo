@@ -27,10 +27,12 @@ from .batch import (
     verify_batch_decision_board,
     verify_batch_manifest,
     verify_batch_review_pack,
+    verify_batch_review_rehearsal,
     verify_batch_review_sprint,
     verify_batch_speaker_answer_sheet,
     write_batch_decision_board,
     write_batch_review_pack,
+    write_batch_review_rehearsal,
     write_batch_review_sprint,
     write_batch_speaker_answer_sheet,
 )
@@ -227,6 +229,22 @@ def build_parser() -> argparse.ArgumentParser:
     batch_verify_speaker_answer_sheet.add_argument("--markdown", type=Path, help="Override pavo-batch-speaker-answer-sheet.md path")
     batch_verify_speaker_answer_sheet.add_argument("--tsv", type=Path, help="Override pavo-batch-speaker-answer-sheet.tsv path")
     batch_verify_speaker_answer_sheet.add_argument("--json", action="store_true", help="Print machine-readable verification report")
+    batch_review_rehearsal = batch_sub.add_parser(
+        "review-rehearsal",
+        help="Regenerate and verify all human-review surfaces before the listener starts",
+    )
+    batch_review_rehearsal.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_review_rehearsal.add_argument("--out-dir", type=Path, help="Output directory for rehearsal report; defaults beside the proof report")
+    batch_review_rehearsal.add_argument("--pack-dir", type=Path, help="Review pack directory; defaults beside the proof report")
+    batch_review_rehearsal.add_argument("--json", action="store_true", help="Print machine-readable rehearsal report")
+    batch_verify_review_rehearsal = batch_sub.add_parser(
+        "verify-review-rehearsal",
+        help="Verify a written review rehearsal report is still coherent",
+    )
+    batch_verify_review_rehearsal.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_verify_review_rehearsal.add_argument("--rehearsal-json", type=Path, help="Override pavo-batch-review-rehearsal.json path")
+    batch_verify_review_rehearsal.add_argument("--rehearsal-markdown", type=Path, help="Override pavo-batch-review-rehearsal.md path")
+    batch_verify_review_rehearsal.add_argument("--json", action="store_true", help="Print machine-readable verification report")
     batch_review_now = batch_sub.add_parser(
         "review-now",
         help="Regenerate and verify the review sprint, then print launch instructions for human speaker review",
@@ -896,6 +914,58 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"tsv_path: {result.tsv_path}")
                 print(f"pending_decision_count: {result.pending_decision_count}")
                 print(f"pending_clip_count: {result.pending_clip_count}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+            return 0 if result.passed else 3
+        if args.batch_command == "review-rehearsal":
+            try:
+                result = write_batch_review_rehearsal(
+                    args.proof_report,
+                    out_dir=args.out_dir,
+                    pack_dir=args.pack_dir,
+                )
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+            else:
+                print(f"passed: {str(result.passed).lower()}")
+                print(f"state: {result.state}")
+                print(f"pending_decision_count: {result.pending_decision_count}")
+                print(f"pending_clip_count: {result.pending_clip_count}")
+                print(f"estimated_minutes: {result.estimated_minutes}")
+                print(f"json_path: {result.json_path}")
+                print(f"markdown_path: {result.markdown_path}")
+                if result.first_decision:
+                    print(
+                        "first_decision: "
+                        f"{result.first_decision.get('decision_group')}/"
+                        f"{result.first_decision.get('cluster_id')}/"
+                        f"{result.first_decision.get('decision_risk')}"
+                    )
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
+            return 0 if result.passed else 3
+        if args.batch_command == "verify-review-rehearsal":
+            try:
+                result = verify_batch_review_rehearsal(
+                    args.proof_report,
+                    json_path=args.rehearsal_json,
+                    markdown_path=args.rehearsal_markdown,
+                )
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if args.json:
+                print(json.dumps(result.as_report(), indent=2, sort_keys=True))
+            else:
+                print(f"passed: {str(result.passed).lower()}")
+                print(f"state: {result.state}")
+                print(f"pending_decision_count: {result.pending_decision_count}")
+                print(f"pending_clip_count: {result.pending_clip_count}")
+                print(f"json_path: {result.json_path}")
+                print(f"markdown_path: {result.markdown_path}")
                 if result.blockers:
                     print("blockers: " + "; ".join(result.blockers))
             return 0 if result.passed else 3

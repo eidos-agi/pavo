@@ -117,6 +117,8 @@ pavo batch review-sprint /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch verify-review-sprint /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch speaker-answer-sheet /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch verify-speaker-answer-sheet /path/to/meeting-batch/pavo-batch-proof.json
+pavo batch review-rehearsal /path/to/meeting-batch/pavo-batch-proof.json
+pavo batch verify-review-rehearsal /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch review-now /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch finalize-reviewed-proof /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --check-validation
@@ -249,6 +251,16 @@ that this sheet exists, has the expected pending decision count, includes
 review context for every row, and carries the finish command plus identity
 safety boundary. Review packs generate and include these answer-sheet files
 automatically.
+
+Use `pavo batch review-rehearsal` immediately before a human listener starts.
+It regenerates the decision board, review sprint, speaker answer sheet, and
+review pack; verifies all of them; compares pending decision and clip counts;
+extracts the first queued decision; and writes
+`pavo-batch-review-rehearsal.json` plus `pavo-batch-review-rehearsal.md`. This
+is a pre-review QC gate: passing rehearsal means the human review path is
+coherent and ready, not that speaker identity has been approved. Use
+`pavo batch verify-review-rehearsal` to check a written rehearsal report before
+sending or archiving it.
 
 Use `pavo batch review-now` as the fastest safe human-review launch path. It
 regenerates the sprint, speaker answer sheet, and decision board, verifies the

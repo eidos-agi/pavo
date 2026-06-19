@@ -690,6 +690,41 @@ class BatchSpeakerAnswerSheetVerifyResult:
 
 
 @dataclass(frozen=True)
+class BatchReviewRehearsalResult:
+    proof_report_path: Path
+    out_dir: Path
+    json_path: Path
+    markdown_path: Path
+    passed: bool
+    state: str
+    pending_decision_count: int
+    pending_clip_count: int
+    estimated_minutes: float
+    first_decision: dict[str, Any] | None
+    checks: list[dict[str, Any]]
+    blockers: list[str]
+    payload: dict[str, Any]
+
+    def as_report(self) -> dict[str, Any]:
+        return {
+            "proof_report_path": str(self.proof_report_path),
+            "out_dir": str(self.out_dir),
+            "json_path": str(self.json_path),
+            "markdown_path": str(self.markdown_path),
+            "passed": self.passed,
+            "state": self.state,
+            "pending_decision_count": self.pending_decision_count,
+            "pending_clip_count": self.pending_clip_count,
+            "estimated_minutes": self.estimated_minutes,
+            "first_decision": self.first_decision,
+            "checks": self.checks,
+            "blockers": self.blockers,
+            "payload": self.payload,
+            "safety_boundary": "Review rehearsal proves the human review path is coherent and ready. It does not approve speaker identity or replace listening review.",
+        }
+
+
+@dataclass(frozen=True)
 class BatchReadinessResult:
     proof_report_path: Path
     state: str
@@ -3174,6 +3209,207 @@ def verify_batch_speaker_answer_sheet(
         checks=checks,
         blockers=blockers,
     )
+
+
+def write_batch_review_rehearsal(
+    proof_report_path: Path | str,
+    *,
+    out_dir: Path | str | None = None,
+    pack_dir: Path | str | None = None,
+) -> BatchReviewRehearsalResult:
+    proof_path = Path(proof_report_path)
+    target_dir = Path(out_dir) if out_dir else proof_path.parent
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    board_result = write_batch_decision_board(proof_path)
+    sprint_result = write_batch_review_sprint(proof_path)
+    answer_result = write_batch_speaker_answer_sheet(proof_path)
+    pack_result = write_batch_review_pack(proof_path, out_dir=pack_dir)
+
+    board_verification = verify_batch_decision_board(proof_path)
+    sprint_verification = verify_batch_review_sprint(proof_path)
+    answer_verification = verify_batch_speaker_answer_sheet(proof_path)
+    pack_verification = verify_batch_review_pack(proof_path, pack_dir=pack_dir)
+    readiness = summarize_batch_readiness(proof_path, pack_dir=pack_dir)
+
+    answer_rows, _fields = _read_tsv(answer_result.tsv_path)
+    first_decision = dict(answer_rows[0]) if answer_rows else None
+    expected_pending = readiness.pending_decision_count or 0
+    expected_clips = int(readiness.review_sprint.get("pending_clip_count") or 0)
+    checks = [
+        _check("machine_ready", readiness.machine_ready, readiness.state),
+        _check("board_verified", board_verification.passed, str(board_verification.decision_board_path)),
+        _check("review_sprint_verified", sprint_verification.passed, str(sprint_verification.markdown_path)),
+        _check("answer_sheet_verified", answer_verification.passed, str(answer_verification.markdown_path)),
+        _check("review_pack_verified", pack_verification.passed, str(pack_verification.pack_dir)),
+        _check("pending_decision_count_consistent", expected_pending == len(answer_rows), f"{expected_pending}/{len(answer_rows)}"),
+        _check("pending_clip_count_consistent", expected_clips == answer_verification.pending_clip_count, f"{expected_clips}/{answer_verification.pending_clip_count}"),
+        _check("first_decision_has_group", bool(first_decision and first_decision.get("decision_group")), str(first_decision or {})),
+        _check("first_decision_has_clip_paths", bool(first_decision and first_decision.get("clip_paths")), str(first_decision or {})),
+        _check("human_gate_is_explicit", readiness.state in {"machine_ready_human_review_pending", "ready_to_finalize", "complete"}, readiness.state),
+    ]
+    blockers = [f"{check['name']}: {check['detail']}" for check in checks if not check.get("passed")]
+    blockers.extend(f"decision board: {blocker}" for blocker in board_verification.blockers)
+    blockers.extend(f"review sprint: {blocker}" for blocker in sprint_verification.blockers)
+    blockers.extend(f"answer sheet: {blocker}" for blocker in answer_verification.blockers)
+    blockers.extend(f"review pack: {blocker}" for blocker in pack_verification.blockers)
+    blockers.extend(f"readiness: {blocker}" for blocker in readiness.blockers)
+    blockers = list(dict.fromkeys(blockers))
+    payload = {
+        "generated_at": datetime.now(UTC).isoformat(),
+        "proof_report_path": str(proof_path),
+        "state": readiness.state,
+        "passed": not blockers,
+        "complete": readiness.complete,
+        "machine_ready": readiness.machine_ready,
+        "human_gate": "complete" if readiness.complete else "pending",
+        "pending_decision_count": expected_pending,
+        "pending_clip_count": expected_clips,
+        "estimated_minutes": float(readiness.review_sprint.get("estimated_minutes") or 0),
+        "first_decision": first_decision,
+        "artifacts": {
+            "decision_board": str(board_result.out_path),
+            "review_sprint_markdown": str(sprint_result.markdown_path),
+            "speaker_answer_sheet_markdown": str(answer_result.markdown_path),
+            "speaker_answer_sheet_tsv": str(answer_result.tsv_path),
+            "review_pack": str(pack_result.out_dir),
+            "review_pack_zip": str(pack_result.zip_path) if pack_result.zip_path else None,
+        },
+        "commands": {
+            "review_now": f"pavo batch review-now {shlex.quote(str(proof_path))}",
+            "verify_rehearsal": f"pavo batch verify-review-rehearsal {shlex.quote(str(proof_path))}",
+            "finalize_board_audit": _batch_finalize_board_audit_command(proof_path, readiness.handoff),
+        },
+        "checks": checks,
+        "blockers": blockers,
+        "board_verification": board_verification.as_report(),
+        "review_sprint_verification": sprint_verification.as_report(),
+        "speaker_answer_sheet_verification": answer_verification.as_report(),
+        "review_pack_verification": pack_verification.as_report(),
+        "readiness": readiness.as_report(),
+        "safety_boundary": "This rehearsal proves the review path is ready. It does not approve speaker identity or remove the human listening gate.",
+    }
+    json_path = target_dir / "pavo-batch-review-rehearsal.json"
+    markdown_path = target_dir / "pavo-batch-review-rehearsal.md"
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    markdown_path.write_text(_render_batch_review_rehearsal_markdown(payload), encoding="utf-8")
+    return BatchReviewRehearsalResult(
+        proof_report_path=proof_path,
+        out_dir=target_dir,
+        json_path=json_path,
+        markdown_path=markdown_path,
+        passed=not blockers,
+        state=readiness.state,
+        pending_decision_count=expected_pending,
+        pending_clip_count=expected_clips,
+        estimated_minutes=float(readiness.review_sprint.get("estimated_minutes") or 0),
+        first_decision=first_decision,
+        checks=checks,
+        blockers=blockers,
+        payload=payload,
+    )
+
+
+def _batch_finalize_board_audit_command(proof_path: Path, handoff: dict[str, Any]) -> str:
+    board_audit_json = proof_path.with_name("pavo-batch-proof.decision-board.audit.json")
+    reviewed_decision_slate = proof_path.with_name("pavo-batch-proof.decision-slate.reviewed.tsv")
+    review_slate = handoff.get("proof_review_slate_tsv") or str(proof_path.with_name("pavo-batch-proof.review-slate.tsv"))
+    return " ".join(
+        [
+            "pavo",
+            "batch",
+            "finalize-board-audit",
+            shlex.quote(str(proof_path)),
+            shlex.quote(str(board_audit_json)),
+            "--out",
+            shlex.quote(str(review_slate)),
+            "--decision-slate-out",
+            shlex.quote(str(reviewed_decision_slate)),
+        ]
+    )
+
+
+def verify_batch_review_rehearsal(
+    proof_report_path: Path | str,
+    *,
+    json_path: Path | str | None = None,
+    markdown_path: Path | str | None = None,
+) -> BatchReviewRehearsalResult:
+    proof_path = Path(proof_report_path)
+    resolved_json = Path(json_path) if json_path else proof_path.with_name("pavo-batch-review-rehearsal.json")
+    resolved_markdown = Path(markdown_path) if markdown_path else proof_path.with_name("pavo-batch-review-rehearsal.md")
+    payload = json.loads(resolved_json.read_text()) if resolved_json.exists() else {}
+    markdown = resolved_markdown.read_text(encoding="utf-8") if resolved_markdown.exists() else ""
+    first_decision = payload.get("first_decision") if isinstance(payload.get("first_decision"), dict) else None
+    checks = [
+        _check("review_rehearsal_json_exists", resolved_json.exists() and resolved_json.is_file(), str(resolved_json)),
+        _check("review_rehearsal_markdown_exists", resolved_markdown.exists() and resolved_markdown.is_file(), str(resolved_markdown)),
+        _check("proof_report_matches", str(payload.get("proof_report_path") or "") == str(proof_path), str(payload.get("proof_report_path") or "")),
+        _check("payload_passed", bool(payload.get("passed")), str(payload.get("state") or "")),
+        _check("has_first_decision", bool(first_decision and first_decision.get("decision_group") and first_decision.get("clip_paths")), str(first_decision or {})),
+        _check("markdown_has_rehearsal_title", "Pavo Batch Review Rehearsal" in markdown, "title"),
+        _check("markdown_has_first_decision", "First Decision" in markdown and "decision group" in markdown.lower(), "first decision"),
+        _check("markdown_has_finalize_command", "pavo batch finalize-board-audit" in markdown, "finalize command"),
+        _check("markdown_has_safety_boundary", "does not approve speaker identity" in markdown, "safety boundary"),
+    ]
+    blockers = [f"{check['name']}: {check['detail']}" for check in checks if not check.get("passed")]
+    blockers.extend(str(blocker) for blocker in payload.get("blockers") or [])
+    blockers = list(dict.fromkeys(blockers))
+    return BatchReviewRehearsalResult(
+        proof_report_path=proof_path,
+        out_dir=resolved_json.parent,
+        json_path=resolved_json,
+        markdown_path=resolved_markdown,
+        passed=not blockers,
+        state=str(payload.get("state") or "unknown"),
+        pending_decision_count=int(payload.get("pending_decision_count") or 0),
+        pending_clip_count=int(payload.get("pending_clip_count") or 0),
+        estimated_minutes=float(payload.get("estimated_minutes") or 0),
+        first_decision=first_decision,
+        checks=checks,
+        blockers=blockers,
+        payload=payload,
+    )
+
+
+def _render_batch_review_rehearsal_markdown(payload: dict[str, Any]) -> str:
+    first = payload.get("first_decision") if isinstance(payload.get("first_decision"), dict) else {}
+    artifacts = payload.get("artifacts") if isinstance(payload.get("artifacts"), dict) else {}
+    commands = payload.get("commands") if isinstance(payload.get("commands"), dict) else {}
+    lines = [
+        "# Pavo Batch Review Rehearsal",
+        "",
+        f"- State: `{payload.get('state')}`",
+        f"- Passed: `{str(bool(payload.get('passed'))).lower()}`",
+        f"- Human gate: `{payload.get('human_gate')}`",
+        f"- Pending decisions: `{payload.get('pending_decision_count')}`",
+        f"- Pending clips: `{payload.get('pending_clip_count')}`",
+        f"- Estimated review time: `{payload.get('estimated_minutes')}` minutes",
+        "",
+        "## First Decision",
+        "",
+        f"- Decision group: `{first.get('decision_group')}`",
+        f"- Cluster: `{first.get('cluster_id')}`",
+        f"- Proposed speaker: `{first.get('speaker')}`",
+        f"- Risk: `{first.get('decision_risk')}`",
+        f"- Shape: `{first.get('decision_shape')}`",
+        f"- Question: {first.get('question')}",
+        f"- Suggested action: {first.get('suggested_review_action')}",
+        "",
+        "## Artifacts",
+        "",
+    ]
+    for name, value in artifacts.items():
+        lines.append(f"- `{name}`: `{value}`")
+    lines.extend(["", "## Checks", ""])
+    for check in payload.get("checks") or []:
+        status = "pass" if check.get("passed") else "fail"
+        lines.append(f"- `{status}` {check.get('name')}: {check.get('detail')}")
+    lines.extend(["", "## Commands", "", "```bash"])
+    for command in commands.values():
+        lines.append(str(command or ""))
+    lines.extend(["```", "", "## Safety Boundary", "", str(payload.get("safety_boundary") or "")])
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def _batch_review_sprint_payload(

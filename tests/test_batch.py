@@ -38,6 +38,8 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("pavo batch verify-review-sprint", readme)
         self.assertIn("pavo batch speaker-answer-sheet", readme)
         self.assertIn("pavo batch verify-speaker-answer-sheet", readme)
+        self.assertIn("pavo batch review-rehearsal", readme)
+        self.assertIn("pavo batch verify-review-rehearsal", readme)
         self.assertIn("pavo batch review-now", readme)
         self.assertIn("decision_shape", readme)
         self.assertIn("evidence_hints", readme)
@@ -783,6 +785,63 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(exit_code, 3)
         self.assertFalse(report["passed"])
         self.assertIn("row_has_review_context", "\n".join(report["blockers"]))
+
+    def test_batch_review_rehearsal_cli_writes_ready_to_review_report(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            main(["batch", "finalize-reviewed-proof", str(result.proof_report_path), "--json"])
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(["batch", "review-rehearsal", str(result.proof_report_path), "--json"])
+
+            report = json.loads(stdout.getvalue())
+            rehearsal_json = json.loads(Path(report["json_path"]).read_text())
+            rehearsal_markdown = Path(report["markdown_path"]).read_text()
+            verify_stdout = io.StringIO()
+            with redirect_stdout(verify_stdout):
+                verify_exit_code = main(["batch", "verify-review-rehearsal", str(result.proof_report_path), "--json"])
+            verify_report = json.loads(verify_stdout.getvalue())
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(verify_exit_code, 0)
+        self.assertTrue(report["passed"])
+        self.assertTrue(verify_report["passed"])
+        self.assertEqual(report["state"], "machine_ready_human_review_pending")
+        self.assertEqual(report["pending_decision_count"], 1)
+        self.assertEqual(report["pending_clip_count"], 2)
+        self.assertEqual(report["first_decision"]["decision_group"], "D01")
+        self.assertEqual(report["first_decision"]["cluster_id"], "S1")
+        self.assertTrue(rehearsal_json["speaker_answer_sheet_verification"]["passed"])
+        self.assertTrue(rehearsal_json["review_pack_verification"]["passed"])
+        self.assertIn("Pavo Batch Review Rehearsal", rehearsal_markdown)
+        self.assertIn("First Decision", rehearsal_markdown)
+        self.assertIn("pavo batch finalize-board-audit", rehearsal_markdown)
+        self.assertFalse(report["blockers"])
+
+    def test_batch_verify_review_rehearsal_cli_rejects_tampered_report(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            main(["batch", "finalize-reviewed-proof", str(result.proof_report_path), "--json"])
+            main(["batch", "review-rehearsal", str(result.proof_report_path), "--json"])
+            rehearsal_path = result.proof_report_path.with_name("pavo-batch-review-rehearsal.json")
+            payload = json.loads(rehearsal_path.read_text())
+            payload["first_decision"]["decision_group"] = ""
+            rehearsal_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(["batch", "verify-review-rehearsal", str(result.proof_report_path), "--json"])
+
+            report = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 3)
+        self.assertFalse(report["passed"])
+        self.assertIn("has_first_decision", "\n".join(report["blockers"]))
 
     def test_batch_review_sprint_cli_writes_json_and_markdown_packet(self):
         with tempfile.TemporaryDirectory() as tmp:
