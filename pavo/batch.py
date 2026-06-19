@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shlex
+import csv
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -583,6 +584,7 @@ def enrich_operator_handoff_with_validation(handoff: dict[str, Any]) -> dict[str
             reviewed = approved + rejected
             total = reviewed + pending
             progress_percent = round((reviewed / total) * 100, 1) if total else 100.0
+            pending_rows = _handoff_pending_rows(slate)
             slate_mtime = Path(slate).stat().st_mtime if slate and Path(slate).exists() else None
             validation_mtime = validation_path.stat().st_mtime
             fresh = slate_mtime is None or validation_mtime >= slate_mtime
@@ -596,6 +598,7 @@ def enrich_operator_handoff_with_validation(handoff: dict[str, Any]) -> dict[str
                     "reviewed_count": reviewed,
                     "total_count": total,
                     "progress_percent": progress_percent,
+                    "pending_rows": pending_rows,
                     "next_action": _handoff_validation_next_action(status, pending),
                     "passed": passed,
                     "ready_to_finalize": ready,
@@ -631,6 +634,33 @@ def _handoff_validation_next_action(status: str, pending_count: int) -> str:
     if status == "unreadable":
         return "repair or delete the unreadable validation report, then rerun validate_command"
     return "inspect validation status"
+
+
+def _handoff_pending_rows(slate: str, *, limit: int = 20) -> list[dict[str, Any]]:
+    path = Path(slate) if slate else None
+    if not path or not path.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    try:
+        with path.open(newline="", encoding="utf-8") as handle:
+            reader = csv.DictReader(handle, delimiter="\t")
+            for row in reader:
+                if str(row.get("decision") or "").strip().lower() != "pending":
+                    continue
+                rows.append(
+                    {
+                        "row_index": row.get("row_index"),
+                        "cluster_id": row.get("cluster_id"),
+                        "speaker": row.get("speaker"),
+                        "question": row.get("question"),
+                        "clip_path": row.get("clip_path"),
+                    }
+                )
+                if len(rows) >= limit:
+                    break
+    except (OSError, csv.Error):
+        return []
+    return rows
 
 
 def operator_handoff_ready_to_finish(handoff: dict[str, Any]) -> bool:
@@ -707,6 +737,19 @@ def format_operator_handoff(handoff: dict[str, Any]) -> str:
                     f"next_action: {validation.get('next_action')}",
                 ]
             )
+            pending_rows = validation.get("pending_rows") or []
+            if pending_rows:
+                lines.append("pending_rows:")
+                for row in pending_rows:
+                    lines.append(
+                        "- row {row_index} cluster {cluster_id} speaker {speaker}: {question} ({clip_path})".format(
+                            row_index=row.get("row_index"),
+                            cluster_id=row.get("cluster_id"),
+                            speaker=row.get("speaker"),
+                            question=row.get("question"),
+                            clip_path=row.get("clip_path"),
+                        )
+                    )
             blockers = validation.get("blockers") or []
             if blockers:
                 lines.append("blockers: " + "; ".join(str(blocker) for blocker in blockers))

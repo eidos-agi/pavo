@@ -293,6 +293,9 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("pending_count: 2", checked_stdout.getvalue())
         self.assertIn("progress_percent: 0.0", checked_stdout.getvalue())
         self.assertIn("next_action: review 2 pending proof TSV row(s), then rerun validate_command", checked_stdout.getvalue())
+        self.assertIn("pending_rows:", checked_stdout.getvalue())
+        self.assertIn("- row 1 cluster S1 speaker Daniel: Can cluster S1 be confirmed as Daniel?", checked_stdout.getvalue())
+        self.assertIn("- row 2 cluster S1 speaker Daniel: Can cluster S1 be confirmed as Daniel?", checked_stdout.getvalue())
         self.assertIn("pending_count: 2", strict_stdout.getvalue())
         self.assertIn("artifact_checks:", checked_stdout.getvalue())
         self.assertIn("proof_review_slate_tsv: exists=true", checked_stdout.getvalue())
@@ -313,6 +316,10 @@ class BatchDoctorTests(unittest.TestCase):
             json_report["validation"]["next_action"],
             "review 2 pending proof TSV row(s), then rerun validate_command",
         )
+        self.assertEqual(len(json_report["validation"]["pending_rows"]), 2)
+        self.assertEqual(json_report["validation"]["pending_rows"][0]["row_index"], "1")
+        self.assertEqual(json_report["validation"]["pending_rows"][0]["cluster_id"], "S1")
+        self.assertEqual(json_report["validation"]["pending_rows"][0]["speaker"], "Daniel")
         self.assertFalse(operator_handoff_ready_to_finish(json_report))
         self.assertIn("finish-from-slate", json_report["finish_command"])
 
