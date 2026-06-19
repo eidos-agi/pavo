@@ -29,6 +29,7 @@ from .review import (
     create_anchor_review_page,
     create_anchor_review_sheet,
     create_cluster_identity_audit,
+    create_cluster_question_impact_report,
     create_cluster_question_bundle,
     create_cluster_question_plan,
     compile_anchor_review_corrections,
@@ -177,6 +178,9 @@ def build_parser() -> argparse.ArgumentParser:
     review_clusters_bundle.add_argument("--batch-root", type=Path, help="Batch root for resolving source audio; defaults to question plan batch_root")
     review_clusters_bundle.add_argument("--out-dir", type=Path, help="Bundle output directory")
     review_clusters_bundle.add_argument("--clip-padding", type=float, default=0.25)
+    review_clusters_impact = review_clusters_sub.add_parser("impact", help="Rank cluster-question review rows by expected impact")
+    review_clusters_impact.add_argument("review_sheet", type=Path)
+    review_clusters_impact.add_argument("--out", type=Path, help="Impact report JSON path")
     review_clusters_decisions = review_clusters_sub.add_parser("decisions", help="Export reviewed cluster-question decisions")
     review_clusters_decisions.add_argument("review_sheet", type=Path)
     review_clusters_decisions.add_argument("--out", type=Path, help="Decision report JSON path")
@@ -593,6 +597,16 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"copied_clip_count: {result.copied_clip_count}")
                 print(f"missing_clip_count: {result.missing_clip_count}")
                 return 0 if result.candidate_count and result.missing_clip_count == 0 else 2
+            if args.review_clusters_command == "impact":
+                result = create_cluster_question_impact_report(args.review_sheet, out_path=args.out)
+                print(f"impact_json: {result.json_path}")
+                print(f"impact_markdown: {result.markdown_path}")
+                print(f"candidate_count: {result.candidate_count}")
+                print(f"cluster_count: {result.cluster_count}")
+                print(f"top_cluster_id: {result.top_cluster_id}")
+                print(f"estimated_unlockable_segments: {result.estimated_unlockable_segments}")
+                print(f"estimated_unlockable_seconds: {result.estimated_unlockable_seconds}")
+                return 0 if result.cluster_count else 2
             if args.review_clusters_command == "decisions":
                 result = export_cluster_question_decisions(args.review_sheet, out_path=args.out)
                 print(f"passed: {str(result.passed).lower()}")

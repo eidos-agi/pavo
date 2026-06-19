@@ -10,6 +10,7 @@ from pavo.review import (
     create_anchor_review_bundle,
     create_anchor_review_page,
     create_cluster_identity_audit,
+    create_cluster_question_impact_report,
     create_cluster_question_bundle,
     create_cluster_question_plan,
     compile_anchor_review_corrections,
@@ -638,6 +639,64 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result.pending_count, 1)
         self.assertFalse(materialized.passed)
         self.assertIn("cluster question rows are still pending", "; ".join(materialized.blockers))
+
+    def test_cluster_question_impact_report_ranks_pending_clusters(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sheet = root / "cluster-review-sheet.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "pending",
+                                "approved": False,
+                                "target_speaker_label": "Daniel",
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 2.0,
+                                "text": "larger cluster sample",
+                                "review_subtitle": "50 segments / 100 seconds",
+                                "cluster_question": {
+                                    "cluster_id": "S1",
+                                    "dominant_speaker": "Daniel",
+                                    "expected_impact": "50 segments / 100 seconds",
+                                    "question": "Can S1 be Daniel?",
+                                },
+                            },
+                            {
+                                "index": 2,
+                                "status": "pending",
+                                "approved": False,
+                                "target_speaker_label": "Alex",
+                                "recording_id": "rec-2",
+                                "start": 3.0,
+                                "end": 4.0,
+                                "text": "smaller cluster sample",
+                                "review_subtitle": "3 segments / 8 seconds",
+                                "cluster_question": {
+                                    "cluster_id": "S2",
+                                    "dominant_speaker": "Alex",
+                                    "expected_impact": "3 segments / 8 seconds",
+                                    "question": "Can S2 be Alex?",
+                                },
+                            },
+                        ]
+                    }
+                )
+            )
+
+            result = create_cluster_question_impact_report(sheet)
+            report = json.loads(result.json_path.read_text())
+            markdown = result.markdown_path.read_text()
+
+        self.assertEqual(result.top_cluster_id, "S1")
+        self.assertEqual(result.estimated_unlockable_segments, 53)
+        self.assertEqual(result.estimated_unlockable_seconds, 108.0)
+        self.assertEqual(report["clusters"][0]["cluster_id"], "S1")
+        self.assertIn("prioritization estimate only", report["safety_boundary"])
+        self.assertIn("Pavo Cluster Question Impact Preview", markdown)
 
     def test_materialize_cluster_question_decisions_writes_constraints_and_hints(self):
         with tempfile.TemporaryDirectory() as tmp:

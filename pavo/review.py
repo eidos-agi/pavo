@@ -212,6 +212,18 @@ class ClusterQuestionDecisionResult:
 
 
 @dataclass(frozen=True)
+class ClusterQuestionImpactResult:
+    review_sheet_path: Path
+    json_path: Path
+    markdown_path: Path
+    candidate_count: int
+    cluster_count: int
+    top_cluster_id: str | None
+    estimated_unlockable_segments: int
+    estimated_unlockable_seconds: float
+
+
+@dataclass(frozen=True)
 class ClusterQuestionMaterializeResult:
     decision_report_path: Path
     out_dir: Path
@@ -895,6 +907,151 @@ def create_cluster_question_bundle(
         copied_clip_count=copied,
         missing_clip_count=missing,
     )
+
+
+def create_cluster_question_impact_report(
+    review_sheet_path: Path | str,
+    *,
+    out_path: Path | str | None = None,
+) -> ClusterQuestionImpactResult:
+    sheet_path = Path(review_sheet_path)
+    sheet = json.loads(sheet_path.read_text())
+    rows = [row for row in sheet.get("rows") or [] if isinstance(row, dict)]
+    clusters: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        question = row.get("cluster_question") if isinstance(row.get("cluster_question"), dict) else {}
+        cluster_id = str(question.get("cluster_id") or row.get("case") or "unknown")
+        segments, seconds = _expected_impact_numbers(question.get("expected_impact") or row.get("review_subtitle"))
+        item = clusters.setdefault(
+            cluster_id,
+            {
+                "cluster_id": cluster_id,
+                "question": question.get("question") or row.get("review_heading"),
+                "status": question.get("status"),
+                "target_speaker": question.get("dominant_speaker") or question.get("candidate_name") or row.get("target_speaker_label"),
+                "candidate_name": question.get("candidate_name"),
+                "dominant_speaker": question.get("dominant_speaker"),
+                "expected_segments": segments,
+                "expected_seconds": seconds,
+                "candidate_rows": 0,
+                "pending_rows": 0,
+                "approved_rows": 0,
+                "rejected_rows": 0,
+                "sample_text": [],
+                "review_clip_paths": [],
+            },
+        )
+        item["expected_segments"] = max(int(item.get("expected_segments") or 0), segments)
+        item["expected_seconds"] = max(float(item.get("expected_seconds") or 0.0), seconds)
+        item["candidate_rows"] += 1
+        status = str(row.get("status") or "pending")
+        if status == "approved":
+            item["approved_rows"] += 1
+        elif status == "rejected":
+            item["rejected_rows"] += 1
+        else:
+            item["pending_rows"] += 1
+        text = str(row.get("text") or "").strip()
+        if text and len(item["sample_text"]) < 2:
+            item["sample_text"].append(text[:220])
+        clip = row.get("clip_path")
+        if clip and len(item["review_clip_paths"]) < 2:
+            item["review_clip_paths"].append(str(clip))
+
+    cluster_rows = []
+    for item in clusters.values():
+        pending_rows = int(item["pending_rows"])
+        expected_segments = int(item["expected_segments"])
+        expected_seconds = float(item["expected_seconds"])
+        reviewed_rows = int(item["approved_rows"]) + int(item["rejected_rows"])
+        impact_score = round((expected_segments * 10.0) + expected_seconds + (pending_rows * 2.0), 2)
+        if reviewed_rows:
+            impact_score = round(impact_score * 0.5, 2)
+        item["impact_score"] = impact_score
+        item["review_state"] = "pending" if pending_rows else "reviewed"
+        item["recommended_next_action"] = (
+            "Review this cluster first; it has the largest estimated speaker-routing payoff."
+            if pending_rows
+            else "Already reviewed; materialize decisions before rerunning the brief."
+        )
+        cluster_rows.append(item)
+
+    cluster_rows = sorted(
+        cluster_rows,
+        key=lambda item: (
+            int(item.get("pending_rows") or 0) == 0,
+            -float(item.get("impact_score") or 0.0),
+            str(item.get("cluster_id") or ""),
+        ),
+    )
+    pending_clusters = [item for item in cluster_rows if int(item.get("pending_rows") or 0)]
+    estimated_segments = sum(int(item.get("expected_segments") or 0) for item in pending_clusters)
+    estimated_seconds = round(sum(float(item.get("expected_seconds") or 0.0) for item in pending_clusters), 2)
+    report = {
+        "passed": bool(cluster_rows),
+        "review_sheet": str(sheet_path),
+        "candidate_count": len(rows),
+        "cluster_count": len(cluster_rows),
+        "pending_cluster_count": len(pending_clusters),
+        "top_cluster_id": cluster_rows[0]["cluster_id"] if cluster_rows else None,
+        "estimated_unlockable_segments": estimated_segments,
+        "estimated_unlockable_seconds": estimated_seconds,
+        "clusters": cluster_rows,
+        "safety_boundary": "Impact is a prioritization estimate only. It does not approve identity, create constraints, or route speaker claims.",
+        "next_required_proof": "Review the top pending cluster clips, export decisions, materialize constraints, rerun the brief, then compare review pressure.",
+    }
+    json_path = Path(out_path) if out_path else sheet_path.with_name(sheet_path.stem.replace("-sheet", "-impact") + ".json")
+    markdown_path = json_path.with_suffix(".md")
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    markdown_path.write_text(render_cluster_question_impact_markdown(report), encoding="utf-8")
+    return ClusterQuestionImpactResult(
+        review_sheet_path=sheet_path,
+        json_path=json_path,
+        markdown_path=markdown_path,
+        candidate_count=len(rows),
+        cluster_count=len(cluster_rows),
+        top_cluster_id=report["top_cluster_id"],
+        estimated_unlockable_segments=estimated_segments,
+        estimated_unlockable_seconds=estimated_seconds,
+    )
+
+
+def render_cluster_question_impact_markdown(report: dict[str, Any]) -> str:
+    lines = [
+        "# Pavo Cluster Question Impact Preview",
+        "",
+        f"- Review sheet: `{report.get('review_sheet')}`",
+        f"- Candidate rows: {report.get('candidate_count')}",
+        f"- Cluster count: {report.get('cluster_count')}",
+        f"- Pending clusters: {report.get('pending_cluster_count')}",
+        f"- Estimated unlockable segments: {report.get('estimated_unlockable_segments')}",
+        f"- Estimated unlockable seconds: {report.get('estimated_unlockable_seconds')}",
+        "",
+        "Safety boundary: this is prioritization only. Listen before approving any cluster identity.",
+        "",
+        "## Ranked Cluster Decisions",
+        "",
+    ]
+    for item in report.get("clusters") or []:
+        lines.extend(
+            [
+                f"### {item.get('cluster_id')} - {item.get('target_speaker') or 'unknown'}",
+                "",
+                f"- Review state: `{item.get('review_state')}`",
+                f"- Impact score: {item.get('impact_score')}",
+                f"- Expected impact: {item.get('expected_segments')} segments / {item.get('expected_seconds')} seconds",
+                f"- Pending rows: {item.get('pending_rows')}",
+                f"- Question: {item.get('question')}",
+                f"- Recommended next action: {item.get('recommended_next_action')}",
+                "",
+            ]
+        )
+        for text in item.get("sample_text") or []:
+            lines.append(f"- Sample: {text}")
+        if item.get("sample_text"):
+            lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def export_cluster_question_decisions(
@@ -2836,6 +2993,15 @@ def _cluster_question_review_row(question: dict[str, Any], sample: dict[str, Any
         "cluster_question": question,
         "cluster_sample": sample,
     }
+
+
+def _expected_impact_numbers(value: Any) -> tuple[int, float]:
+    text = str(value or "")
+    segment_match = re.search(r"(\d+)\s+segments?", text)
+    seconds_match = re.search(r"([0-9]+(?:\.[0-9]+)?)\s+seconds?", text)
+    segments = int(segment_match.group(1)) if segment_match else 0
+    seconds = float(seconds_match.group(1)) if seconds_match else 0.0
+    return segments, seconds
 
 
 def _review_sample_audio_path(root: Path, recording_id: Any) -> Path | None:
