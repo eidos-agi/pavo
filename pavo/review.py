@@ -17,12 +17,17 @@ from urllib.parse import parse_qs, urlparse
 
 from .brief import (
     _apply_temporal_speaker_continuity,
+    build_brief_improvement_report,
+    build_meeting_brief,
     _ensemble_speaker_segments,
     _is_unknown_speaker,
     _load_diarization_segments,
     _load_named_evidence_segments,
     _load_speaker_attribution_segments,
     _rounded_time,
+    write_brief_improvement_report,
+    write_meeting_brief,
+    write_reviewed_hints_named_evidence,
 )
 
 
@@ -242,6 +247,28 @@ class ClusterReviewPrepareResult:
     top_cluster_id: str | None
     estimated_unlockable_segments: int
     estimated_unlockable_seconds: float
+
+
+@dataclass(frozen=True)
+class ClusterReviewFinalizeResult:
+    review_sheet_path: Path
+    batch_root: Path
+    passed: bool
+    decision_report_path: Path
+    constraints_path: Path
+    reviewed_hints_path: Path
+    overlay_path: Path | None
+    brief_json_path: Path | None
+    improvement_json_path: Path | None
+    improvement_markdown_path: Path | None
+    approved_count: int
+    rejected_count: int
+    pending_count: int
+    constraints_count: int
+    hint_count: int
+    review_pressure_reduction: int | None
+    routeable_named_span_gain: int | None
+    blockers: list[str]
 
 
 @dataclass(frozen=True)
@@ -1228,6 +1255,76 @@ def materialize_cluster_question_decisions(
         hint_count=len(hints),
         blockers=list(dict.fromkeys(blockers)),
     )
+
+
+def finalize_cluster_review(
+    review_sheet_path: Path | str,
+    batch_root: Path | str,
+    *,
+    baseline_brief_path: Path | str | None = None,
+    out_dir: Path | str | None = None,
+) -> ClusterReviewFinalizeResult:
+    sheet_path = Path(review_sheet_path)
+    root = Path(batch_root)
+    target_dir = Path(out_dir) if out_dir else root / "pavo-cluster-question-artifacts"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    baseline = _load_baseline_brief(root, baseline_brief_path)
+    decisions = export_cluster_question_decisions(sheet_path)
+    materialized = materialize_cluster_question_decisions(decisions.report_path, out_dir=target_dir)
+    blockers = list(dict.fromkeys([*decisions.blockers, *materialized.blockers]))
+    overlay_path = None
+    brief_json_path = None
+    improvement_json_path = None
+    improvement_markdown_path = None
+    review_pressure_reduction = None
+    routeable_named_span_gain = None
+
+    if not blockers and materialized.passed:
+        if materialized.hint_count:
+            overlay = write_reviewed_hints_named_evidence(materialized.reviewed_hints_path, root)
+            overlay_path = overlay.overlay_path
+        current = build_meeting_brief(root)
+        brief_outputs = write_meeting_brief(current, root)
+        brief_json_path = brief_outputs.json_path
+        improvement = build_brief_improvement_report(baseline, current, label="Pavo cluster review finalize")
+        improvement_outputs = write_brief_improvement_report(improvement, target_dir)
+        improvement_json_path = improvement_outputs.json_path
+        improvement_markdown_path = improvement_outputs.markdown_path
+        review_pressure_reduction = int(improvement.get("deltas", {}).get("review_pressure_reduction") or 0)
+        routeable_named_span_gain = int(improvement.get("deltas", {}).get("routeable_named_span_gain") or 0)
+        blockers.extend(improvement.get("blockers") or [])
+
+    return ClusterReviewFinalizeResult(
+        review_sheet_path=sheet_path,
+        batch_root=root,
+        passed=bool(not blockers and materialized.passed),
+        decision_report_path=decisions.report_path,
+        constraints_path=materialized.constraints_path,
+        reviewed_hints_path=materialized.reviewed_hints_path,
+        overlay_path=overlay_path,
+        brief_json_path=brief_json_path,
+        improvement_json_path=improvement_json_path,
+        improvement_markdown_path=improvement_markdown_path,
+        approved_count=decisions.approved_count,
+        rejected_count=decisions.rejected_count,
+        pending_count=decisions.pending_count,
+        constraints_count=materialized.constraints_count,
+        hint_count=materialized.hint_count,
+        review_pressure_reduction=review_pressure_reduction,
+        routeable_named_span_gain=routeable_named_span_gain,
+        blockers=list(dict.fromkeys(blockers)),
+    )
+
+
+def _load_baseline_brief(root: Path, baseline_brief_path: Path | str | None) -> dict[str, Any]:
+    if baseline_brief_path:
+        return json.loads(Path(baseline_brief_path).read_text())
+    existing = root / "pavo-meeting-brief.json"
+    if existing.exists():
+        payload = _load_optional_json(existing)
+        if payload:
+            return payload
+    return build_meeting_brief(root)
 
 
 def create_anchor_review_page(

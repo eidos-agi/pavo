@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from pavo.brief import build_meeting_brief
 from pavo.review import (
     build_anchor_review_rerun_command,
     build_anchor_review_serve_command,
@@ -17,6 +18,7 @@ from pavo.review import (
     create_anchor_review_sheet,
     export_cluster_question_decisions,
     export_anchor_review_decisions,
+    finalize_cluster_review,
     gate_anchor_review,
     import_anchor_review_sheet,
     materialize_anchor_review_decisions,
@@ -786,6 +788,36 @@ class ReviewTests(unittest.TestCase):
         self.assertFalse(materialized.passed)
         self.assertIn("cluster question rows are still pending", "; ".join(materialized.blockers))
 
+    def test_finalize_cluster_review_fails_closed_when_pending(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sheet = root / "cluster-review-sheet.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "pending",
+                                "approved": False,
+                                "target_speaker_label": "Daniel",
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 2.0,
+                                "cluster_question": {"cluster_id": "S1", "dominant_speaker": "Daniel"},
+                            }
+                        ]
+                    }
+                )
+            )
+
+            result = finalize_cluster_review(sheet, root)
+
+        self.assertFalse(result.passed)
+        self.assertEqual(result.pending_count, 1)
+        self.assertIsNone(result.brief_json_path)
+        self.assertIn("cluster question rows are still pending", "; ".join(result.blockers))
+
     def test_cluster_question_impact_report_ranks_pending_clusters(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -843,6 +875,93 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(report["clusters"][0]["cluster_id"], "S1")
         self.assertIn("prioritization estimate only", report["safety_boundary"])
         self.assertIn("Pavo Cluster Question Impact Preview", markdown)
+
+    def test_finalize_cluster_review_applies_constraints_and_scores_improvement(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            recording = root / "rec-1"
+            recording.mkdir()
+            _write_test_wav(recording / "rec-1.wav")
+            (root / "rec-1.transcript.json").write_text('{"segments":[]}\n')
+            work = root / "_work"
+            work.mkdir()
+            (work / "diarization-segments.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "recording_id": "rec-1",
+                            "start": 1.0,
+                            "end": 5.0,
+                            "speaker": "S1",
+                            "candidate_name": "Daniel",
+                            "text": "This should become Daniel.",
+                        }
+                    ]
+                )
+            )
+            (work / "speaker-attribution.json").write_text(
+                json.dumps(
+                    {
+                        "segments": [
+                            {
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 5.0,
+                                "speaker": "Unknown office speaker",
+                                "confidence": "low",
+                                "text": "This should become Daniel.",
+                            }
+                        ]
+                    }
+                )
+            )
+            baseline_path = root / "baseline-brief.json"
+            baseline_path.write_text(json.dumps(build_meeting_brief(root)))
+            sheet = root / "cluster-review-sheet.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "approved",
+                                "approved": True,
+                                "target_speaker_label": "Daniel",
+                                "recording_id": "rec-1",
+                                "start": 1.0,
+                                "end": 5.0,
+                                "duration": 4.0,
+                                "text": "This should become Daniel.",
+                                "clip_path": "clips/one.mp3",
+                                "reviewer_note": "clear Daniel",
+                                "cluster_question": {
+                                    "cluster_id": "S1",
+                                    "dominant_speaker": "Daniel",
+                                    "question": "Can S1 be Daniel?",
+                                },
+                            }
+                        ]
+                    }
+                )
+            )
+
+            result = finalize_cluster_review(sheet, root, baseline_brief_path=baseline_path)
+            constraints_exists = result.constraints_path.exists()
+            overlay_exists = bool(result.overlay_path and result.overlay_path.exists())
+            brief_exists = bool(result.brief_json_path and result.brief_json_path.exists())
+            improvement_exists = bool(result.improvement_json_path and result.improvement_json_path.exists())
+
+        self.assertTrue(result.passed)
+        self.assertEqual(result.approved_count, 1)
+        self.assertEqual(result.pending_count, 0)
+        self.assertEqual(result.constraints_count, 1)
+        self.assertEqual(result.hint_count, 1)
+        self.assertEqual(result.review_pressure_reduction, 1)
+        self.assertEqual(result.routeable_named_span_gain, 1)
+        self.assertTrue(constraints_exists)
+        self.assertTrue(overlay_exists)
+        self.assertTrue(brief_exists)
+        self.assertTrue(improvement_exists)
 
     def test_materialize_cluster_question_decisions_writes_constraints_and_hints(self):
         with tempfile.TemporaryDirectory() as tmp:

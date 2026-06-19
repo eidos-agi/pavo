@@ -35,6 +35,7 @@ from .review import (
     compile_anchor_review_corrections,
     export_cluster_question_decisions,
     export_anchor_review_decisions,
+    finalize_cluster_review,
     gate_anchor_review,
     import_anchor_review_sheet,
     materialize_anchor_review_decisions,
@@ -195,6 +196,11 @@ def build_parser() -> argparse.ArgumentParser:
     review_clusters_materialize = review_clusters_sub.add_parser("materialize-decisions", help="Materialize cluster question decisions into constraints and hints")
     review_clusters_materialize.add_argument("decision_report", type=Path)
     review_clusters_materialize.add_argument("--out-dir", type=Path, help="Output artifact directory")
+    review_clusters_finalize = review_clusters_sub.add_parser("finalize", help="Apply reviewed cluster decisions, rerun the brief, and score improvement")
+    review_clusters_finalize.add_argument("review_sheet", type=Path)
+    review_clusters_finalize.add_argument("batch_root", type=Path)
+    review_clusters_finalize.add_argument("--baseline-brief", type=Path, help="Baseline pavo-meeting-brief.json before applying reviewed feedback")
+    review_clusters_finalize.add_argument("--out-dir", type=Path, help="Output directory for materialized cluster artifacts and improvement report")
     review_anchors_init = review_anchors_sub.add_parser("init", help="Create a pending review sheet from a clip packet")
     review_anchors_init.add_argument("clip_packet", type=Path)
     review_anchors_init.add_argument("--out", type=Path, help="Review sheet JSON path")
@@ -661,6 +667,31 @@ def main(argv: list[str] | None = None) -> int:
                     print("blockers: " + "; ".join(result.blockers))
                 print(f"constraints: {result.constraints_path}")
                 print(f"reviewed_hints: {result.reviewed_hints_path}")
+                return 0 if result.passed else 2
+            if args.review_clusters_command == "finalize":
+                result = finalize_cluster_review(
+                    args.review_sheet,
+                    args.batch_root,
+                    baseline_brief_path=args.baseline_brief,
+                    out_dir=args.out_dir,
+                )
+                print(f"passed: {str(result.passed).lower()}")
+                print(f"approved_count: {result.approved_count}")
+                print(f"rejected_count: {result.rejected_count}")
+                print(f"pending_count: {result.pending_count}")
+                print(f"constraints_count: {result.constraints_count}")
+                print(f"hint_count: {result.hint_count}")
+                print(f"decision_report: {result.decision_report_path}")
+                print(f"constraints: {result.constraints_path}")
+                print(f"reviewed_hints: {result.reviewed_hints_path}")
+                print(f"overlay: {result.overlay_path}")
+                print(f"brief_json: {result.brief_json_path}")
+                print(f"improvement_json: {result.improvement_json_path}")
+                print(f"improvement_markdown: {result.improvement_markdown_path}")
+                print(f"review_pressure_reduction: {result.review_pressure_reduction}")
+                print(f"routeable_named_span_gain: {result.routeable_named_span_gain}")
+                if result.blockers:
+                    print("blockers: " + "; ".join(result.blockers))
                 return 0 if result.passed else 2
         if args.review_command == "anchors":
             if args.review_anchors_command == "init":
