@@ -942,8 +942,12 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(payload["summary"]["item_count"], 1)
         self.assertEqual(payload["items"][0]["rank"], 1)
         self.assertIn("review_instruction", payload["items"][0])
+        self.assertEqual(payload["items"][0]["cumulative_unlockable_segments"], 1)
+        self.assertIn("cumulative_review_instruction", payload["items"][0])
         self.assertIn("Pavo Cluster Review Decision Brief", markdown)
         self.assertIn("Total visible unlock", markdown)
+        self.assertIn("Ordered Review Script", markdown)
+        self.assertIn("Cumulative unlock after this step", markdown)
         self.assertIn("Ranked Decisions", markdown)
         self.assertIn("Human listening is required", markdown)
         self.assertIn("Cluster Review Decision Brief", html)
@@ -967,6 +971,9 @@ class ReviewTests(unittest.TestCase):
         self.assertIn("impact reviewed", html)
         self.assertIn("writeImpact(rows)", html)
         self.assertIn("unlockable_segments", html)
+        self.assertIn("step-guidance", html)
+        self.assertIn("After this decision", html)
+        self.assertIn("cumulative_unlockable_segments", html)
 
     def test_cli_cluster_review_decision_brief_writes_json_and_markdown(self):
         from pavo.cli import main

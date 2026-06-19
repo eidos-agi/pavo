@@ -5952,6 +5952,10 @@ def _cluster_review_decision_brief_payload(status: ClusterReviewStatusResult) ->
         tier = str(item.get("review_priority_tier") or "standard")
         tier_counts[tier] = tier_counts.get(tier, 0) + 1
         transcript = str(item.get("text") or "").strip()
+        cumulative_instruction = (
+            f"After this decision, the ordered review will have addressed "
+            f"{total_segments} segments / {round(total_seconds, 1)} seconds if all prior decisions are resolved."
+        )
         items.append(
             {
                 "rank": rank,
@@ -5962,6 +5966,9 @@ def _cluster_review_decision_brief_payload(status: ClusterReviewStatusResult) ->
                 "expected_impact": item.get("expected_impact"),
                 "unlockable_segments": segments,
                 "unlockable_seconds": seconds,
+                "cumulative_unlockable_segments": total_segments,
+                "cumulative_unlockable_seconds": round(total_seconds, 1),
+                "cumulative_review_instruction": cumulative_instruction,
                 "priority_tier": tier,
                 "priority_score": item.get("review_priority_score"),
                 "priority_reason": item.get("review_priority_reason"),
@@ -6038,6 +6045,10 @@ def _render_cluster_review_decision_brief_markdown(payload: dict[str, Any]) -> s
         f"- Forecast risk-adjusted unlock: {summary['forecast_risk_adjusted_segments']} segments",
         f"- Safety boundary: {payload['safety_boundary']}",
         "",
+        "## Ordered Review Script",
+        "",
+        "Work top to bottom. Each decision is chosen to unlock the most transcript coverage per human listen while still respecting acoustic risk.",
+        "",
         "## Commands",
         "",
         f"- Open review page: `{payload['open_review_page_command']}`",
@@ -6070,8 +6081,10 @@ def _render_cluster_review_decision_brief_markdown(payload: dict[str, Any]) -> s
                 f"- Question: {item['question']}",
                 f"- Target speaker: `{item['target_speaker']}`",
                 f"- Expected unlock: {item['unlockable_segments']} segments / {item['unlockable_seconds']} seconds",
+                f"- Cumulative unlock after this step: {item['cumulative_unlockable_segments']} segments / {item['cumulative_unlockable_seconds']} seconds",
                 f"- Priority: `{item['priority_tier']}` / {item['priority_score']}",
                 f"- Why: {item['priority_reason']}",
+                f"- Step guidance: {item['cumulative_review_instruction']}",
                 f"- Acoustic verdict: `{item['acoustic_verdict']}`; min similarity: {item['acoustic_min_pair_similarity']}",
                 f"- Reviewer instruction: {item['review_instruction']}",
                 f"- Closure rule: {item['closure_rule']}",
@@ -6112,6 +6125,8 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
             "expected_impact": item.get("expected_impact"),
             "unlockable_segments": item.get("unlockable_segments"),
             "unlockable_seconds": item.get("unlockable_seconds"),
+            "cumulative_unlockable_segments": item.get("cumulative_unlockable_segments"),
+            "cumulative_unlockable_seconds": item.get("cumulative_unlockable_seconds"),
             "acoustic_verdict": item.get("acoustic_verdict"),
             "clip_path": item.get("clip_path"),
             "transcript": item.get("transcript_excerpt"),
@@ -6132,6 +6147,7 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
           <div><strong>{item.get('unlockable_seconds')}</strong><span>seconds</span></div>
           <div><strong>{escape(str(item.get('priority_score')))}</strong><span>priority</span></div>
         </div>
+        <p class="step-guidance">{escape(str(item.get('cumulative_review_instruction') or ''))}</p>
         <audio controls preload="metadata" src="{escape(audio_src)}"></audio>
         <div class="decision-controls">
           <label><input type="radio" name="decision-{row_index}" value="approved"> Approve</label>
@@ -6208,6 +6224,7 @@ def _render_cluster_review_decision_brief_html(payload: dict[str, Any]) -> str:
     .metrics div {{ background: var(--soft); border-radius: 14px; padding: 11px; }}
     .metrics strong {{ display: block; font-size: 20px; }}
     .metrics span {{ color: var(--muted); font-size: 12px; }}
+    .step-guidance {{ background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; border-radius: 14px; padding: 10px 12px; font-weight: 750; }}
     audio {{ width: 100%; margin: 8px 0 14px; }}
     .decision-controls {{ display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; padding: 12px; background: #f8fafc; border: 1px solid var(--line); border-radius: 14px; margin-bottom: 10px; }}
     .decision-controls label {{ font-weight: 750; }}
