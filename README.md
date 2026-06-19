@@ -243,7 +243,10 @@ command, and next action. Add `--open-board` or `--open-sprint` when the
 operator wants Pavo to open the local review surfaces directly. The sprint and
 board both carry the same decision rubric: approve only when every supporting
 clip matches the named speaker, reject wrong-speaker/overlap/noisy conflicts,
-and keep uncertain cases pending for another listener.
+and keep uncertain cases pending for another listener. The board also captures a
+structured `review_reason`; Pavo rejects approved/rejected board-audit imports
+when that reason is missing, so final identity decisions have a defensible
+human rationale.
 
 Use `pavo batch finalize-reviewed-proof` when the proof slate has been reviewed.
 It validates the proof slate, materializes the cluster decisions, writes speaker

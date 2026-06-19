@@ -49,6 +49,17 @@ BATCH_SPEAKER_DECISION_RUBRIC = [
     "Keep pending when the clips disagree, the speaker is uncertain, or another listener should make the call.",
 ]
 
+BATCH_SPEAKER_REVIEW_REASONS = {
+    "approved_clean_match": "approved: every clip matches the named speaker",
+    "approved_speaker_corrected": "approved: speaker label corrected by reviewer",
+    "rejected_wrong_speaker": "rejected: one or more clips are the wrong speaker",
+    "rejected_overlap_or_noise": "rejected: overlap, noise, or low quality makes identity unsafe",
+    "rejected_context_contradiction": "rejected: transcript context contradicts the proposed identity",
+    "pending_uncertain": "pending: reviewer is uncertain",
+    "pending_clips_disagree": "pending: supporting clips disagree",
+    "pending_second_listener": "pending: needs another listener",
+}
+
 
 @dataclass(frozen=True)
 class BatchDoctorResult:
@@ -1750,6 +1761,7 @@ def _review_packet_decision_slate_tsv_lines(items: list[dict[str, Any]]) -> list
                 "decision_group",
                 "decision",
                 "speaker",
+                "review_reason",
                 "cluster_id",
                 "question",
                 "row_indices",
@@ -1771,6 +1783,7 @@ def _review_packet_decision_slate_tsv_lines(items: list[dict[str, Any]]) -> list
                     f"D{index:02d}",
                     "pending",
                     _tsv_safe(str(group.get("speaker") or "")),
+                    "",
                     _tsv_safe(str(group.get("cluster_id") or "")),
                     _tsv_safe(str(group.get("question") or "")),
                     _tsv_safe(",".join(group.get("row_indices") or [])),
@@ -1809,6 +1822,8 @@ def apply_batch_decision_slate(
     decision_path = Path(decision_slate_path)
     decisions = _read_decision_slate_tsv(decision_path)
     review_rows, fieldnames = _read_tsv(review_slate_path)
+    if "review_reason" not in fieldnames:
+        fieldnames.append("review_reason")
     missing_decision_groups: list[str] = []
     applied_row_count = 0
     approved_row_count = 0
@@ -1831,6 +1846,7 @@ def apply_batch_decision_slate(
         row["decision"] = decision["decision"]
         if decision.get("speaker"):
             row["speaker"] = decision["speaker"]
+        row["review_reason"] = decision.get("review_reason", "")
         if decision["decision"] == "approved":
             approved_row_count += 1
         elif decision["decision"] == "rejected":
@@ -1886,6 +1902,7 @@ def apply_batch_decision_board_audit(
         "decision_group",
         "decision",
         "speaker",
+        "review_reason",
         "cluster_id",
         "question",
         "row_indices",
@@ -1919,6 +1936,13 @@ def apply_batch_decision_board_audit(
             rejected_decision_count += 1
         else:
             pending_decision_count += 1
+        review_reason = str(row.get("review_reason") or "").strip()
+        if decision in {"approved", "rejected"}:
+            if review_reason not in BATCH_SPEAKER_REVIEW_REASONS:
+                raise ValueError(
+                    f"decision-board audit row {index} has invalid or missing review_reason {review_reason!r}; "
+                    f"expected one of {sorted(BATCH_SPEAKER_REVIEW_REASONS)}"
+                )
         decision_rows.append({field: _tsv_safe(str(row.get(field) or "")) for field in fieldnames})
     _write_tsv(decision_slate_out, decision_rows, fieldnames)
     applied = apply_batch_decision_slate(
@@ -1987,6 +2011,7 @@ def build_batch_speaker_memory_candidates(
                 "transcript": row.get("transcript"),
                 "question": row.get("question"),
                 "note": row.get("note"),
+                "review_reason": row.get("review_reason"),
                 "acoustic_verdict": row.get("acoustic_verdict"),
                 "priority_tier": row.get("priority_tier"),
                 "priority_score": row.get("priority_score"),
@@ -2233,6 +2258,11 @@ def verify_batch_decision_board(
             "has_decision_rubric",
             "Decision Rubric" in html and all(rule in html for rule in BATCH_SPEAKER_DECISION_RUBRIC),
             "approve/reject/pending rubric",
+        ),
+        _check(
+            "has_review_reason_controls",
+            "Review reason" in html and "approved_clean_match" in html and "updateReviewReason" in html,
+            "structured reason controls",
         ),
         _check("has_autosave", "localStorage" in html and "Autosaved locally" in html, "localStorage autosave"),
         _check("has_audit_events", "auditEvents" in html and "auditPayload" in html, "audit event export"),
@@ -3011,6 +3041,7 @@ def _read_decision_slate_tsv(path: Path) -> dict[str, dict[str, str]]:
         decisions[decision_group] = {
             "decision": decision,
             "speaker": str(row.get("speaker") or "").strip(),
+            "review_reason": str(row.get("review_reason") or "").strip(),
         }
     return decisions
 
@@ -3046,6 +3077,7 @@ def _render_batch_decision_board_html(
     estimated_seconds = sum(_batch_decision_review_seconds(row, rows_by_group.get(str(row.get("decision_group") or ""), [])) for row in decisions)
     estimated_minutes = round(estimated_seconds / 60, 1) if estimated_seconds else 0
     rows_json = json.dumps(decisions, sort_keys=True)
+    reason_options_json = json.dumps(BATCH_SPEAKER_REVIEW_REASONS, sort_keys=True)
     storage_key = json.dumps(f"pavo-decision-board:{proof_report_path}:{decision_slate_path}")
     cards = "\n".join(
         _render_batch_decision_card(row, rows_by_group.get(str(row.get("decision_group") or ""), []))
@@ -3086,7 +3118,7 @@ def _render_batch_decision_board_html(
     button.pending {{ background:var(--pending); }}
     button:focus {{ outline:3px solid rgba(49,87,213,.28); }}
     label {{ display:block; font-size:12px; color:var(--muted); margin-bottom:4px; }}
-    input, textarea {{ width:100%; border:1px solid var(--line); border-radius:10px; padding:8px 10px; font:inherit; }}
+    input, select, textarea {{ width:100%; border:1px solid var(--line); border-radius:10px; padding:8px 10px; font:inherit; }}
     .body {{ padding:16px; }}
     .meta {{ display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 12px; }}
     .sample {{ border-top:1px solid var(--line); padding:12px 0; }}
@@ -3151,7 +3183,8 @@ pavo batch finalize-reviewed-proof {escape(str(proof_report_path))}</div>
   </main>
   <script>
     const rows = {rows_json};
-    const headers = ["decision_group","decision","speaker","cluster_id","question","row_indices","clip_count","priority_tier","priority_score","priority_reason","acoustic_verdict","clip_paths","transcript_samples"];
+    const reviewReasonOptions = {reason_options_json};
+    const headers = ["decision_group","decision","speaker","review_reason","cluster_id","question","row_indices","clip_count","priority_tier","priority_score","priority_reason","acoustic_verdict","clip_paths","transcript_samples"];
     const storageKey = {storage_key};
     const source = {{
       proofReport: {json.dumps(str(proof_report_path))},
@@ -3173,6 +3206,15 @@ pavo batch finalize-reviewed-proof {escape(str(proof_report_path))}</div>
         card.querySelector("[data-status]").className = "pill " + decision;
       }}
       recordAudit({{ type: "decision", group, before, after: decision, reason }});
+      renderTsv();
+    }}
+    function updateReviewReason(group, value) {{
+      const row = rows.find(item => item.decision_group === group);
+      if (row) {{
+        const before = row.review_reason || "";
+        row.review_reason = value;
+        recordAudit({{ type: "review_reason", group, before, after: value, reason: "manual" }});
+      }}
       renderTsv();
     }}
     function updateSpeaker(group, value) {{
@@ -3217,6 +3259,7 @@ pavo batch finalize-reviewed-proof {escape(str(proof_report_path))}</div>
             if (row) {{
               row.decision = saved.decision || row.decision;
               row.speaker = saved.speaker || row.speaker;
+              row.review_reason = saved.review_reason || row.review_reason || "";
             }}
           }}
         }}
@@ -3227,6 +3270,8 @@ pavo batch finalize-reviewed-proof {escape(str(proof_report_path))}</div>
             card.querySelector("[data-status]").className = "pill " + row.decision;
             const input = card.querySelector("input");
             if (input) input.value = row.speaker;
+            const select = card.querySelector("select");
+            if (select) select.value = row.review_reason || "";
           }}
         }}
       }} catch (_err) {{}}
@@ -3307,6 +3352,14 @@ def _render_batch_decision_card(decision: dict[str, str], proof_rows: list[dict[
     group = str(decision.get("decision_group") or "")
     current = str(decision.get("decision") or "pending").strip().lower() or "pending"
     speaker = str(decision.get("speaker") or "")
+    review_reason = str(decision.get("review_reason") or "")
+    reason_options = ['<option value="">Choose review reason...</option>'] + [
+        (
+            f'<option value="{escape(value)}"'
+            f'{" selected" if value == review_reason else ""}>{escape(label)}</option>'
+        )
+        for value, label in BATCH_SPEAKER_REVIEW_REASONS.items()
+    ]
     samples = "\n".join(_render_batch_decision_sample(row) for row in proof_rows)
     if not samples:
         samples = '<div class="sample"><p class="notice">No supporting proof rows found for this decision group.</p></div>'
@@ -3325,6 +3378,10 @@ def _render_batch_decision_card(decision: dict[str, str], proof_rows: list[dict[
     <div class="decision">
       <label>Speaker</label>
       <input value="{escape(speaker)}" oninput="updateSpeaker('{escape(group)}', this.value)">
+      <label>Review reason</label>
+      <select onchange="updateReviewReason('{escape(group)}', this.value)">
+        {"".join(reason_options)}
+      </select>
       <button class="approve" onclick="setDecision('{escape(group)}','approved')">Approve</button>
       <button class="reject" onclick="setDecision('{escape(group)}','rejected')">Reject</button>
       <button class="pending" onclick="setDecision('{escape(group)}','pending')">Pending</button>

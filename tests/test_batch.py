@@ -3,7 +3,7 @@ import io
 import os
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -278,8 +278,8 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("hello from the sample", proof_review_slate)
         self.assertIn("2\tS1\tpending\tDaniel", proof_review_slate)
         self.assertIn("second supporting sample\tD01\t2\t2", proof_review_slate)
-        self.assertIn("decision_group\tdecision\tspeaker\tcluster_id\tquestion", proof_decision_slate)
-        self.assertIn("D01\tpending\tDaniel\tS1\tCan cluster S1 be confirmed as Daniel?", proof_decision_slate)
+        self.assertIn("decision_group\tdecision\tspeaker\treview_reason\tcluster_id\tquestion", proof_decision_slate)
+        self.assertIn("D01\tpending\tDaniel\t\tS1\tCan cluster S1 be confirmed as Daniel?", proof_decision_slate)
         self.assertIn("\t1,2\t2\turgent_listen\t99.0", proof_decision_slate)
         self.assertIn("hello from the sample | second supporting sample", proof_decision_slate)
         self.assertIn("Pavo Batch Decision Board", proof_decision_board)
@@ -352,6 +352,7 @@ class BatchDoctorTests(unittest.TestCase):
             row = dict(zip(headers, values, strict=True))
             row["decision"] = "approved"
             row["speaker"] = "Daniel Audit"
+            row["review_reason"] = "approved_clean_match"
             audit_path = root / "decision-board.audit.json"
             audit_path.write_text(
                 json.dumps(
@@ -400,9 +401,52 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(report["pending_decision_count"], 0)
         self.assertEqual(report["applied_row_count"], 2)
         self.assertEqual(report["approved_row_count"], 2)
-        self.assertIn("D01\tapproved\tDaniel Audit", decision_text)
+        self.assertIn("D01\tapproved\tDaniel Audit\tapproved_clean_match", decision_text)
         self.assertIn("1\tS1\tapproved\tDaniel Audit", applied_text)
-        self.assertIn("2\tS1\tapproved\tDaniel Audit", applied_text)
+        self.assertIn("approved_clean_match", applied_text)
+
+    def test_batch_apply_decision_board_audit_requires_reason_for_final_decision(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            decision_lines = result.proof_decision_slate_path.read_text().splitlines()
+            headers = decision_lines[0].split("\t")
+            values = decision_lines[1].split("\t")
+            row = dict(zip(headers, values, strict=True))
+            row["decision"] = "approved"
+            row["speaker"] = "Daniel Audit"
+            row["review_reason"] = ""
+            audit_path = root / "decision-board.audit.json"
+            audit_path.write_text(
+                json.dumps(
+                    {
+                        "source": {"proofReport": str(result.proof_report_path)},
+                        "summary": {"decisionCount": 1, "pendingCount": 0},
+                        "rows": [row],
+                        "auditEvents": [{"type": "decision", "group": row["decision_group"], "after": "approved"}],
+                    }
+                )
+                + "\n"
+            )
+            applied_slate = root / "audit-applied-review-slate.tsv"
+
+            stderr = io.StringIO()
+            with redirect_stderr(stderr):
+                exit_code = main(
+                    [
+                        "batch",
+                        "apply-decision-board-audit",
+                        str(result.proof_report_path),
+                        str(audit_path),
+                        "--out",
+                        str(applied_slate),
+                    ]
+                )
+
+        self.assertEqual(exit_code, 2)
+        self.assertIn("invalid or missing review_reason", stderr.getvalue())
+        self.assertFalse(applied_slate.exists())
 
     def test_batch_speaker_memory_candidates_cli_exports_only_approved_rows(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -512,6 +556,9 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("Approve only when every supporting clip sounds like the named speaker", html)
         self.assertIn("Reject when any supporting clip is the wrong speaker", html)
         self.assertIn("Keep pending when the clips disagree", html)
+        self.assertIn("Review reason", html)
+        self.assertIn("approved_clean_match", html)
+        self.assertIn("updateReviewReason", html)
         self.assertIn("Download Audit JSON", html)
         self.assertIn("pavo batch apply-decision-board-audit", html)
         self.assertIn("pavo batch finalize-board-audit", html)
@@ -1049,6 +1096,7 @@ class BatchDoctorTests(unittest.TestCase):
             row = dict(zip(headers, values, strict=True))
             row["decision"] = "approved"
             row["speaker"] = "Daniel Board"
+            row["review_reason"] = "approved_clean_match"
             audit_path = root / "decision-board.audit.json"
             audit_path.write_text(
                 json.dumps(
