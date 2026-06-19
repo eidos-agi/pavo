@@ -36,6 +36,7 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertIn("pavo batch readiness", readme)
         self.assertIn("pavo batch review-sprint", readme)
         self.assertIn("pavo batch verify-review-sprint", readme)
+        self.assertIn("pavo batch review-now", readme)
         self.assertIn("pavo batch finalize-reviewed-proof", readme)
         self.assertIn("stale-validation detection", readme)
         self.assertIn("it exits `0` only when all", readme)
@@ -691,6 +692,80 @@ class BatchDoctorTests(unittest.TestCase):
         self.assertEqual(exit_code, 3)
         self.assertFalse(report["passed"])
         self.assertIn("markdown_has_listen_checklist", "\n".join(report["blockers"]))
+
+    def test_batch_review_now_cli_prepares_verified_launch_packet(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            main(["batch", "finalize-reviewed-proof", str(result.proof_report_path), "--json"])
+            out_dir = root / "handoff-pack"
+            main(["batch", "review-pack", str(result.proof_report_path), "--out-dir", str(out_dir), "--json"])
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "batch",
+                        "review-now",
+                        str(result.proof_report_path),
+                        "--pack-dir",
+                        str(out_dir),
+                    ]
+                )
+
+            text = stdout.getvalue()
+
+        self.assertEqual(exit_code, 3)
+        self.assertIn("state: machine_ready_human_review_pending", text)
+        self.assertIn("machine_ready: true", text)
+        self.assertIn("review_sprint_ready: true", text)
+        self.assertIn("pending_decisions: 1", text)
+        self.assertIn("pending_clips: 2", text)
+        self.assertIn("open_review_sprint:", text)
+        self.assertIn("pavo-batch-review-sprint.md", text)
+        self.assertIn("open_decision_board:", text)
+        self.assertIn("pavo-batch-proof.decision-board.html", text)
+        self.assertIn("audit_json_expected_path:", text)
+        self.assertIn("pavo-batch-proof.decision-board.audit.json", text)
+        self.assertIn("after_review: pavo batch finalize-board-audit", text)
+
+    def test_batch_review_now_cli_json_reports_verified_launch_packet(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_processed_batch(root, recording_ids=["rec-a"])
+            result = prove_batch(root, refresh_cluster_gate=False)
+            main(["batch", "finalize-reviewed-proof", str(result.proof_report_path), "--json"])
+            out_dir = root / "handoff-pack"
+            main(["batch", "review-pack", str(result.proof_report_path), "--out-dir", str(out_dir), "--json"])
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "batch",
+                        "review-now",
+                        str(result.proof_report_path),
+                        "--pack-dir",
+                        str(out_dir),
+                        "--json",
+                    ]
+                )
+
+            report = json.loads(stdout.getvalue())
+
+        self.assertEqual(exit_code, 3)
+        self.assertEqual(report["state"], "machine_ready_human_review_pending")
+        self.assertTrue(report["machine_ready"])
+        self.assertEqual(report["human_gate"], "pending")
+        self.assertEqual(report["pending_decisions"], 1)
+        self.assertEqual(report["pending_clips"], 2)
+        self.assertTrue(report["review_sprint_verification"]["passed"])
+        self.assertTrue(report["review_paths"]["open_review_sprint"].endswith("pavo-batch-review-sprint.md"))
+        self.assertTrue(report["review_paths"]["open_decision_board"].endswith("pavo-batch-proof.decision-board.html"))
+        self.assertIn("finalize-board-audit", report["review_paths"]["after_review"])
+        self.assertFalse(report["opened"])
+        self.assertFalse(report["blockers"])
 
     def test_batch_verify_review_pack_cli_passes_for_fresh_pack(self):
         with tempfile.TemporaryDirectory() as tmp:

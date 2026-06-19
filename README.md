@@ -115,6 +115,7 @@ pavo batch status /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch readiness /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch review-sprint /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch verify-review-sprint /path/to/meeting-batch/pavo-batch-proof.json
+pavo batch review-now /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch finalize-reviewed-proof /path/to/meeting-batch/pavo-batch-proof.json
 pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --check-validation
 pavo batch handoff /path/to/meeting-batch/pavo-batch-proof.json --strict-ready
@@ -234,6 +235,12 @@ handoff. It checks the packet JSON/Markdown exist, the proof report matches,
 the focus-order and clip counts agree, transcript samples are present, clip
 paths exist, checklist boxes are rendered, finish commands are included, and the
 identity safety boundary is present. Review-pack verification runs this gate too.
+
+Use `pavo batch review-now` as the fastest safe human-review launch path. It
+regenerates the sprint, verifies the sprint, checks readiness, prints the review
+sprint, decision board, expected audit JSON path, exact `finalize-board-audit`
+command, and next action. Add `--open-board` or `--open-sprint` when the
+operator wants Pavo to open the local review surfaces directly.
 
 Use `pavo batch finalize-reviewed-proof` when the proof slate has been reviewed.
 It validates the proof slate, materializes the cluster decisions, writes speaker

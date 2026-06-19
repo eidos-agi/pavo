@@ -7,6 +7,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import webbrowser
 from pathlib import Path
 
 from .audio import run_audio_doctor
@@ -99,6 +100,37 @@ DEFAULT_SHIM_SCAN_ROOTS = [
 ]
 
 
+def _batch_operator_review_paths(proof_report: Path, handoff: dict) -> dict[str, str]:
+    review_sprint_markdown = proof_report.with_name("pavo-batch-review-sprint.md")
+    board_audit_json = proof_report.with_name("pavo-batch-proof.decision-board.audit.json")
+    reviewed_decision_slate = proof_report.with_name("pavo-batch-proof.decision-slate.reviewed.tsv")
+    review_slate = handoff.get("proof_review_slate_tsv") or str(
+        proof_report.with_name("pavo-batch-proof.review-slate.tsv")
+    )
+    decision_board = handoff.get("proof_decision_board_html") or str(
+        proof_report.with_name("pavo-batch-proof.decision-board.html")
+    )
+    after_review = " ".join(
+        [
+            "pavo",
+            "batch",
+            "finalize-board-audit",
+            shlex.quote(str(proof_report)),
+            shlex.quote(str(board_audit_json)),
+            "--out",
+            shlex.quote(str(review_slate)),
+            "--decision-slate-out",
+            shlex.quote(str(reviewed_decision_slate)),
+        ]
+    )
+    return {
+        "open_review_sprint": str(review_sprint_markdown),
+        "open_decision_board": str(decision_board),
+        "audit_json_expected_path": str(board_audit_json),
+        "after_review": after_review,
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="pavo")
     parser.add_argument("--home", help="Override Pavo home directory")
@@ -158,6 +190,15 @@ def build_parser() -> argparse.ArgumentParser:
     batch_verify_review_sprint.add_argument("--sprint-json", type=Path, help="Override pavo-batch-review-sprint.json path")
     batch_verify_review_sprint.add_argument("--sprint-markdown", type=Path, help="Override pavo-batch-review-sprint.md path")
     batch_verify_review_sprint.add_argument("--json", action="store_true", help="Print machine-readable verification report")
+    batch_review_now = batch_sub.add_parser(
+        "review-now",
+        help="Regenerate and verify the review sprint, then print launch instructions for human speaker review",
+    )
+    batch_review_now.add_argument("proof_report", type=Path, help="Path to pavo-batch-proof.json")
+    batch_review_now.add_argument("--pack-dir", type=Path, help="Review pack directory; defaults beside the proof report")
+    batch_review_now.add_argument("--open-board", action="store_true", help="Open the decision board in the default browser")
+    batch_review_now.add_argument("--open-sprint", action="store_true", help="Open the review sprint Markdown file in the default handler")
+    batch_review_now.add_argument("--json", action="store_true", help="Print machine-readable launch report")
     batch_decision_board = batch_sub.add_parser(
         "decision-board",
         help="Write a browser-friendly board for grouped proof speaker decisions",
@@ -710,29 +751,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(json.dumps(result.as_report(), indent=2, sort_keys=True))
             elif args.batch_command == "status":
                 sprint = result.review_sprint or {}
-                proof_report = args.proof_report
-                review_sprint_markdown = proof_report.with_name("pavo-batch-review-sprint.md")
-                board_audit_json = proof_report.with_name("pavo-batch-proof.decision-board.audit.json")
-                reviewed_decision_slate = proof_report.with_name("pavo-batch-proof.decision-slate.reviewed.tsv")
-                review_slate = result.handoff.get("proof_review_slate_tsv") or str(
-                    proof_report.with_name("pavo-batch-proof.review-slate.tsv")
-                )
-                decision_board = result.handoff.get("proof_decision_board_html") or str(
-                    proof_report.with_name("pavo-batch-proof.decision-board.html")
-                )
-                after_review = " ".join(
-                    [
-                        "pavo",
-                        "batch",
-                        "finalize-board-audit",
-                        shlex.quote(str(proof_report)),
-                        shlex.quote(str(board_audit_json)),
-                        "--out",
-                        shlex.quote(str(review_slate)),
-                        "--decision-slate-out",
-                        shlex.quote(str(reviewed_decision_slate)),
-                    ]
-                )
+                review_paths = _batch_operator_review_paths(args.proof_report, result.handoff)
                 print(f"state: {result.state}")
                 print(f"complete: {str(result.complete).lower()}")
                 print(f"machine_ready: {str(result.machine_ready).lower()}")
@@ -740,9 +759,9 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"pending_decisions: {result.pending_decision_count}")
                 print(f"pending_clips: {sprint.get('pending_clip_count')}")
                 print(f"estimated_review_minutes: {sprint.get('estimated_minutes')}")
-                print(f"open_review_sprint: {review_sprint_markdown}")
-                print(f"open_decision_board: {decision_board}")
-                print(f"after_review: {after_review}")
+                print(f"open_review_sprint: {review_paths['open_review_sprint']}")
+                print(f"open_decision_board: {review_paths['open_decision_board']}")
+                print(f"after_review: {review_paths['after_review']}")
                 print(f"next_action: {result.next_action}")
                 if result.blockers:
                     print("blockers: " + "; ".join(result.blockers))
@@ -804,6 +823,60 @@ def main(argv: list[str] | None = None) -> int:
                 if result.blockers:
                     print("blockers: " + "; ".join(result.blockers))
             return 0 if result.passed else 3
+        if args.batch_command == "review-now":
+            try:
+                sprint_result = write_batch_review_sprint(args.proof_report)
+                sprint_verification = verify_batch_review_sprint(args.proof_report)
+                readiness = summarize_batch_readiness(args.proof_report, pack_dir=args.pack_dir)
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            review_paths = _batch_operator_review_paths(args.proof_report, readiness.handoff)
+            opened: list[str] = []
+            if args.open_board:
+                webbrowser.open(Path(review_paths["open_decision_board"]).resolve().as_uri())
+                opened.append("decision_board")
+            if args.open_sprint:
+                webbrowser.open(Path(review_paths["open_review_sprint"]).resolve().as_uri())
+                opened.append("review_sprint")
+            report = {
+                "state": readiness.state,
+                "complete": readiness.complete,
+                "machine_ready": readiness.machine_ready,
+                "board_ready": readiness.board_ready,
+                "review_pack_ready": readiness.review_pack_ready,
+                "human_gate": "complete" if readiness.complete else "pending",
+                "pending_decisions": readiness.pending_decision_count,
+                "pending_clips": readiness.review_sprint.get("pending_clip_count"),
+                "estimated_review_minutes": readiness.review_sprint.get("estimated_minutes"),
+                "review_sprint_written": sprint_result.as_report(),
+                "review_sprint_verification": sprint_verification.as_report(),
+                "review_paths": review_paths,
+                "opened": opened,
+                "next_action": readiness.next_action,
+                "blockers": readiness.blockers + sprint_verification.blockers,
+            }
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True))
+            else:
+                print(f"state: {readiness.state}")
+                print(f"machine_ready: {str(readiness.machine_ready).lower()}")
+                print(f"review_sprint_ready: {str(sprint_verification.passed).lower()}")
+                print(f"pending_decisions: {readiness.pending_decision_count}")
+                print(f"pending_clips: {readiness.review_sprint.get('pending_clip_count')}")
+                print(f"estimated_review_minutes: {readiness.review_sprint.get('estimated_minutes')}")
+                print(f"open_review_sprint: {review_paths['open_review_sprint']}")
+                print(f"open_decision_board: {review_paths['open_decision_board']}")
+                print(f"audit_json_expected_path: {review_paths['audit_json_expected_path']}")
+                print(f"after_review: {review_paths['after_review']}")
+                print(f"next_action: {readiness.next_action}")
+                if report["blockers"]:
+                    print("blockers: " + "; ".join(report["blockers"]))
+            if readiness.complete:
+                return 0
+            if readiness.machine_ready and readiness.board_ready and readiness.review_pack_ready and sprint_verification.passed:
+                return 3
+            return 2
         if args.batch_command == "decision-board":
             try:
                 result = write_batch_decision_board(args.proof_report, out_path=args.out)
