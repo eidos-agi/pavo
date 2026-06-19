@@ -2560,6 +2560,15 @@ def _batch_review_sprint_item(item: dict[str, Any], index: int) -> dict[str, Any
     clip_count = _optional_int(item.get("clip_count")) or len(item.get("clip_paths") or [])
     tier = str(item.get("priority_tier") or "standard")
     estimated_seconds = max(1, clip_count) * 45 + 20
+    clip_paths = [str(value) for value in item.get("clip_paths") or []]
+    transcript_samples = [
+        {
+            "row_index": sample.get("row_index"),
+            "excerpt": sample.get("excerpt"),
+        }
+        for sample in item.get("transcript_samples") or []
+        if isinstance(sample, dict)
+    ]
     return {
         "order": index,
         "cluster_id": item.get("cluster_id"),
@@ -2569,6 +2578,8 @@ def _batch_review_sprint_item(item: dict[str, Any], index: int) -> dict[str, Any
         "priority_score": item.get("priority_score"),
         "acoustic_verdict": item.get("acoustic_verdict"),
         "clip_count": clip_count,
+        "clip_paths": clip_paths,
+        "transcript_samples": transcript_samples,
         "estimated_seconds": estimated_seconds,
         "estimated_minutes": round(estimated_seconds / 60, 1),
         "why_first": _batch_review_sprint_reason(item),
@@ -2693,6 +2704,28 @@ def _render_batch_review_sprint_markdown(payload: dict[str, Any]) -> str:
                     f"- Clips: `{item.get('clip_count')}`",
                     f"- Estimate: `{item.get('estimated_minutes')}` minutes",
                     f"- Why now: {item.get('why_first')}",
+                    "",
+                    "Listen checklist:",
+                    "",
+                ]
+            )
+            clip_paths = item.get("clip_paths") if isinstance(item.get("clip_paths"), list) else []
+            transcript_samples = item.get("transcript_samples") if isinstance(item.get("transcript_samples"), list) else []
+            for clip_index, clip_path in enumerate(clip_paths, start=1):
+                lines.append(f"- [ ] Clip {clip_index}: `{clip_path}`")
+                sample = transcript_samples[clip_index - 1] if clip_index - 1 < len(transcript_samples) else None
+                if isinstance(sample, dict) and sample.get("excerpt"):
+                    lines.append(f"      Row {sample.get('row_index')}: {sample.get('excerpt')}")
+            if not clip_paths:
+                lines.append("- [ ] Open the decision board and listen to the supporting clips.")
+            lines.append("")
+            lines.extend(
+                [
+                    "Decision:",
+                    "",
+                    "- [ ] Approved",
+                    "- [ ] Rejected",
+                    "- [ ] Still pending / needs another listener",
                     "",
                 ]
             )
