@@ -29,6 +29,7 @@ from .review import (
     create_anchor_review_page,
     create_anchor_review_sheet,
     create_cluster_identity_audit,
+    create_cluster_question_acoustic_report,
     create_cluster_question_impact_report,
     create_cluster_question_bundle,
     create_cluster_question_plan,
@@ -197,6 +198,9 @@ def build_parser() -> argparse.ArgumentParser:
     review_clusters_impact = review_clusters_sub.add_parser("impact", help="Rank cluster-question review rows by expected impact")
     review_clusters_impact.add_argument("review_sheet", type=Path)
     review_clusters_impact.add_argument("--out", type=Path, help="Impact report JSON path")
+    review_clusters_acoustics = review_clusters_sub.add_parser("acoustics", help="Score local acoustic consistency for cluster-question review clips")
+    review_clusters_acoustics.add_argument("review_sheet", type=Path)
+    review_clusters_acoustics.add_argument("--out", type=Path, help="Acoustic evidence JSON path")
     review_clusters_decisions = review_clusters_sub.add_parser("decisions", help="Export reviewed cluster-question decisions")
     review_clusters_decisions.add_argument("review_sheet", type=Path)
     review_clusters_decisions.add_argument("--out", type=Path, help="Decision report JSON path")
@@ -629,6 +633,9 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"estimated_unlockable_seconds: {result.estimated_unlockable_seconds}")
                 print(f"constraints_count: {result.constraints_count}")
                 print(f"hint_count: {result.hint_count}")
+                print(f"acoustic_analyzed_count: {result.acoustic_analyzed_count}")
+                print(f"acoustic_attention_cluster_count: {result.acoustic_attention_cluster_count}")
+                print(f"acoustic_report: {result.acoustic_report_path}")
                 print(f"review_pressure_reduction: {result.review_pressure_reduction}")
                 print(f"routeable_named_span_gain: {result.routeable_named_span_gain}")
                 print(f"next_command: {result.next_command}")
@@ -683,6 +690,17 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"estimated_unlockable_segments: {result.estimated_unlockable_segments}")
                 print(f"estimated_unlockable_seconds: {result.estimated_unlockable_seconds}")
                 return 0 if result.cluster_count else 2
+            if args.review_clusters_command == "acoustics":
+                result = create_cluster_question_acoustic_report(args.review_sheet, out_path=args.out)
+                print(f"acoustic_json: {result.json_path}")
+                print(f"acoustic_markdown: {result.markdown_path}")
+                print(f"candidate_count: {result.candidate_count}")
+                print(f"analyzed_count: {result.analyzed_count}")
+                print(f"missing_count: {result.missing_count}")
+                print(f"cluster_count: {result.cluster_count}")
+                print(f"consistent_cluster_count: {result.consistent_cluster_count}")
+                print(f"attention_cluster_count: {result.attention_cluster_count}")
+                return 0 if result.analyzed_count and result.missing_count == 0 else 2
             if args.review_clusters_command == "decisions":
                 result = export_cluster_question_decisions(args.review_sheet, out_path=args.out)
                 print(f"passed: {str(result.passed).lower()}")

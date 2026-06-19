@@ -11,6 +11,7 @@ from pavo.review import (
     create_anchor_review_bundle,
     create_anchor_review_page,
     create_cluster_identity_audit,
+    create_cluster_question_acoustic_report,
     create_cluster_question_impact_report,
     create_cluster_question_bundle,
     create_cluster_question_plan,
@@ -1017,6 +1018,87 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(report["clusters"][0]["cluster_id"], "S1")
         self.assertIn("prioritization estimate only", report["safety_boundary"])
         self.assertIn("Pavo Cluster Question Impact Preview", markdown)
+
+    def test_cluster_question_acoustic_report_scores_local_clip_consistency(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            clip_a = root / "clip-a.wav"
+            clip_b = root / "clip-b.wav"
+            _write_test_wav(clip_a)
+            _write_test_wav(clip_b)
+            sheet = root / "cluster-review-sheet.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "pending",
+                                "approved": False,
+                                "target_speaker_label": "Daniel",
+                                "clip_path": str(clip_a),
+                                "cluster_question": {"cluster_id": "S1", "dominant_speaker": "Daniel"},
+                            },
+                            {
+                                "index": 2,
+                                "status": "pending",
+                                "approved": False,
+                                "target_speaker_label": "Daniel",
+                                "clip_path": str(clip_b),
+                                "cluster_question": {"cluster_id": "S1", "dominant_speaker": "Daniel"},
+                            },
+                        ]
+                    }
+                )
+            )
+
+            result = create_cluster_question_acoustic_report(sheet)
+            report = json.loads(result.json_path.read_text())
+            markdown = result.markdown_path.read_text()
+            status = status_cluster_review(root, review_sheet_path=sheet)
+
+        self.assertEqual(result.candidate_count, 2)
+        self.assertEqual(result.analyzed_count, 2)
+        self.assertEqual(result.missing_count, 0)
+        self.assertEqual(report["clusters"][0]["verdict"], "consistent_acoustic_shape")
+        self.assertIn("not speaker identity", report["safety_boundary"])
+        self.assertIn("Pavo Cluster Acoustic Evidence", markdown)
+        self.assertEqual(status.acoustic_analyzed_count, 2)
+        self.assertEqual(status.acoustic_attention_cluster_count, 0)
+
+    def test_cli_cluster_review_acoustics_writes_reports(self):
+        from pavo.cli import main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            clip = root / "clip.wav"
+            _write_test_wav(clip)
+            sheet = root / "cluster-review-sheet.json"
+            out = root / "acoustic.json"
+            sheet.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "index": 1,
+                                "status": "pending",
+                                "approved": False,
+                                "clip_path": str(clip),
+                                "cluster_question": {"cluster_id": "S1", "dominant_speaker": "Daniel"},
+                            }
+                        ]
+                    }
+                )
+            )
+
+            exit_code = main(["review", "clusters", "acoustics", str(sheet), "--out", str(out)])
+            payload = json.loads(out.read_text())
+            markdown = out.with_suffix(".md").read_text()
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["analyzed_count"], 1)
+        self.assertEqual(payload["clusters"][0]["verdict"], "insufficient_audio")
+        self.assertIn("acoustic consistency is evidence", markdown)
 
     def test_finalize_cluster_review_applies_constraints_and_scores_improvement(self):
         with tempfile.TemporaryDirectory() as tmp:

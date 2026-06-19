@@ -3,11 +3,14 @@ from __future__ import annotations
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
+import math
 import re
 import subprocess
 import shlex
 import shutil
+import tempfile
 import time
+import wave
 from html.parser import HTMLParser
 from html import escape
 from dataclasses import dataclass
@@ -228,6 +231,19 @@ class ClusterQuestionImpactResult:
 
 
 @dataclass(frozen=True)
+class ClusterQuestionAcousticReportResult:
+    review_sheet_path: Path
+    json_path: Path
+    markdown_path: Path
+    candidate_count: int
+    analyzed_count: int
+    missing_count: int
+    cluster_count: int
+    consistent_cluster_count: int
+    attention_cluster_count: int
+
+
+@dataclass(frozen=True)
 class ClusterReviewPrepareResult:
     batch_root: Path
     audit_json_path: Path
@@ -285,6 +301,9 @@ class ClusterReviewStatusResult:
     estimated_unlockable_seconds: float | None
     constraints_count: int | None
     hint_count: int | None
+    acoustic_analyzed_count: int | None
+    acoustic_attention_cluster_count: int | None
+    acoustic_report_path: Path | None
     review_pressure_reduction: int | None
     routeable_named_span_gain: int | None
     next_command: str
@@ -305,6 +324,9 @@ class ClusterReviewStatusResult:
             "estimated_unlockable_seconds": self.estimated_unlockable_seconds,
             "constraints_count": self.constraints_count,
             "hint_count": self.hint_count,
+            "acoustic_analyzed_count": self.acoustic_analyzed_count,
+            "acoustic_attention_cluster_count": self.acoustic_attention_cluster_count,
+            "acoustic_report": str(self.acoustic_report_path) if self.acoustic_report_path else None,
             "review_pressure_reduction": self.review_pressure_reduction,
             "routeable_named_span_gain": self.routeable_named_span_gain,
             "next_command": self.next_command,
@@ -325,6 +347,7 @@ class ClusterReviewStatusResult:
             f"- Top cluster: `{self.top_cluster_id}`",
             f"- Estimated unlock: {self.estimated_unlockable_segments} segments / {self.estimated_unlockable_seconds} seconds",
             f"- Constraints / hints: {self.constraints_count} / {self.hint_count}",
+            f"- Acoustic evidence: {self.acoustic_analyzed_count} analyzed / {self.acoustic_attention_cluster_count} attention clusters",
             f"- Review pressure reduction: {self.review_pressure_reduction}",
             f"- Routeable named span gain: {self.routeable_named_span_gain}",
             "",
@@ -1235,6 +1258,104 @@ def render_cluster_question_impact_markdown(report: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def create_cluster_question_acoustic_report(
+    review_sheet_path: Path | str,
+    *,
+    out_path: Path | str | None = None,
+) -> ClusterQuestionAcousticReportResult:
+    sheet_path = Path(review_sheet_path)
+    sheet = json.loads(sheet_path.read_text())
+    rows = [row for row in sheet.get("rows") or [] if isinstance(row, dict)]
+    analyzed_rows = []
+    cluster_groups: dict[str, list[dict[str, Any]]] = {}
+    missing_count = 0
+    for row in rows:
+        cluster = row.get("cluster_question") if isinstance(row.get("cluster_question"), dict) else {}
+        cluster_id = str(cluster.get("cluster_id") or row.get("case") or "unknown")
+        clip_path = _resolve_review_clip_path(sheet_path, row.get("clip_path"))
+        signature = _acoustic_signature_for_clip(clip_path)
+        if not signature.get("analyzed"):
+            missing_count += 1
+        item = {
+            "index": row.get("index"),
+            "cluster_id": cluster_id,
+            "target_speaker": row.get("target_speaker_label") or cluster.get("dominant_speaker") or cluster.get("candidate_name"),
+            "status": row.get("status") or "pending",
+            "clip_path": str(clip_path) if clip_path else None,
+            "text": row.get("text"),
+            "signature": signature,
+        }
+        analyzed_rows.append(item)
+        cluster_groups.setdefault(cluster_id, []).append(item)
+
+    cluster_reports = [_cluster_acoustic_summary(cluster_id, items) for cluster_id, items in sorted(cluster_groups.items())]
+    consistent_count = sum(1 for item in cluster_reports if item["verdict"] == "consistent_acoustic_shape")
+    attention_count = sum(1 for item in cluster_reports if item["verdict"] in {"mixed_acoustic_shape", "listen_carefully_acoustic_drift", "insufficient_audio"})
+    report = {
+        "passed": bool(rows and missing_count == 0),
+        "review_sheet": str(sheet_path),
+        "candidate_count": len(rows),
+        "analyzed_count": sum(1 for item in analyzed_rows if item["signature"].get("analyzed")),
+        "missing_count": missing_count,
+        "cluster_count": len(cluster_reports),
+        "consistent_cluster_count": consistent_count,
+        "attention_cluster_count": attention_count,
+        "clusters": cluster_reports,
+        "rows": analyzed_rows,
+        "safety_boundary": "Acoustic consistency is reviewer evidence only. It is not speaker identity, approval, a voiceprint, or a routing constraint.",
+        "next_required_proof": "Listen to pending clips, make human decisions, finalize reviewed constraints, then prove review-pressure reduction.",
+    }
+    json_path = Path(out_path) if out_path else sheet_path.with_name("pavo-cluster-question-acoustic-evidence.json")
+    markdown_path = json_path.with_suffix(".md")
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    markdown_path.write_text(render_cluster_question_acoustic_markdown(report), encoding="utf-8")
+    return ClusterQuestionAcousticReportResult(
+        review_sheet_path=sheet_path,
+        json_path=json_path,
+        markdown_path=markdown_path,
+        candidate_count=len(rows),
+        analyzed_count=int(report["analyzed_count"]),
+        missing_count=missing_count,
+        cluster_count=len(cluster_reports),
+        consistent_cluster_count=consistent_count,
+        attention_cluster_count=attention_count,
+    )
+
+
+def render_cluster_question_acoustic_markdown(report: dict[str, Any]) -> str:
+    lines = [
+        "# Pavo Cluster Acoustic Evidence",
+        "",
+        f"- Review sheet: `{report.get('review_sheet')}`",
+        f"- Candidate rows: {report.get('candidate_count')}",
+        f"- Analyzed clips: {report.get('analyzed_count')}",
+        f"- Missing clips: {report.get('missing_count')}",
+        f"- Cluster count: {report.get('cluster_count')}",
+        f"- Consistent clusters: {report.get('consistent_cluster_count')}",
+        f"- Attention clusters: {report.get('attention_cluster_count')}",
+        "",
+        "Safety boundary: acoustic consistency is evidence for the reviewer, not speaker identity.",
+        "",
+        "## Cluster Evidence",
+        "",
+    ]
+    for item in report.get("clusters") or []:
+        lines.extend(
+            [
+                f"### {item.get('cluster_id')}",
+                "",
+                f"- Verdict: `{item.get('verdict')}`",
+                f"- Sample count: {item.get('sample_count')}",
+                f"- Analyzed count: {item.get('analyzed_count')}",
+                f"- Pair similarity min / average: {item.get('min_pair_similarity')} / {item.get('average_pair_similarity')}",
+                f"- Recommended next action: {item.get('recommended_next_action')}",
+                "",
+            ]
+        )
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def export_cluster_question_decisions(
     review_sheet_path: Path | str,
     *,
@@ -1416,6 +1537,9 @@ def status_cluster_review(
             estimated_unlockable_seconds=None,
             constraints_count=None,
             hint_count=None,
+            acoustic_analyzed_count=None,
+            acoustic_attention_cluster_count=None,
+            acoustic_report_path=None,
             review_pressure_reduction=None,
             routeable_named_span_gain=None,
             next_command=f"pavo review clusters prepare {root}",
@@ -1440,6 +1564,8 @@ def status_cluster_review(
     constraints = _load_optional_json(root / "pavo-cluster-question-artifacts" / "pavo-cluster-constraints.json")
     hints = _load_optional_json(root / "pavo-cluster-question-artifacts" / "pavo-cluster-reviewed-hints.json")
     improvement = _load_optional_json(root / "pavo-cluster-question-artifacts" / "pavo-brief-improvement-report.json")
+    acoustic_path = sheet_path.with_name("pavo-cluster-question-acoustic-evidence.json")
+    acoustic = _load_optional_json(acoustic_path)
 
     blockers: list[str] = []
     if not page_verified:
@@ -1490,6 +1616,9 @@ def status_cluster_review(
         estimated_unlockable_seconds=impact.get("estimated_unlockable_seconds") if impact else None,
         constraints_count=int(constraints_count) if constraints_count is not None else None,
         hint_count=int(hint_count) if hint_count is not None else None,
+        acoustic_analyzed_count=int(acoustic.get("analyzed_count")) if acoustic and acoustic.get("analyzed_count") is not None else None,
+        acoustic_attention_cluster_count=int(acoustic.get("attention_cluster_count")) if acoustic and acoustic.get("attention_cluster_count") is not None else None,
+        acoustic_report_path=acoustic_path if acoustic else None,
         review_pressure_reduction=int(review_delta) if review_delta is not None else None,
         routeable_named_span_gain=int(routeable_delta) if routeable_delta is not None else None,
         next_command=next_command,
@@ -3384,6 +3513,154 @@ def _expected_impact_numbers(value: Any) -> tuple[int, float]:
     segments = int(segment_match.group(1)) if segment_match else 0
     seconds = float(seconds_match.group(1)) if seconds_match else 0.0
     return segments, seconds
+
+
+def _resolve_review_clip_path(sheet_path: Path, value: Any) -> Path | None:
+    if not value:
+        return None
+    path = Path(str(value))
+    if path.is_absolute():
+        return path
+    candidate = sheet_path.parent / path
+    if candidate.exists():
+        return candidate
+    return path
+
+
+def _acoustic_signature_for_clip(clip_path: Path | None) -> dict[str, Any]:
+    if not clip_path or not clip_path.exists():
+        return {"analyzed": False, "reason": "clip_missing"}
+    try:
+        samples, sample_rate = _load_clip_samples(clip_path)
+    except Exception as exc:
+        return {"analyzed": False, "reason": f"decode_failed: {exc}"}
+    if not samples or sample_rate <= 0:
+        return {"analyzed": False, "reason": "no_pcm_samples"}
+    duration = len(samples) / float(sample_rate)
+    if duration <= 0:
+        return {"analyzed": False, "reason": "zero_duration"}
+    rms = math.sqrt(sum(sample * sample for sample in samples) / len(samples))
+    peak = max(abs(sample) for sample in samples)
+    zero_crossings = sum(1 for left, right in zip(samples, samples[1:]) if (left < 0 <= right) or (right < 0 <= left))
+    zcr = zero_crossings / max(1, len(samples) - 1)
+    window_size = max(1, int(sample_rate * 0.1))
+    energies = []
+    for start in range(0, len(samples), window_size):
+        window = samples[start : start + window_size]
+        if window:
+            energies.append(math.sqrt(sum(sample * sample for sample in window) / len(window)))
+    mean_energy = sum(energies) / len(energies) if energies else 0.0
+    energy_variance = sum((item - mean_energy) ** 2 for item in energies) / len(energies) if energies else 0.0
+    dynamic_range = (max(energies) - min(energies)) if energies else 0.0
+    silence_ratio = sum(1 for item in energies if item < 0.02) / len(energies) if energies else 0.0
+    feature_vector = [
+        round(min(rms * 4.0, 1.0), 5),
+        round(min(peak * 2.0, 1.0), 5),
+        round(min(zcr * 20.0, 1.0), 5),
+        round(min(math.sqrt(energy_variance) * 8.0, 1.0), 5),
+        round(min(dynamic_range * 5.0, 1.0), 5),
+        round(min(silence_ratio, 1.0), 5),
+    ]
+    return {
+        "analyzed": True,
+        "duration_seconds": round(duration, 3),
+        "sample_rate": sample_rate,
+        "rms": round(rms, 6),
+        "peak": round(peak, 6),
+        "zero_crossing_rate": round(zcr, 6),
+        "silence_ratio": round(silence_ratio, 6),
+        "energy_dynamic_range": round(dynamic_range, 6),
+        "feature_vector": feature_vector,
+    }
+
+
+def _load_clip_samples(clip_path: Path) -> tuple[list[float], int]:
+    if clip_path.suffix.lower() == ".wav":
+        try:
+            return _read_wav_samples(clip_path)
+        except wave.Error:
+            pass
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise RuntimeError("ffmpeg missing for non-wav acoustic analysis")
+    with tempfile.TemporaryDirectory() as tmp:
+        wav_path = Path(tmp) / "clip.wav"
+        command = [
+            ffmpeg,
+            "-y",
+            "-i",
+            str(clip_path),
+            "-vn",
+            "-ac",
+            "1",
+            "-ar",
+            "16000",
+            "-acodec",
+            "pcm_s16le",
+            str(wav_path),
+        ]
+        subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return _read_wav_samples(wav_path)
+
+
+def _read_wav_samples(path: Path) -> tuple[list[float], int]:
+    with wave.open(str(path), "rb") as wav:
+        channels = wav.getnchannels()
+        sample_width = wav.getsampwidth()
+        sample_rate = wav.getframerate()
+        frames = wav.readframes(wav.getnframes())
+    if sample_width != 2:
+        raise RuntimeError(f"unsupported wav sample width {sample_width}")
+    samples = []
+    frame_width = sample_width * channels
+    for offset in range(0, len(frames), frame_width):
+        channel_values = []
+        for channel in range(channels):
+            start = offset + (channel * sample_width)
+            if start + sample_width <= len(frames):
+                channel_values.append(int.from_bytes(frames[start : start + sample_width], byteorder="little", signed=True) / 32768.0)
+        if channel_values:
+            samples.append(sum(channel_values) / len(channel_values))
+    return samples, sample_rate
+
+
+def _cluster_acoustic_summary(cluster_id: str, items: list[dict[str, Any]]) -> dict[str, Any]:
+    analyzed = [item for item in items if item.get("signature", {}).get("analyzed")]
+    pair_scores = []
+    for left_index, left in enumerate(analyzed):
+        for right in analyzed[left_index + 1 :]:
+            pair_scores.append(_acoustic_similarity(left["signature"].get("feature_vector") or [], right["signature"].get("feature_vector") or []))
+    if len(analyzed) < 2:
+        verdict = "insufficient_audio"
+        action = "Collect or repair at least two playable samples before using acoustic consistency."
+    else:
+        min_score = min(pair_scores) if pair_scores else 0.0
+        if min_score >= 0.88:
+            verdict = "consistent_acoustic_shape"
+            action = "Review normally; the sampled clips have similar acoustic shape, but still listen before approving identity."
+        elif min_score >= 0.72:
+            verdict = "mixed_acoustic_shape"
+            action = "Listen carefully; samples are not obviously split but should not be rushed."
+        else:
+            verdict = "listen_carefully_acoustic_drift"
+            action = "Prioritize this cluster for careful listening; acoustic drift may mean noise, overlap, or a split cluster."
+    return {
+        "cluster_id": cluster_id,
+        "sample_count": len(items),
+        "analyzed_count": len(analyzed),
+        "min_pair_similarity": round(min(pair_scores), 4) if pair_scores else None,
+        "average_pair_similarity": round(sum(pair_scores) / len(pair_scores), 4) if pair_scores else None,
+        "verdict": verdict,
+        "recommended_next_action": action,
+        "rows": [item.get("index") for item in items],
+    }
+
+
+def _acoustic_similarity(left: list[float], right: list[float]) -> float:
+    if not left or not right or len(left) != len(right):
+        return 0.0
+    distance = math.sqrt(sum((a - b) ** 2 for a, b in zip(left, right)) / len(left))
+    return round(max(0.0, min(1.0, 1.0 - distance)), 4)
 
 
 def _review_sample_audio_path(root: Path, recording_id: Any) -> Path | None:
