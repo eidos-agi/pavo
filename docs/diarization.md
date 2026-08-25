@@ -1,5 +1,8 @@
 # Diarization Direction
 
+![why-pavo: audio tells you who spoke and when; words tell you what they meant](why-pavo.png)
+
+
 Pavo should treat speaker change detection as a first-class signal.
 
 The system should not start by asking, "Which known speaker said this whole
